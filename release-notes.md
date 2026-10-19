@@ -13,27 +13,19 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 - **Já tem o NXPilot:** abra **⚙ Configurar** e use **Verificar atualização**. O app baixa só o NXPilot-Release.zip, troca os arquivos e reabre. Nenhum script é executado.
 - **Voltar versão:** em **⚙ Configurar**, escolha uma versão anterior e clique em **Instalar esta versão**.
 
-> **Se o NXPilot fecha ao criar uma tarefa** depois de atualizar para a v1.0.0.07, falta a biblioteca do git na base: baixe e rode o [NXPilot-Setup](https://github.com/nexusxdata/NXPilot/releases/tag/nxpilot-setup-latest) uma vez. A partir desta versão, a atualização confere a base sozinha.
-
 ### Novidades
 
-**🔄 Atualização confere o Setup primeiro (como no NXProject)**
+**🪪 Logo novo**
 
-- **Verificar atualização** agora olha a base antes de tudo. Se ela mudou, oferece o NXPilot-Setup, que instala a base nova e o app mais novo juntos, em vez de atualizar só o app e deixar faltar biblioteca.
-- Instalações feitas por um Setup antigo, sem o carimbo da base, também recebem o aviso.
-- Se mesmo assim faltar uma biblioteca, o NXPilot **não fecha mais**: avisa qual arquivo falta e oferece abrir a página do Setup.
+- O NX da Nexus XData com o **N azul** e a **perna de baixo do X em laranja**, a cor do NXPilot. Vale para o ícone do app, o atalho e o NXPilot-Setup (republicado nesta versão só por causa do ícone).
 
-**🕘 Linha do tempo da tarefa**
+**ℹ️ Tela Sobre o NXPilot**
 
-- Novo botão **Linha do tempo**, no Histórico e no card da tarefa.
-- Os eventos ficam agrupados em árvore por etapa: Planejamento, cada fase, Verificação e Correção. Cada etapa vem recolhida, com horário e totais (pedidos, decisões suas, aprovações automáticas, erros), e cada evento expande para o texto completo.
-- Filtros por Decisões, Fases e Erros, e os botões Expandir tudo e Recolher tudo.
-- Aba **Fases (commits e diff):** cada commit de fase ou correção, com o diff colorido.
+- O botão **? Ajuda** agora abre um menu: **Lições guiadas** (F1 continua abrindo direto), **Licença de uso** e **Sobre o NXPilot**.
+- O Sobre mostra a versão instalada, a empresa, o GitHub do projeto, a licença, onde buscar versões novas, o contato e o link para o **NXProject**, da mesma Nexus XData.
 
-**🔢 Tokens no lugar do custo**
+**📜 Licença de uso**
 
-- O card da tarefa e o Histórico mostram **tokens** (gerados, lidos e do cache) em vez de dólares. O valor em dólar era uma estimativa pelo preço da API, que não é o que se paga num plano de assinatura, e podia ser somado em dobro ao retomar a sessão.
-
-**🧹 Ajustes**
-
-- Histórico: o texto do caminho não cobre mais o botão **Remover registro**.
+- Resumo da NXPilot License 2.0 em português, inglês e espanhol, com link para o texto completo no GitHub.
+- Na **primeira execução**, a licença aparece antes da janela principal e o app só abre depois de **Aceitar e continuar**, como no NXProject. Quem já usa o NXPilot vê o aceite uma vez, ao abrir esta versão.
+- Para consultar depois: pelo menu **?** ou pelo botão **Ver licença de uso…** no Sobre, com a data em que o termo foi aceito.

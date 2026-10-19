@@ -304,4 +304,40 @@
     <sys:String x:Key="Proc_Executar">Run</sys:String>
     <sys:String x:Key="Proc_Parar">Stop</sys:String>
     <sys:String x:Key="Main_Copiar">Copy</sys:String>
+    <!-- Sobre o NXPilot (botão "?") -->
+    <sys:String x:Key="Main_MenuLicoes">Guided lessons</sys:String>
+    <sys:String x:Key="Main_MenuSobre">About NXPilot</sys:String>
+    <sys:String x:Key="About_Titulo">About NXPilot</sys:String>
+    <sys:String x:Key="About_Descricao">Orchestrates AI coding agents (Claude Code, Codex) with a phased plan, cross-review and you approving every sensitive action. Rules → local model → LLM only when in doubt.</sys:String>
+    <sys:String x:Key="About_Empresa">Company</sys:String>
+    <sys:String x:Key="About_GitHub">Project on GitHub</sys:String>
+    <sys:String x:Key="About_Licenca">License (Open Core)</sys:String>
+    <sys:String x:Key="About_LicencaTexto">NXPilot License 2.0. Community edition free for individuals and companies; selling it or offering it as a paid service requires a commercial license.</sys:String>
+    <sys:String x:Key="About_NovasVersoes">New versions</sys:String>
+    <sys:String x:Key="About_NovasVersoesTexto">In Settings → Check for update (or on the project's GitHub).</sys:String>
+    <sys:String x:Key="About_NXProject">Also from Nexus XData: NXProject</sys:String>
+    <sys:String x:Key="About_NXProjectTexto">Task and project management with Gantt, import/export and Azure DevOps integration.</sys:String>
+    <sys:String x:Key="About_NXProjectLink">Meet NXProject →</sys:String>
+    <sys:String x:Key="About_Contato">Contact</sys:String>
+    <!-- Licença de uso (aceite na 1ª execução; consulta pelo "?" e pelo Sobre) -->
+    <sys:String x:Key="Main_MenuLicenca">License</sys:String>
+    <sys:String x:Key="About_VerLicenca">View license…</sys:String>
+    <sys:String x:Key="Lic_Titulo">License — NXPilot Community</sys:String>
+    <sys:String x:Key="Lic_Cabecalho">NXPilot Community License</sys:String>
+    <sys:String x:Key="Lic_Subtitulo">NXPilot License 2.0 — Open Core / dual licensing. The Community edition is free for individuals and companies; the Commercial/Enterprise edition (NXAgentic-Provider) is contracted separately.</sys:String>
+    <sys:String x:Key="Lic_Empresa">Company: Nexus XData Tecnologia Ltda</sys:String>
+    <sys:String x:Key="Lic_Contato">Commercial contact: comercial.nexus.xdata@gmail.com</sys:String>
+    <sys:String x:Key="Lic_Resumo">Community license summary</sys:String>
+    <sys:String x:Key="Lic_P1">Free use by individuals or companies, including internal commercial activities (coordinating coding agents on your company's projects), with no user limit. You may also study it, modify it for internal use, build it from source and use it in schools, courses and research, crediting the authorship.</sys:String>
+    <sys:String x:Key="Lic_P2">Redistribution only free of charge, keeping the attribution to Nexus XData Tecnologia Ltda, the copyright notices and this license visible.</sys:String>
+    <sys:String x:Key="Lic_P3">Rights reserved to Nexus XData: selling, renting, sublicensing or charging for the Software, offering it as a paid service (SaaS) or selling support for it, embedding it in a paid product, or relicensing it under other terms (MIT, Apache, GPL…) requires a specific written contract.</sys:String>
+    <sys:String x:Key="Lic_P4">Third-party agents and services (Claude Code, Codex, GitHub Copilot, Azure OpenAI, OpenRouter, etc.) and AI models downloaded by the user are not part of the Software: they follow their providers' terms and are used with your own accounts.</sys:String>
+    <sys:String x:Key="Lic_P5">Contributions (pull requests, fixes, translations…) may be used by Nexus XData in any edition, including the commercial one, with no compensation. Contributing grants no right to license or commercially exploit the Software.</sys:String>
+    <sys:String x:Key="Lic_P6">The Software is provided as is, without warranties, with no support obligation and no liability for damages arising from its use.</sys:String>
+    <sys:String x:Key="Lic_P7">The license may change in future versions, with no retroactive effect: the version you already installed remains under the license that came with it.</sys:String>
+    <sys:String x:Key="Lic_P8">"NXPilot", "NXAgentic", "NXAgentic-Provider", "NXProject" and "Nexus XData" are trademarks of Nexus XData Tecnologia Ltda.</sys:String>
+    <sys:String x:Key="Lic_TextoCompleto">Full text (LICENSE.en.txt on GitHub; the Portuguese LICENSE.txt is the official one):</sys:String>
+    <sys:String x:Key="Lic_NotaAceite">By clicking "Accept and continue", you acknowledge and agree to the terms of this Community license.</sys:String>
+    <sys:String x:Key="Lic_Sair">Exit</sys:String>
+    <sys:String x:Key="Lic_Aceitar">Accept and continue</sys:String>
 </ResourceDictionary>

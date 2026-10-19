@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <!-- O "NX" do NXProject em laranja: mesma família, cor própria do NXPilot (IA). -->
+    <!-- O "NX" da Nexus XData: N azul e a perna de baixo do X em laranja, a cor do NXPilot (o mesmo logo da tela Sobre). -->
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyTitle>NXPilot</AssemblyTitle>
@@ -23,6 +23,11 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Logo da tela Sobre: NX da Nexus XData, N azul e perna de baixo do X em laranja (protegido como no NXProject). -->
+    <EmbeddedResource Include="Assets\logo-nxpilot.enc" />
   </ItemGroup>
 
   <ItemGroup>

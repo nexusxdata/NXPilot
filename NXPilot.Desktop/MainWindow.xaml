@@ -57,7 +57,17 @@
                         <ComboBoxItem Content="ES" Tag="es-ES"/>
                     </ComboBox>
                     <Button x:Name="HelpButton" Content="{DynamicResource Main_Ajuda}" Click="OnHelpClick" Margin="8,0,0,0"
-                            Style="{StaticResource SubtleButton}" ToolTip="{DynamicResource Main_LicoesGuiadasSobreO}"/>
+                            Style="{StaticResource SubtleButton}" ToolTip="{DynamicResource Main_LicoesGuiadasSobreO}">
+                        <!-- O "?" abre um menu: lições (o mesmo que F1) e a tela Sobre. -->
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="{DynamicResource Main_MenuLicoes}" InputGestureText="F1" Click="OnLessonsMenuClick"/>
+                                <Separator/>
+                                <MenuItem Header="{DynamicResource Main_MenuLicenca}" Click="OnLicenseClick"/>
+                                <MenuItem Header="{DynamicResource Main_MenuSobre}" Click="OnAboutClick"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>

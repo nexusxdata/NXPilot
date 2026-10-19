@@ -20,7 +20,24 @@ public partial class App : Application
         LanguageService.Apply(i >= 0 && i + 1 < e.Args.Length ? e.Args[i + 1] : LanguageService.LoadPreferred());
         NXPilot.Agents.ShadowRepo.Root = AppSettings.Load().SubjectsRoot ?? ""; // vazio = padrão
         DispatcherUnhandledException += OnUnhandledException;
+        if (!EnsureLicenseAccepted(e.Args)) { Shutdown(); return; }
         base.OnStartup(e);
+    }
+
+    /// <summary>
+    /// Primeira execução: a licença aparece antes da janela principal e o app só abre com o
+    /// "Aceitar e continuar" (como no NXProject). Prints e testes (--shot/--exit) não perguntam.
+    /// </summary>
+    private bool EnsureLicenseAccepted(string[] args)
+    {
+        if (LicenseAcceptanceStore.HasAccepted() || args.Contains("--shot") || args.Contains("--exit")) return true;
+        // Sem isto, fechar o diálogo (a única janela até aqui) encerraria o app antes da principal.
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        var accepted = new Views.LicenseWindow { RequireAcceptance = true, WindowStartupLocation = WindowStartupLocation.CenterScreen }.ShowDialog() == true;
+        if (!accepted) return false;
+        LicenseAcceptanceStore.Persist(NXPilot.Updates.UpdateService.CurrentVersion.ToString());
+        ShutdownMode = ShutdownMode.OnLastWindowClose;
+        return true;
     }
 
     /// <summary>

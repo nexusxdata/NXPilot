@@ -41,7 +41,20 @@ public partial class MainWindow : Window
         };
     }
 
-    private void OnHelpClick(object sender, RoutedEventArgs e) => OpenHelp();
+    /// <summary>"?": abre o menu logo abaixo do botão (Lições · Sobre o NXPilot).</summary>
+    private void OnHelpClick(object sender, RoutedEventArgs e)
+    {
+        var menu = HelpButton.ContextMenu;
+        menu.PlacementTarget = HelpButton;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    private void OnLessonsMenuClick(object sender, RoutedEventArgs e) => OpenHelp();
+
+    private void OnLicenseClick(object sender, RoutedEventArgs e) => new Views.LicenseWindow { Owner = this }.ShowDialog();
+
+    private void OnAboutClick(object sender, RoutedEventArgs e) => new Views.AboutWindow { Owner = this }.ShowDialog();
 
     private void OnNotificationsClick(object sender, RoutedEventArgs e) =>
         new Views.NotificationsWindow(Vm.Notifications) { Owner = this }.ShowDialog();
@@ -224,7 +237,7 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Captura para documentação/CI:
-    ///   NxPilot.exe --shot saida.png [--tab N] [--bench [--llama]] [--lesson id --step N] [--exit]
+    ///   NxPilot.exe --shot saida.png [--tab N] [--bench [--llama]] [--lesson id --step N] [--window about|license] [--exit]
     /// Renderiza a própria árvore visual (RenderTargetBitmap) — captura de tela externa
     /// não pega janelas WPF aceleradas por hardware de forma confiável.
     /// </summary>
@@ -272,6 +285,18 @@ public partial class MainWindow : Window
             Tour.Start(lesson, this, Vm, step);
         }
         await Task.Delay(800);
+
+        // --window about|license: captura a tela Sobre ou a Licença (modo primeira execução).
+        if (ArgValue(args, "--window") is "about" or "license")
+        {
+            Window win = ArgValue(args, "--window") == "about" ? new Views.AboutWindow { Owner = this } : new Views.LicenseWindow { Owner = this, RequireAcceptance = true };
+            win.Show();
+            await Task.Delay(800);
+            SaveVisual((FrameworkElement)win.Content, win, shot);
+            win.Close();
+            if (args.Contains("--exit")) Close();
+            return;
+        }
 
         // --provider Microsoft365: captura a janela de provedor nesse provedor (sem salvar nada).
         if (ArgValue(args, "--provider") is { } kindName && Enum.TryParse<NXPilot.Ai.AiProviderKind>(kindName, out var kind))
