@@ -15,17 +15,25 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
-**🪪 Logo novo**
+**⧉ Work items: Azure DevOps e GitHub Projects**
 
-- O NX da Nexus XData com o **N azul** e a **perna de baixo do X em laranja**, a cor do NXPilot. Vale para o ícone do app, o atalho e o NXPilot-Setup (republicado nesta versão só por causa do ícone).
+- Nova extensão **Work items (DevOps · GitHub)**, em ⚙ Extensões. Ela tem configuração própria do Azure DevOps (organização, projeto e PAT) e do GitHub Projects (dono, número do projeto e token), com botão de teste para cada um.
+- **Campos em branco usam a conexão que o NXProject já tem** neste usuário, somente leitura. A tela mostra qual conexão está valendo.
+- A tela de **Work items** escolhe a **origem** (Azure DevOps ou GitHub Projects), o **projeto** e o **work item Project**, que é o projeto executado. Com ele escolhido, aparecem só os seus itens debaixo dele na hierarquia (Epic → Feature → Story → Task, ou as sub-issues no GitHub). As escolhas ficam lembradas.
+- No GitHub entram as issues abertas e os rascunhos atribuídos a você, com o status do board. Se o corpo da issue tiver uma seção "Critérios de aceite", ela vira os critérios da Nova tarefa.
 
-**ℹ️ Tela Sobre o NXPilot**
+**🕘 Histórico**
 
-- O botão **? Ajuda** agora abre um menu: **Lições guiadas** (F1 continua abrindo direto), **Licença de uso** e **Sobre o NXPilot**.
-- O Sobre mostra a versão instalada, a empresa, o GitHub do projeto, a licença, onde buscar versões novas, o contato e o link para o **NXProject**, da mesma Nexus XData.
+- **Busca dinâmica** a partir de 3 letras, em tudo ou só no título, na intenção ou nos critérios, sem diferenciar maiúsculas nem acentos.
+- **Período** opcional: hoje, últimos 7 ou 30 dias, este mês, ou datas escolhidas.
+- **Clonar e executar de novo:** abre a Nova tarefa já preenchida com os dados da tarefa escolhida.
+- Os botões ficam numa linha própria, abaixo do caminho do worktree.
 
-**📜 Licença de uso**
+**↻ Tentar novamente**
 
-- Resumo da NXPilot License 2.0 em português, inglês e espanhol, com link para o texto completo no GitHub.
-- Na **primeira execução**, a licença aparece antes da janela principal e o app só abre depois de **Aceitar e continuar**, como no NXProject. Quem já usa o NXPilot vê o aceite uma vez, ao abrir esta versão.
-- Para consultar depois: pelo menu **?** ou pelo botão **Ver licença de uso…** no Sobre, com a data em que o termo foi aceito.
+- Se a preparação ou o plano falham, o erro aparece no card da tarefa e o botão **Tentar novamente** pede o plano de novo, na mesma tarefa.
+- Abrir um arquivo do resultado que o Windows não sabe abrir mostra o **Abrir com…**. Arquivo bloqueado mostra a mensagem e oferece tentar de novo.
+
+**🧹 Ajustes**
+
+- O botão "Analisar e corrigir achados" não aparece mais no painel de exemplo, só numa tarefa real com achados.

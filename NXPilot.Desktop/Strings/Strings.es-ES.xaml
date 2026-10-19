@@ -340,4 +340,37 @@
     <sys:String x:Key="Lic_NotaAceite">Al hacer clic en "Aceptar y continuar", declara conocer y aceptar los términos de esta licencia Community.</sys:String>
     <sys:String x:Key="Lic_Sair">Salir</sys:String>
     <sys:String x:Key="Lic_Aceitar">Aceptar y continuar</sys:String>
+    <!-- Tentar novamente (plano) e Clonar (Histórico) -->
+    <sys:String x:Key="Task_TentarNovamente">↻  Intentar de nuevo</sys:String>
+    <sys:String x:Key="Task_TentarNovamenteDica">Pide el plan de nuevo al agente, en la misma tarea (rehace el worktree si no llegó a crearse).</sys:String>
+    <sys:String x:Key="Hist_Clonar">Clonar y ejecutar de nuevo</sys:String>
+    <sys:String x:Key="Hist_ClonarDica">Abre Nueva tarea ya rellenada con los datos de esta (título, intención, criterios, agente, modelo y carpeta). Crea una tarea nueva; la original queda como está.</sys:String>
+    <!-- Busca no Histórico -->
+    <sys:String x:Key="Hist_BuscarDica">🔍  Buscar en el historial (desde 3 letras)…</sys:String>
+    <sys:String x:Key="Hist_BuscarEm">Dónde buscar</sys:String>
+    <sys:String x:Key="Hist_BuscaTudo">Todo</sys:String>
+    <sys:String x:Key="Hist_BuscaTitulo">Título</sys:String>
+    <sys:String x:Key="Hist_BuscaIntencao">Intención</sys:String>
+    <sys:String x:Key="Hist_BuscaCriterios">Criterios</sys:String>
+    <!-- Período no Histórico -->
+    <sys:String x:Key="Hist_Periodo">Período</sys:String>
+    <sys:String x:Key="Hist_PeriodoQualquer">Cualquier fecha</sys:String>
+    <sys:String x:Key="Hist_PeriodoHoje">Hoy</sys:String>
+    <sys:String x:Key="Hist_Periodo7">Últimos 7 días</sys:String>
+    <sys:String x:Key="Hist_Periodo30">Últimos 30 días</sys:String>
+    <sys:String x:Key="Hist_PeriodoMes">Este mes</sys:String>
+    <sys:String x:Key="Hist_PeriodoEscolher">Elegir fechas…</sys:String>
+    <sys:String x:Key="Hist_De">Desde</sys:String>
+    <sys:String x:Key="Hist_Ate">Hasta</sys:String>
+    <!-- Extensão Work items (Azure DevOps · GitHub Projects) -->
+    <sys:String x:Key="Ext_WiIntro">Origen de los Work items: elegir uno abre Nueva tarea ya rellenada. Solo lectura — NXPilot no cambia nada en DevOps ni en GitHub. Déjelo en blanco para usar la conexión que NXProject ya tiene en este usuario.</sys:String>
+    <sys:String x:Key="Ext_WiProjeto">Proyecto</sys:String>
+    <sys:String x:Key="Ext_WiDevOpsPat">PAT de Azure DevOps (alcance Work Items: Read)</sys:String>
+    <sys:String x:Key="Ext_WiUsarNXProject">Limpiar y usar la de NXProject</sys:String>
+    <sys:String x:Key="Ext_WiDono">Propietario (usuario u organización)</sys:String>
+    <sys:String x:Key="Ext_WiOrganizacao">Es organización</sys:String>
+    <sys:String x:Key="Ext_WiNumeroProjeto">N.º de proyecto</sys:String>
+    <sys:String x:Key="Ext_WiGitHubToken">Token de GitHub (alcances read:project y repo)</sys:String>
+    <sys:String x:Key="Ext_WiTestarGitHubProjects">Probar GitHub Projects</sys:String>
+    <sys:String x:Key="Main_WorkItems">⧉  Work items</sys:String>
 </ResourceDictionary>

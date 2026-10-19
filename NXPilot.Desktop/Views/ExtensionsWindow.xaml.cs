@@ -16,7 +16,7 @@ using static NXPilot.NxText;
 namespace NXPilot.Desktop.Views;
 
 /// <summary>
-/// Extensões: Databricks SQL, Git (GitHub/Azure DevOps) e E-mail (Outlook/Gmail). Os testes usam
+/// Extensões: Databricks SQL, Git (GitHub/Azure DevOps), Work items (Azure DevOps/GitHub Projects) e E-mail (Outlook/Gmail). Os testes usam
 /// o que está na tela (sem salvar); o Salvar grava as três configurações. Token em branco = mantém.
 /// </summary>
 public partial class ExtensionsWindow : Window
@@ -24,6 +24,7 @@ public partial class ExtensionsWindow : Window
     private readonly DatabricksSettings _db;
     private readonly GitRepoSettings _git;
     private readonly MailSettings _mail;
+    private readonly WorkItemSettings _wi;
     private readonly Services.WindowsUiSettings _windows;
 
     public ExtensionsWindow(string? tab = null)
@@ -33,6 +34,12 @@ public partial class ExtensionsWindow : Window
         _db = DatabricksSettings.Load();
         _git = GitRepoSettings.Load();
         _mail = MailSettings.Load();
+        _wi = WorkItemSettings.Load();
+        WiAdoOrgBox.Text = _wi.DevOpsOrganizationUrl;
+        WiAdoProjectBox.Text = _wi.DevOpsProject;
+        WiGhOwnerBox.Text = _wi.GitHubOwner;
+        WiGhOrgCheck.IsChecked = _wi.GitHubOwnerIsOrganization;
+        WiGhNumberBox.Text = _wi.GitHubProjectNumber > 0 ? _wi.GitHubProjectNumber.ToString() : "";
         _windows = Services.WindowsUiSettings.Load();
         AllowedAppsBox.Text = string.Join(Environment.NewLine, _windows.AllowedProcesses);
 
@@ -48,6 +55,7 @@ public partial class ExtensionsWindow : Window
         Tabs.SelectedItem = tab?.ToLowerInvariant() switch
         {
             "git" => GitTab,
+            "workitems" or "work-items" => WorkItemsTab,
             "mail" or "email" => MailTab,
             "powerbi" => PowerBiTab,
             "windows" or "janelas" => WindowsTab,
@@ -69,6 +77,9 @@ public partial class ExtensionsWindow : Window
                 "Usando el PAT de NXProject (no se copia a NXPilot). Necesita el alcance Code para repositorios.")
             : Saved(_git.AzureDevOpsToken);
         GmailSecretState.Text = Saved(_mail.GmailClientSecret);
+        WiAdoPatState.Text = Saved(_wi.DevOpsPat);
+        WiGhTokenState.Text = Saved(_wi.GitHubToken);
+        RefreshWorkItemOrigins(_wi);
 
         Dot(DatabricksDot, _db.ToConnection().IsComplete);
         Dot(GitDot, _git.GitHubToken.Length > 0 || _git.AzureDevOpsToken.Length > 0);
@@ -128,6 +139,91 @@ public partial class ExtensionsWindow : Window
         GmailClientId = GmailClientBox.Text.Trim(),
         GmailClientSecret = GmailSecretBox.Password.Length > 0 ? GmailSecretBox.Password : _mail.GmailClientSecret,
     };
+
+    private WorkItemSettings CollectWorkItems() => new()
+    {
+        DevOpsOrganizationUrl = WiAdoOrgBox.Text.Trim(),
+        DevOpsProject = WiAdoProjectBox.Text.Trim(),
+        DevOpsPat = WiAdoPatBox.Password.Length > 0 ? WiAdoPatBox.Password : _wi.DevOpsPat,
+        GitHubOwner = WiGhOwnerBox.Text.Trim(),
+        GitHubOwnerIsOrganization = WiGhOrgCheck.IsChecked == true,
+        GitHubProjectNumber = int.TryParse(WiGhNumberBox.Text.Trim(), out var n) && n > 0 ? n : 0,
+        GitHubToken = WiGhTokenBox.Password.Length > 0 ? WiGhTokenBox.Password : _wi.GitHubToken,
+        LastSource = _wi.LastSource,
+        LastDevOpsProject = _wi.LastDevOpsProject,
+        LastGitHubProjectNumber = _wi.LastGitHubProjectNumber,
+        LastDevOpsRootId = _wi.LastDevOpsRootId,
+        LastGitHubRootIssue = _wi.LastGitHubRootIssue,
+    };
+
+    // ------------------------------------------------------------ Work items
+
+    /// <summary>Diz, para cada origem, qual conexão vale: a desta extensão, a do NXProject ou nenhuma.</summary>
+    private void RefreshWorkItemOrigins(WorkItemSettings s)
+    {
+        var ado = s.DevOps();
+        WiAdoOrigin.Text = ado switch
+        {
+            { Origin: WorkItemConnectionOrigin.Own } a => T($"✔ Usando esta configuração: {a.Connection.Project}", $"✔ Using this configuration: {a.Connection.Project}", $"✔ Usando esta configuración: {a.Connection.Project}"),
+            { } a => T($"✔ Usando a conexão do NXProject: {a.Connection.OrganizationUrl} · {a.Connection.Project}. Preencha os três campos para usar outra.",
+                       $"✔ Using the NXProject connection: {a.Connection.OrganizationUrl} · {a.Connection.Project}. Fill in all three fields to use another one.",
+                       $"✔ Usando la conexión de NXProject: {a.Connection.OrganizationUrl} · {a.Connection.Project}. Complete los tres campos para usar otra."),
+            null => T("Não configurado (e o NXProject não tem conexão do Azure DevOps neste usuário).", "Not configured (and NXProject has no Azure DevOps connection for this user).", "No configurado (y NXProject no tiene conexión de Azure DevOps en este usuario)."),
+        };
+        var gh = s.GitHub();
+        WiGhOrigin.Text = gh switch
+        {
+            { Origin: WorkItemConnectionOrigin.Own } g => T($"✔ Usando esta configuração: {g.Connection.Owner} · projeto {g.Connection.Number}", $"✔ Using this configuration: {g.Connection.Owner} · project {g.Connection.Number}", $"✔ Usando esta configuración: {g.Connection.Owner} · proyecto {g.Connection.Number}"),
+            { } g => T($"✔ Usando a conexão do NXProject: {g.Connection.Owner} · projeto {g.Connection.Number}. Preencha dono, número e token para usar outro.",
+                       $"✔ Using the NXProject connection: {g.Connection.Owner} · project {g.Connection.Number}. Fill in owner, number and token to use another one.",
+                       $"✔ Usando la conexión de NXProject: {g.Connection.Owner} · proyecto {g.Connection.Number}. Complete propietario, número y token para usar otro."),
+            null => T("Não configurado (e o NXProject não tem GitHub Projects neste usuário).", "Not configured (and NXProject has no GitHub Projects for this user).", "No configurado (y NXProject no tiene GitHub Projects en este usuario)."),
+        };
+        WiAdoOrigin.Foreground = ado == null ? Brushes.DimGray : Brushes.SeaGreen;
+        WiGhOrigin.Foreground = gh == null ? Brushes.DimGray : Brushes.SeaGreen;
+        Dot(WorkItemsDot, ado != null || gh != null);
+    }
+
+    private async void OnWiDevOpsTestClick(object sender, RoutedEventArgs e) => await Run(WiAdoTestButton, WiStatus, async () =>
+    {
+        var s = CollectWorkItems();
+        RefreshWorkItemOrigins(s);
+        if (s.DevOps() is not { } ado) return (T("Preencha organização, projeto e PAT (ou configure no NXProject).", "Fill in organization, project and PAT (or set it up in NXProject).", "Complete organización, proyecto y PAT (o configúrelo en NXProject)."), Brushes.Firebrick);
+        using var client = new AzureDevOpsClient(ado.Connection);
+        var items = await client.MyOpenWorkItemsAsync(top: 20);
+        return (T($"Azure DevOps OK · {ado.Connection.Project}: {items.Count} item(ns) aberto(s) atribuído(s) a você.", $"Azure DevOps OK · {ado.Connection.Project}: {items.Count} open item(s) assigned to you.", $"Azure DevOps OK · {ado.Connection.Project}: {items.Count} elemento(s) abierto(s) asignado(s) a usted."), Brushes.SeaGreen);
+    });
+
+    private async void OnWiGitHubTestClick(object sender, RoutedEventArgs e) => await Run(WiGhTestButton, WiStatus, async () =>
+    {
+        var s = CollectWorkItems();
+        RefreshWorkItemOrigins(s);
+        if (s.GitHub() is not { } gh) return (T("Preencha dono, número do projeto e token (ou configure no NXProject).", "Fill in owner, project number and token (or set it up in NXProject).", "Complete propietario, número de proyecto y token (o configúrelo en NXProject)."), Brushes.Firebrick);
+        using var client = new GitHubProjectsClient(gh.Connection);
+        var items = await client.MyOpenItemsAsync(maxPages: 2);
+        return (T($"GitHub Projects OK · {client.ProjectTitle}: {items.Count} item(ns) aberto(s) atribuído(s) a você.", $"GitHub Projects OK · {client.ProjectTitle}: {items.Count} open item(s) assigned to you.", $"GitHub Projects OK · {client.ProjectTitle}: {items.Count} elemento(s) abierto(s) asignado(s) a usted."), Brushes.SeaGreen);
+    });
+
+    /// <summary>Apaga a configuração própria do DevOps: volta a valer a do NXProject.</summary>
+    private void OnWiDevOpsClearClick(object sender, RoutedEventArgs e)
+    {
+        WiAdoOrgBox.Text = WiAdoProjectBox.Text = "";
+        WiAdoPatBox.Password = "";
+        _wi.DevOpsPat = "";
+        WiAdoPatState.Text = "";
+        RefreshWorkItemOrigins(CollectWorkItems());
+    }
+
+    /// <summary>Apaga a configuração própria do GitHub Projects: volta a valer a do NXProject.</summary>
+    private void OnWiGitHubClearClick(object sender, RoutedEventArgs e)
+    {
+        WiGhOwnerBox.Text = WiGhNumberBox.Text = "";
+        WiGhOrgCheck.IsChecked = false;
+        WiGhTokenBox.Password = "";
+        _wi.GitHubToken = "";
+        WiGhTokenState.Text = "";
+        RefreshWorkItemOrigins(CollectWorkItems());
+    }
 
     // ------------------------------------------------------------ Databricks
 
@@ -281,6 +377,7 @@ public partial class ExtensionsWindow : Window
             CollectDatabricks().Save();
             CollectGit().Save();
             CollectMail().Save();
+            CollectWorkItems().Save();
             CollectWindows().Save();
             DialogResult = true;
         }

@@ -7,7 +7,6 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.Versioning;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -28,16 +27,12 @@ public sealed record DevOpsConnection(string OrganizationUrl, string Project, st
     {
         try
         {
-            var file = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXProject.Community", "config_nxproject.json");
-            if (!File.Exists(file)) return null;
-            using var doc = JsonDocument.Parse(File.ReadAllText(file));
-            var root = doc.RootElement;
-            string? Str(string name) => root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-            var org = Str("OrganizationUrl");
-            var project = Str("TeamProject");
-            var enc = Str("EncryptedToken");
+            if (NXProjectConfig.Read() is not { } root) return null;
+            var org = NXProjectConfig.Str(root, "OrganizationUrl");
+            var project = NXProjectConfig.Str(root, "TeamProject");
+            var enc = NXProjectConfig.Str(root, "EncryptedToken");
             if (string.IsNullOrWhiteSpace(org) || string.IsNullOrWhiteSpace(project) || string.IsNullOrWhiteSpace(enc)) return null;
-            var pat = Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(enc), null, DataProtectionScope.CurrentUser));
+            var pat = NXProjectConfig.Decrypt(enc);
             return pat.Length == 0 ? null : new DevOpsConnection(org.TrimEnd('/'), project, pat);
         }
         catch { return null; } // outro usuário/máquina ou config inválida
@@ -60,19 +55,21 @@ public sealed class AzureDevOpsClient(DevOpsConnection connection) : IDisposable
         return http;
     }
 
-    /// <summary>Itens atribuídos a mim e ainda abertos (Story, Bug, Task), mais recentes primeiro.</summary>
-    public async Task<IReadOnlyList<WorkItem>> MyOpenWorkItemsAsync(int top = 50, CancellationToken ct = default)
+    private const string OpenStates = "('Closed','Done','Removed','Resolved','Concluído','Fechado','Removido')";
+
+    /// <summary>
+    /// Itens atribuídos a mim e ainda abertos (Story, Bug, Task), mais recentes primeiro. Com
+    /// <paramref name="within"/>, só os que estão nesse conjunto (os descendentes de um work item Project).
+    /// </summary>
+    public async Task<IReadOnlyList<WorkItem>> MyOpenWorkItemsAsync(int top = 50, ISet<int>? within = null, CancellationToken ct = default)
     {
-        const string wiql = "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.AssignedTo] = @Me " +
-                            "AND [System.State] NOT IN ('Closed','Done','Removed','Resolved','Concluído','Fechado','Removido') " +
-                            "AND [System.WorkItemType] IN ('User Story','Product Backlog Item','Bug','Task','Requirement') ORDER BY [System.ChangedDate] DESC";
-        var project = Uri.EscapeDataString(connection.Project);
-        using var wiqlResp = await _http.PostAsync($"{connection.OrganizationUrl}/{project}/_apis/wit/wiql?$top={top}&api-version=7.1",
-            new StringContent(JsonSerializer.Serialize(new { query = wiql }), Encoding.UTF8, "application/json"), ct);
-        await EnsureOk(wiqlResp, ct);
-        using var wiqlDoc = JsonDocument.Parse(await wiqlResp.Content.ReadAsStringAsync(ct));
-        var ids = wiqlDoc.RootElement.GetProperty("workItems").EnumerateArray().Select(w => w.GetProperty("id").GetInt32()).Take(top).ToList();
+        var wiql = "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.AssignedTo] = @Me " +
+                   $"AND [System.State] NOT IN {OpenStates} " +
+                   "AND [System.WorkItemType] IN ('User Story','Product Backlog Item','Bug','Task','Requirement') ORDER BY [System.ChangedDate] DESC";
+        // Com filtro, pede mais ids (só ids, é leve) para sobrar o suficiente depois de filtrar.
+        var ids = (await WiqlIdsAsync(wiql, within == null ? top : 1000, ct)).Where(id => within == null || within.Contains(id)).Take(top).ToList();
         if (ids.Count == 0) return Array.Empty<WorkItem>();
+        var project = Uri.EscapeDataString(connection.Project);
 
         const string fields = "System.Id,System.WorkItemType,System.Title,System.State,System.Description,Microsoft.VSTS.Common.AcceptanceCriteria";
         using var itemsResp = await _http.GetAsync($"{connection.OrganizationUrl}/_apis/wit/workitems?ids={string.Join(',', ids)}&fields={fields}&api-version=7.1", ct);
@@ -91,12 +88,65 @@ public sealed class AzureDevOpsClient(DevOpsConnection connection) : IDisposable
         return ids.Where(byId.ContainsKey).Select(i => byId[i]).ToList(); // mantém a ordem do WIQL
     }
 
+    /// <summary>Work items do nível Project ainda abertos no Team Project (o "projeto executado"), por título.</summary>
+    public async Task<IReadOnlyList<(int Id, string Title)>> ListProjectWorkItemsAsync(IEnumerable<string> types, CancellationToken ct = default)
+    {
+        var typeList = string.Join(",", types.Select(t => "'" + t.Replace("'", "''") + "'"));
+        if (typeList.Length == 0) return Array.Empty<(int, string)>();
+        var ids = await WiqlIdsAsync("SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project " +
+                                     $"AND [System.WorkItemType] IN ({typeList}) AND [System.State] NOT IN {OpenStates}", 200, ct);
+        if (ids.Count == 0) return Array.Empty<(int, string)>();
+        using var resp = await _http.GetAsync($"{connection.OrganizationUrl}/_apis/wit/workitems?ids={string.Join(',', ids)}&fields=System.Id,System.Title&api-version=7.1", ct);
+        await EnsureOk(resp, ct);
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.GetProperty("value").EnumerateArray()
+            .Select(w => (w.GetProperty("id").GetInt32(), w.GetProperty("fields").TryGetProperty("System.Title", out var t) ? t.GetString() ?? "" : ""))
+            .OrderBy(p => p.Item2, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
+    /// <summary>Todos os descendentes de um work item na hierarquia (Epic → Feature → Story → Task…).</summary>
+    public async Task<HashSet<int>> DescendantIdsAsync(int rootId, CancellationToken ct = default)
+    {
+        var wiql = $"SELECT [System.Id] FROM WorkItemLinks WHERE [Source].[System.Id] = {rootId} " +
+                   "AND [System.Links.LinkType] = 'System.LinkTypes.Hierarchy-Forward' MODE (Recursive)";
+        using var resp = await _http.PostAsync($"{connection.OrganizationUrl}/{Uri.EscapeDataString(connection.Project)}/_apis/wit/wiql?api-version=7.1",
+            new StringContent(JsonSerializer.Serialize(new { query = wiql }), Encoding.UTF8, "application/json"), ct);
+        await EnsureOk(resp, ct);
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        var ids = new HashSet<int>();
+        if (doc.RootElement.TryGetProperty("workItemRelations", out var relations))
+            foreach (var r in relations.EnumerateArray())
+                if (r.TryGetProperty("target", out var target) && target.ValueKind == JsonValueKind.Object) ids.Add(target.GetProperty("id").GetInt32());
+        ids.Remove(rootId);
+        return ids;
+    }
+
+    private async Task<List<int>> WiqlIdsAsync(string wiql, int top, CancellationToken ct)
+    {
+        using var resp = await _http.PostAsync($"{connection.OrganizationUrl}/{Uri.EscapeDataString(connection.Project)}/_apis/wit/wiql?$top={top}&api-version=7.1",
+            new StringContent(JsonSerializer.Serialize(new { query = wiql }), Encoding.UTF8, "application/json"), ct);
+        await EnsureOk(resp, ct);
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.GetProperty("workItems").EnumerateArray().Select(w => w.GetProperty("id").GetInt32()).Take(top).ToList();
+    }
+
+    /// <summary>Projetos da organização que o PAT enxerga, em ordem alfabética.</summary>
+    public async Task<IReadOnlyList<string>> ListProjectsAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"{connection.OrganizationUrl}/_apis/projects?$top=500&api-version=7.1", ct);
+        await EnsureOk(resp, ct);
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.GetProperty("value").EnumerateArray()
+            .Select(p => p.GetProperty("name").GetString() ?? "").Where(n => n.Length > 0)
+            .OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
     private static async Task EnsureOk(HttpResponseMessage resp, CancellationToken ct)
     {
         if (resp.IsSuccessStatusCode) return;
         var body = await resp.Content.ReadAsStringAsync(ct);
         throw new InvalidOperationException(resp.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.NonAuthoritativeInformation
-            ? NxText.T("O Azure DevOps recusou o token (expirado ou sem permissão de Work Items). Atualize o PAT no NXProject.", "Azure DevOps rejected the token (expired or without Work Items permission). Update the PAT in NXProject.", "Azure DevOps rechazó el token (vencido o sin permiso de Work Items). Actualice el PAT en NXProject.")
+            ? NxText.T("O Azure DevOps recusou o token (expirado ou sem permissão de Work Items). Atualize o PAT na extensão Work items ou no NXProject.", "Azure DevOps rejected the token (expired or without Work Items permission). Update the PAT in the Work items extension or in NXProject.", "Azure DevOps rechazó el token (vencido o sin permiso de Work Items). Actualice el PAT en la extensión Work items o en NXProject.")
             : $"Azure DevOps {(int)resp.StatusCode}: {(body.Length > 200 ? body[..200] : body)}");
     }
 

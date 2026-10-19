@@ -87,7 +87,7 @@
                             </Border>
                         </StackPanel>
                     </Button>
-                    <Button x:Name="WorkItemsButton" Content="{DynamicResource Main_WorkItemsAzureDevops}" Style="{StaticResource NavButton}" Click="OnWorkItemsClick"/>
+                    <Button x:Name="WorkItemsButton" Content="{DynamicResource Main_WorkItems}" Style="{StaticResource NavButton}" Click="OnWorkItemsClick"/>
                     <Button x:Name="ExtensionsButton" Content="{DynamicResource Main_Extensoes}" Style="{StaticResource NavButton}" Click="OnExtensionsClick"/>
                     <Button x:Name="SettingsButton" Content="{DynamicResource Main_Configurar}" Style="{StaticResource NavButton}" Click="OnSettingsClick"/>
 
@@ -161,7 +161,7 @@
                                     <StackPanel>
                                         <DockPanel>
                                             <TextBlock DockPanel.Dock="Right" Foreground="{StaticResource PrimaryBrush}" FontFamily="{StaticResource MonoFont}" FontWeight="SemiBold"
-                                                       Visibility="{Binding CurrentTask.IsRunning, Converter={StaticResource BoolToVis}}">
+                                                       Visibility="{Binding CurrentTask.IsRunning, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}">
                                                 <Run Text="⏱ "/><Run Text="{Binding CurrentTask.ElapsedText, Mode=OneWay}"/>
                                             </TextBlock>
                                             <TextBlock Text="{Binding CurrentTask.StateLabel}" Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" TextWrapping="Wrap"/>
@@ -169,8 +169,15 @@
                                         <!-- Em andamento: barra animada (o tempo de cada etapa do agente não é previsível). -->
                                         <ProgressBar IsIndeterminate="True" Height="4" Margin="0,6,0,0" BorderThickness="0"
                                                      Foreground="{StaticResource PrimaryBrush}" Background="Transparent"
-                                                     Visibility="{Binding CurrentTask.IsRunning, Converter={StaticResource BoolToVis}}"/>
+                                                     Visibility="{Binding CurrentTask.IsRunning, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
                                     </StackPanel>
+                                </Border>
+
+                                <!-- Falhou: o motivo fica à vista (não só no Terminal/Log), com Tentar novamente embaixo. -->
+                                <Border Background="#FDECEA" BorderBrush="{StaticResource DangerBrush}" BorderThickness="1" CornerRadius="4" Padding="10,6" Margin="0,8,0,0"
+                                        Visibility="{Binding CurrentTask.HasError, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}">
+                                    <TextBox Text="{Binding CurrentTask.LastError, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="120"
+                                             VerticalScrollBarVisibility="Auto" BorderThickness="0" Background="Transparent" Foreground="{StaticResource DangerBrush}" FontSize="12"/>
                                 </Border>
 
                                 <!-- Onde está o resultado: entregáveis primeiro, com Abrir e Mostrar na pasta. -->
@@ -208,20 +215,24 @@
                                 <WrapPanel Margin="0,12,0,0">
                                     <Button Content="{DynamicResource Task_AprovarExecutar}" Command="{Binding ApprovePlanCommand}" Margin="0,0,8,6"
                                             Style="{StaticResource PrimaryButton}" Background="{StaticResource AccentBrush}" BorderBrush="{StaticResource AccentBrush}"
-                                            Visibility="{Binding CurrentTask.CanApprove, Converter={StaticResource BoolToVis}}"/>
+                                            Visibility="{Binding CurrentTask.CanApprove, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
                                     <Button Content="{DynamicResource Task_Descartar}" Command="{Binding DiscardPlanCommand}" Style="{StaticResource DangerButton}" Margin="0,0,8,6"
-                                            Visibility="{Binding CurrentTask.CanDiscard, Converter={StaticResource BoolToVis}}"/>
+                                            Visibility="{Binding CurrentTask.CanDiscard, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
                                     <Button Content="{DynamicResource Task_Interromper}" Command="{Binding StopTaskCommand}" Style="{StaticResource DangerButton}" Margin="0,0,8,6"
-                                            Visibility="{Binding CurrentTask.IsRunning, Converter={StaticResource BoolToVis}}"/>
+                                            Visibility="{Binding CurrentTask.IsRunning, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
+                                    <Button Content="{DynamicResource Task_TentarNovamente}" Command="{Binding RetryTaskCommand}" Margin="0,0,8,6"
+                                            Style="{StaticResource PrimaryButton}" Background="{StaticResource AccentBrush}" BorderBrush="{StaticResource AccentBrush}"
+                                            ToolTip="{DynamicResource Task_TentarNovamenteDica}"
+                                            Visibility="{Binding CurrentTask.CanRetry, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
                                     <Button Content="{DynamicResource Task_Retomar}" Command="{Binding ResumeTaskCommand}" Margin="0,0,8,6"
                                             Style="{StaticResource PrimaryButton}" Background="{StaticResource AccentBrush}" BorderBrush="{StaticResource AccentBrush}"
-                                            Visibility="{Binding CurrentTask.CanResume, Converter={StaticResource BoolToVis}}"/>
+                                            Visibility="{Binding CurrentTask.CanResume, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
                                     <Button Content="{DynamicResource Task_AplicarNaPasta}" Command="{Binding ApplyToFolderCommand}" Style="{StaticResource PrimaryButton}" Margin="0,0,8,6"
-                                            Visibility="{Binding CurrentTask.CanApplyToFolder, Converter={StaticResource BoolToVis}}"/>
+                                            Visibility="{Binding CurrentTask.CanApplyToFolder, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
                                     <Button Content="{DynamicResource Hist_LinhaDoTempo}" Command="{Binding OpenTimelineCommand}" Style="{StaticResource SubtleButton}" Margin="0,0,8,6"/>
                                     <Button Content="{DynamicResource Task_AbrirWorktree}" Command="{Binding OpenWorktreeCommand}" Style="{StaticResource SubtleButton}" Margin="0,0,8,6"/>
                                     <Button Content="{DynamicResource Task_CapturarPowerBi}" Command="{Binding CapturePowerBiCommand}" Style="{StaticResource SubtleButton}" Margin="0,0,8,6"
-                                            Visibility="{Binding CurrentTask.HasPowerBi, Converter={StaticResource BoolToVis}}"/>
+                                            Visibility="{Binding CurrentTask.HasPowerBi, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
                                 </WrapPanel>
                             </StackPanel>
                         </Border>
@@ -725,10 +736,11 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <!-- Ao lado dos achados: devolve ao executor para analisar e corrigir. -->
+                    <!-- Sem tarefa (painel de exemplo) CurrentTask é nulo: o FallbackValue esconde o botão. -->
                     <Button Content="{DynamicResource Task_CorrigirAchados}" Command="{Binding FixFindingsCommand}" HorizontalAlignment="Stretch" Margin="0,4,0,0"
                             Style="{StaticResource PrimaryButton}" Background="{StaticResource AccentBrush}" BorderBrush="{StaticResource AccentBrush}"
                             ToolTip="{DynamicResource Task_CorrigirAchadosDica}"
-                            Visibility="{Binding CurrentTask.CanFixFindings, Converter={StaticResource BoolToVis}}"/>
+                            Visibility="{Binding CurrentTask.CanFixFindings, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
                 </StackPanel>
             </Grid>
         </Border>

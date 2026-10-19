@@ -45,7 +45,7 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     public string Title => Info.Title;
     public DateTime CreatedAt { get; init; } = DateTime.Now;
 
-    [ObservableProperty] [NotifyPropertyChangedFor(nameof(StateLabel), nameof(CanApprove), nameof(IsRunning), nameof(CanDiscard), nameof(IsFinished), nameof(CanApplyToFolder), nameof(CanResume), nameof(CanFixFindings))]
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(StateLabel), nameof(CanApprove), nameof(IsRunning), nameof(CanDiscard), nameof(IsFinished), nameof(CanApplyToFolder), nameof(CanResume), nameof(CanRetry), nameof(HasError), nameof(CanFixFindings))]
     private TaskState _state = TaskState.Preparing;
 
     [ObservableProperty] private string? _worktree;
@@ -53,6 +53,10 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     [ObservableProperty] private string? _baseCommit;
     [ObservableProperty] private string? _sessionId;
     [ObservableProperty] private string _planText = "";
+
+    /// <summary>Motivo da última falha, mostrado no card junto do Tentar novamente; nulo sem erro.</summary>
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasError))] private string? _lastError;
+    public bool HasError => State == TaskState.Failed && !string.IsNullOrWhiteSpace(LastError);
 
     /// <summary>Projeto Power BI (.pbip) encontrado no worktree; nulo se não for um projeto PBIP.</summary>
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasPowerBi))] private NXPilot.Integrations.PowerBiProject? _powerBi;
@@ -96,8 +100,11 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     public bool CanApprove => State == TaskState.AwaitingApproval;
     public bool CanDiscard => State == TaskState.AwaitingApproval;
     public bool IsRunning => State is TaskState.Preparing or TaskState.Planning or TaskState.Executing or TaskState.Verifying;
-    /// <summary>Interrompida ou falhou, com o worktree ainda lá: dá para continuar de onde parou.</summary>
-    public bool CanResume => State is TaskState.Stopped or TaskState.Failed && Worktree is { } wt && System.IO.Directory.Exists(wt);
+    /// <summary>Interrompida ou falhou já com plano e o worktree ainda lá: dá para continuar de onde parou.</summary>
+    public bool CanResume => State is TaskState.Stopped or TaskState.Failed && Phases.Count > 0 && Worktree is { } wt && System.IO.Directory.Exists(wt);
+
+    /// <summary>Falhou ou foi interrompida antes de ter plano (worktree, agente, leitura do plano): refaz e pede o plano de novo.</summary>
+    public bool CanRetry => State is TaskState.Stopped or TaskState.Failed && Phases.Count == 0;
 
     /// <summary>Concluída, mas a verificação não aprovou: dá para devolver os achados ao executor.</summary>
     public bool CanFixFindings => State == TaskState.Done && Verification is { Approved: false, Findings.Count: > 0 } && Worktree is { } wt && System.IO.Directory.Exists(wt);
@@ -150,6 +157,7 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
             State = r.State is TaskState.Preparing or TaskState.Planning or TaskState.Executing or TaskState.Verifying ? TaskState.Stopped : r.State,
         };
         s.Log.AddRange(r.Log);
+        if (s.State == TaskState.Failed) s.LastError = r.Log.LastOrDefault(l => l.Kind is "erro" or "error")?.Message;
         return s;
     }
 }

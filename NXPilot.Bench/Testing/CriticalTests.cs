@@ -976,6 +976,57 @@ public static class CriticalTests
                 if (Directory.Exists(root)) ForceDelete(root);
             }
         }),
+
+        new("Work items GitHub Projects: só issues abertas e rascunhos meus; critérios saem do corpo; erro do GraphQL não vira lista vazia", async () =>
+        {
+            const string page = """
+                {"data":{"viewer":{"login":"ana"},"owner":{"projectV2":{"title":"Board","items":{
+                  "pageInfo":{"hasNextPage":false,"endCursor":null},
+                  "nodes":[
+                    {"status":{"name":"In Progress"},"content":{"__typename":"Issue","number":7,"title":"Relatório Q3","state":"OPEN","url":"https://github.com/o/r/issues/7",
+                      "body":"Gerar o relatório.\n\n## Critérios de aceite\n- PDF com totais\n- Enviado ao diretor\n\n## Notas\nUsar o modelo novo.","assignees":{"nodes":[{"login":"Ana"}]}}},
+                    {"status":null,"content":{"__typename":"Issue","number":8,"title":"Fechada","state":"CLOSED","url":"u","body":"","assignees":{"nodes":[{"login":"ana"}]}}},
+                    {"status":null,"content":{"__typename":"Issue","number":9,"title":"De outra pessoa","state":"OPEN","url":"u","body":"","assignees":{"nodes":[{"login":"bia"}]}}},
+                    {"status":{"name":"Todo"},"content":{"__typename":"DraftIssue","title":"Ideia","body":"Acceptance criteria\nworks","assignees":{"nodes":[{"login":"ana"}]}}},
+                    {"status":null,"content":{"__typename":"PullRequest"}}
+                  ]}}}}}
+                """;
+            var http = new FakeHttp(_ => page);
+            using var client = new GitHubProjectsClient(new GitHubProjectConnection("o", true, 3, "tok"), http);
+            var items = await client.MyOpenItemsAsync();
+            AssertEqual(2, items.Count, "Issue aberta minha + rascunho meu (fechada, de outra pessoa e PR ficam de fora).");
+            AssertEqual("Board", client.ProjectTitle, "Título do projeto.");
+            var issue = items[0];
+            AssertEqual(7, issue.Id, "Número da issue.");
+            AssertEqual("In Progress", issue.State, "Status do board.");
+            AssertEqual("- PDF com totais\n- Enviado ao diretor", issue.AcceptanceCriteria, "Seção de critérios vira os critérios.");
+            AssertEqual("Gerar o relatório.\n\n## Notas\nUsar o modelo novo.", issue.Description, "Critérios saem da descrição; o resto fica.");
+            AssertEqual(0, items[1].Id, "Rascunho não tem número.");
+            AssertEqual("works", items[1].AcceptanceCriteria, "Título sem # também vale.");
+            AssertContains("organization(login", http.Bodies[0], "Dono organização consulta organization.");
+            AssertEqual("Bearer", http.Requests[0].Headers.Authorization?.Scheme, "Token no cabeçalho, não na URL.");
+
+            using var bad = new GitHubProjectsClient(new GitHubProjectConnection("o", false, 3, "tok"),
+                new FakeHttp(_ => """{"data":null,"errors":[{"message":"Could not resolve to a ProjectV2"}]}"""));
+            var failed = false;
+            try { await bad.MyOpenItemsAsync(); } catch (InvalidOperationException ex) { failed = ex.Message.Contains("Could not resolve"); }
+            AssertTrue(failed, "Erro do GraphQL (HTTP 200) vira exceção com a mensagem.");
+
+            // Issue Project (raiz): pelo campo de nível ou por estar no topo com sub-issues; filtro pelos descendentes.
+            static string Node(int n, int parent, string? level) =>
+                "{\"status\":null,\"level\":" + (level == null ? "null" : "{\"name\":\"" + level + "\"}") +
+                ",\"content\":{\"__typename\":\"Issue\",\"number\":" + n + ",\"title\":\"I" + n + "\",\"state\":\"OPEN\",\"url\":\"u" + n +
+                "\",\"body\":\"\",\"issueType\":null,\"parent\":" + (parent > 0 ? "{\"number\":" + parent + "}" : "null") +
+                ",\"assignees\":{\"nodes\":[{\"login\":\"ana\"}]}}}";
+            var tree = "{\"data\":{\"viewer\":{\"login\":\"ana\"},\"owner\":{\"projectV2\":{\"title\":\"B\",\"items\":{\"pageInfo\":{\"hasNextPage\":false,\"endCursor\":null},\"nodes\":[" +
+                string.Join(",", Node(1, 0, null), Node(2, 1, null), Node(3, 2, null), Node(4, 0, null), Node(5, 0, "Projeto"), Node(6, 5, null), Node(7, 99, null)) +
+                "]}}}}}";
+            using var board = new GitHubProjectsClient(new GitHubProjectConnection("o", false, 1, "tok"), new FakeHttp(_ => tree), levelField: "card_type");
+            var roots = await board.ListRootIssuesAsync(new[] { "Project", "Projeto" });
+            AssertEqual("1,5", string.Join(",", roots.Select(r => r.Number).Order()), "Raiz: topo com sub-issues (#1) ou nível Projeto (#5); topo sem filhos (#4) não.");
+            AssertEqual("2,3", string.Join(",", (await board.MyOpenItemsAsync(rootIssue: 1)).Select(i => i.Id)), "Só os descendentes da #1 (neta incluída).");
+            AssertEqual(7, (await board.MyOpenItemsAsync()).Count, "Sem raiz: todos os meus.");
+        }),
     };
 
     // ---------------------------------------------------------------- apoio

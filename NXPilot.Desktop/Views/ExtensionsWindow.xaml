@@ -4,7 +4,7 @@
         Title="{DynamicResource Ext_Titulo}" Width="680" SizeToContent="Height"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
         Background="{StaticResource BackgroundBrush}" FontFamily="Segoe UI" FontSize="13">
-    <!-- Uma aba por extensão (pacotes NXPilot.Databricks / NXPilot.GitRepos / NXPilot.Mail). -->
+    <!-- Uma aba por extensão (pacotes NXPilot.Databricks / NXPilot.GitRepos / NXPilot.Mail; Work items no NXPilot.Core). -->
     <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="22,18">
         <TextBlock Text="{DynamicResource Ext_Titulo}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"/>
@@ -77,6 +77,76 @@
                         <Button x:Name="AdoTestButton" Content="{DynamicResource Ext_TestarDevOps}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnDevOpsTestClick"/>
                     </StackPanel>
                     <TextBlock x:Name="GitStatus" TextWrapping="Wrap" FontSize="12" Margin="0,8,0,0"/>
+                </StackPanel>
+            </TabItem>
+
+            <!-- ============================== Work items ============================== -->
+            <!-- Azure DevOps e GitHub Projects. Em branco = usa a conexão do NXProject (só leitura). -->
+            <TabItem x:Name="WorkItemsTab">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse x:Name="WorkItemsDot" Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Work items (DevOps · GitHub)"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <StackPanel>
+                    <Border Background="#EEF4FB" CornerRadius="4" Padding="10,8" Margin="0,0,0,10">
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#24527A" Text="{DynamicResource Ext_WiIntro}"/>
+                    </Border>
+
+                    <TextBlock Text="AZURE DEVOPS" Style="{StaticResource SectionHeader}" Margin="0,0,0,4"/>
+                    <TextBlock x:Name="WiAdoOrigin" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="2*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Ext_DevOpsOrg}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
+                            <TextBox x:Name="WiAdoOrgBox" Padding="4,3"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="{DynamicResource Ext_WiProjeto}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
+                            <TextBox x:Name="WiAdoProjectBox" Padding="4,3"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{DynamicResource Ext_WiDevOpsPat}" Style="{StaticResource Muted}" Margin="0,8,0,2"/>
+                    <PasswordBox x:Name="WiAdoPatBox" Padding="4,3"/>
+                    <TextBlock x:Name="WiAdoPatState" Style="{StaticResource Muted}" FontSize="11" Margin="0,2,0,0"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button x:Name="WiAdoTestButton" Content="{DynamicResource Ext_TestarDevOps}" Style="{StaticResource SubtleButton}" Click="OnWiDevOpsTestClick"/>
+                        <Button Content="{DynamicResource Ext_WiUsarNXProject}" Style="{StaticResource NavButton}" Margin="8,0,0,0" Click="OnWiDevOpsClearClick"/>
+                    </StackPanel>
+
+                    <TextBlock Text="GITHUB PROJECTS" Style="{StaticResource SectionHeader}" Margin="0,16,0,4"/>
+                    <TextBlock x:Name="WiGhOrigin" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Ext_WiDono}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
+                            <TextBox x:Name="WiGhOwnerBox" Padding="4,3"/>
+                        </StackPanel>
+                        <CheckBox x:Name="WiGhOrgCheck" Grid.Column="2" Content="{DynamicResource Ext_WiOrganizacao}" VerticalAlignment="Bottom" Margin="0,0,0,5"/>
+                        <StackPanel Grid.Column="4">
+                            <TextBlock Text="{DynamicResource Ext_WiNumeroProjeto}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
+                            <TextBox x:Name="WiGhNumberBox" Padding="4,3"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{DynamicResource Ext_WiGitHubToken}" Style="{StaticResource Muted}" Margin="0,8,0,2"/>
+                    <PasswordBox x:Name="WiGhTokenBox" Padding="4,3"/>
+                    <TextBlock x:Name="WiGhTokenState" Style="{StaticResource Muted}" FontSize="11" Margin="0,2,0,0"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button x:Name="WiGhTestButton" Content="{DynamicResource Ext_WiTestarGitHubProjects}" Style="{StaticResource SubtleButton}" Click="OnWiGitHubTestClick"/>
+                        <Button Content="{DynamicResource Ext_WiUsarNXProject}" Style="{StaticResource NavButton}" Margin="8,0,0,0" Click="OnWiGitHubClearClick"/>
+                    </StackPanel>
+                    <TextBlock x:Name="WiStatus" TextWrapping="Wrap" FontSize="12" Margin="0,8,0,0"/>
                 </StackPanel>
             </TabItem>
 

@@ -172,6 +172,14 @@ public sealed partial class MainViewModel : ObservableObject
         SetAgent(ExecutorName, "Rodando", T("planejando", "planning", "planificando"));
         AddLog(T("Você", "You", "Usted"), T("tarefa", "task", "tarea"), T($"Nova tarefa: {info.Title} ({info.RepoPath})", $"New task: {info.Title} ({info.RepoPath})", $"Nueva tarea: {info.Title} ({info.RepoPath})"));
 
+        if (await PrepareAsync(task)) await PlanAsync(task);
+    }
+
+    /// <summary>Snapshot do assunto (modo local) e worktree da tarefa. Falhou: a tarefa fica Falhou, com Tentar novamente.</summary>
+    private async Task<bool> PrepareAsync(TaskSession task)
+    {
+        var info = task.Info;
+        task.State = TaskState.Preparing;
         try
         {
             if (info.Versioning == VersioningMode.Local)
@@ -193,16 +201,24 @@ public sealed partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             Fail(task, ex.Message);
-            return;
+            return false;
         }
-
-        await PlanAsync(task);
+        return true;
     }
 
     /// <summary>Pede o plano em fases ao agente (modo plan: só lê) e deixa a tarefa aguardando a sua aprovação.</summary>
     private async Task PlanAsync(TaskSession task)
     {
+        // Erro ao montar o pedido ou ao ler a resposta (arquivo que não abre, plano ilegível…)
+        // não pode derrubar o app: a tarefa fica Falhou, com o erro na tela e Tentar novamente.
+        try { await PlanCoreAsync(task); }
+        catch (Exception ex) { if (task.State == TaskState.Planning) Fail(task, ex.Message); }
+    }
+
+    private async Task PlanCoreAsync(TaskSession task)
+    {
         var info = task.Info;
+        task.LastError = null;
         task.State = TaskState.Planning;
         Persist();
         task.PowerBi = NXPilot.Integrations.PowerBiProject.Detect(task.Worktree!);
@@ -237,6 +253,26 @@ public sealed partial class MainViewModel : ObservableObject
         AddLog(T("Você", "You", "Usted"), T("aprovado", "approved", "aprobado"), T($"Plano aprovado: {task.Title}", $"Plan approved: {task.Title}", $"Plan aprobado: {task.Title}"));
         ReplacePlanArtifact(T("aprovado por você", "approved by you", "aprobado por usted"));
         await ExecutePhasesAsync(task, resumeNote: null);
+    }
+
+    /// <summary>
+    /// Tentar novamente: a tarefa falhou (ou foi interrompida) antes de ter um plano — refaz o
+    /// worktree se ele não chegou a existir e pede o plano de novo, na mesma tarefa.
+    /// </summary>
+    [RelayCommand]
+    private async Task RetryTask()
+    {
+        if (CurrentTask is not { CanRetry: true } task) return;
+        AddLog(T("Você", "You", "Usted"), T("tentar novamente", "retry", "reintentar"), task.Title);
+        task.LastError = null;
+        SetAgent(ExecutorName, "Rodando", T("planejando", "planning", "planificando"));
+        if (task.Worktree is not { } wt || !Directory.Exists(wt))
+        {
+            task.Worktree = null;
+            task.Branch = null;
+            if (!await PrepareAsync(task)) return;
+        }
+        await PlanAsync(task);
     }
 
     /// <summary>
@@ -665,6 +701,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void Fail(TaskSession task, string message)
     {
+        task.LastError = message;
         task.State = TaskState.Failed;
         SetAgent(ExecutorName, "Concluido", T("falhou", "failed", "falló"));
         Notifications.Notify(NotificationKind.Failure, T("Tarefa falhou", "Task failed", "La tarea falló"), $"{task.Title} · {Trim(message, 160)}");
@@ -931,8 +968,38 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void OpenResult(ResultFile f)
     {
-        if (f.CanOpen && File.Exists(f.FullPath)) Process.Start(new ProcessStartInfo(f.FullPath) { UseShellExecute = true });
+        if (!f.CanOpen) return;
+        var owner = Application.Current.MainWindow;
+        while (true)
+        {
+            if (!File.Exists(f.FullPath))
+            {
+                MessageBox.Show(owner, T($"O arquivo não existe mais:\n{f.FullPath}", $"The file no longer exists:\n{f.FullPath}", $"El archivo ya no existe:\n{f.FullPath}"),
+                    "NXPilot", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            try
+            {
+                Process.Start(new ProcessStartInfo(f.FullPath) { UseShellExecute = true });
+                return;
+            }
+            catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1155) // nenhum programa associado à extensão
+            {
+                // Mesmo diálogo "Abrir com…" do Explorer: a pessoa escolhe o programa.
+                try { Process.Start("rundll32.exe", $"shell32.dll,OpenAs_RunDLL {f.FullPath}"); return; }
+                catch (Exception inner) { if (!AskRetryOpen(owner, f, inner.Message)) return; }
+            }
+            catch (Exception ex)
+            {
+                // Arquivo bloqueado, programa que falhou ao abrir…: avisa e deixa tentar de novo.
+                if (!AskRetryOpen(owner, f, ex.Message)) return;
+            }
+        }
     }
+
+    private static bool AskRetryOpen(Window owner, ResultFile f, string error) =>
+        MessageBox.Show(owner, T($"Não foi possível abrir {f.RelativePath}.\n\n{error}\n\nTentar novamente?", $"Could not open {f.RelativePath}.\n\n{error}\n\nTry again?", $"No se pudo abrir {f.RelativePath}.\n\n{error}\n\n¿Intentar de nuevo?"),
+            "NXPilot", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
 
     /// <summary>Abre o Explorer já com o arquivo selecionado.</summary>
     [RelayCommand]

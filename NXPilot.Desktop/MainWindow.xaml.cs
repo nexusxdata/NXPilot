@@ -81,7 +81,7 @@ public partial class MainWindow : Window
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool FlashWindowEx(ref FLASHWINFO info);
 
-    /// <summary>Histórico: abre uma tarefa salva na tela (somente leitura) ou remove o worktree dela.</summary>
+    /// <summary>Histórico: abre uma tarefa salva na tela (somente leitura), clona para rodar de novo ou remove o worktree dela.</summary>
     private async void OnHistoryClick(object sender, RoutedEventArgs e)
     {
         var dialog = new Views.HistoryWindow(Vm.CurrentTask is { IsRunning: true }) { Owner = this };
@@ -91,6 +91,8 @@ public partial class MainWindow : Window
             MainTabs.SelectedIndex = 0;
             await Vm.LoadTaskAsync(record);
         }
+        else if (dialog.ToClone is { } clone)
+            await StartNewTaskAsync(new Views.NewTaskWindow(clone.Info) { Owner = this });
     }
 
     /// <summary>Work items do Azure DevOps: escolher um abre a Nova tarefa já preenchida.</summary>
@@ -237,7 +239,7 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Captura para documentação/CI:
-    ///   NxPilot.exe --shot saida.png [--tab N] [--bench [--llama]] [--lesson id --step N] [--window about|license] [--exit]
+    ///   NxPilot.exe --shot saida.png [--tab N] [--bench [--llama]] [--lesson id --step N] [--window about|license|history|workitems] [--exit]
     /// Renderiza a própria árvore visual (RenderTargetBitmap) — captura de tela externa
     /// não pega janelas WPF aceleradas por hardware de forma confiável.
     /// </summary>
@@ -286,12 +288,18 @@ public partial class MainWindow : Window
         }
         await Task.Delay(800);
 
-        // --window about|license: captura a tela Sobre ou a Licença (modo primeira execução).
-        if (ArgValue(args, "--window") is "about" or "license")
+        // --window about|license|history|workitems: captura o Sobre, a Licença (modo primeira execução), o Histórico ou os Work items.
+        if (ArgValue(args, "--window") is "about" or "license" or "history" or "workitems")
         {
-            Window win = ArgValue(args, "--window") == "about" ? new Views.AboutWindow { Owner = this } : new Views.LicenseWindow { Owner = this, RequireAcceptance = true };
+            Window win = ArgValue(args, "--window") switch
+            {
+                "about" => new Views.AboutWindow { Owner = this },
+                "history" => new Views.HistoryWindow(taskRunning: false) { Owner = this },
+                "workitems" => new Views.WorkItemsWindow { Owner = this },
+                _ => new Views.LicenseWindow { Owner = this, RequireAcceptance = true },
+            };
             win.Show();
-            await Task.Delay(800);
+            await Task.Delay(win is Views.WorkItemsWindow ? 8000 : 800); // Work items consulta o DevOps/GitHub
             SaveVisual((FrameworkElement)win.Content, win, shot);
             win.Close();
             if (args.Contains("--exit")) Close();

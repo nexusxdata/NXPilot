@@ -22,12 +22,31 @@ public partial class NewTaskWindow : Window
 {
     public NewTaskInfo? Result { get; private set; }
 
-    /// <summary>Pré-preenchida a partir de um work item do Azure DevOps (título, descrição, critérios).</summary>
+    /// <summary>Pré-preenchida a partir de um work item do Azure DevOps ou do GitHub Projects (título, descrição, critérios).</summary>
     public NewTaskWindow(NXPilot.Integrations.WorkItem item) : this()
     {
-        TitleBox.Text = $"#{item.Id} · {item.Title}";
+        TitleBox.Text = item.Id > 0 ? $"#{item.Id} · {item.Title}" : item.Title; // rascunho do GitHub não tem número
         IntentBox.Text = item.Description.Length > 0 ? item.Description : item.Title;
         CriteriaBox.Text = item.AcceptanceCriteria;
+    }
+
+    /// <summary>
+    /// Clonar do Histórico: mesmos título, intenção, critérios, agente, modelos, revisor e pasta
+    /// (repositório ou assunto). Tudo continua editável; o Criar valida como numa tarefa nova.
+    /// </summary>
+    public NewTaskWindow(NewTaskInfo clone) : this()
+    {
+        TitleBox.Text = clone.Title;
+        IntentBox.Text = clone.Intent;
+        CriteriaBox.Text = clone.Criteria is "(não informados)" or "(not provided)" or "(no informado)" ? "" : clone.Criteria;
+        Select(VersioningBox, clone.Versioning.ToString());
+        if (clone.Versioning == VersioningMode.Git) RepoBox.Text = clone.RepoPath;
+        else LoadSubjects(clone.Subject);
+        Select(AgentBox, clone.Executor.ToString());
+        Select(ReviewerBox, clone.Reviewer.ToString());
+        Select(ModelBox, clone.Model ?? "");
+        if (clone.CodexModel is { Length: > 0 } codexModel) CodexModelBox.Text = codexModel;
+        Title = T("Nova tarefa (clonada do Histórico)", "New task (cloned from History)", "Nueva tarea (clonada del Historial)");
     }
 
     public NewTaskWindow()

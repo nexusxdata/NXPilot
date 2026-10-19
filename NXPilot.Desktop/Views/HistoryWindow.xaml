@@ -1,26 +1,60 @@
 <Window x:Class="NXPilot.Desktop.Views.HistoryWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="{DynamicResource Hist_Titulo}" Width="980" Height="560" MinWidth="700" MinHeight="360"
+        Title="{DynamicResource Hist_Titulo}" Width="1060" Height="560" MinWidth="700" MinHeight="360"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="{StaticResource BackgroundBrush}" FontFamily="Segoe UI" FontSize="13">
-    <DockPanel Margin="22,18">
+    <Border Padding="22,18">
+    <DockPanel>
         <StackPanel DockPanel.Dock="Top">
             <TextBlock Text="{DynamicResource Hist_Titulo}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"/>
             <TextBlock Text="{DynamicResource Hist_Subtitulo}" Style="{StaticResource Muted}" Margin="0,4,0,12"/>
+            <!-- Busca: em tudo ou só num campo (título, intenção, critérios); ignora maiúsculas e acentos. -->
+            <DockPanel Margin="0,0,0,10">
+                <!-- Período (opcional): combina com o texto. "Escolher datas…" mostra De/Até. -->
+                <StackPanel x:Name="CustomPeriodPanel" DockPanel.Dock="Right" Orientation="Horizontal" Visibility="Collapsed">
+                    <TextBlock Text="{DynamicResource Hist_De}" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                    <DatePicker x:Name="FromDate" Width="120" SelectedDateChanged="OnSearchChanged"/>
+                    <TextBlock Text="{DynamicResource Hist_Ate}" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                    <DatePicker x:Name="ToDate" Width="120" SelectedDateChanged="OnSearchChanged"/>
+                </StackPanel>
+                <ComboBox x:Name="PeriodBox" DockPanel.Dock="Right" Width="160" Margin="8,0,0,0" Padding="8,5" SelectedIndex="0"
+                          SelectionChanged="OnSearchChanged" ToolTip="{DynamicResource Hist_Periodo}">
+                    <ComboBoxItem Content="{DynamicResource Hist_PeriodoQualquer}" Tag="any"/>
+                    <ComboBoxItem Content="{DynamicResource Hist_PeriodoHoje}" Tag="today"/>
+                    <ComboBoxItem Content="{DynamicResource Hist_Periodo7}" Tag="7"/>
+                    <ComboBoxItem Content="{DynamicResource Hist_Periodo30}" Tag="30"/>
+                    <ComboBoxItem Content="{DynamicResource Hist_PeriodoMes}" Tag="month"/>
+                    <ComboBoxItem Content="{DynamicResource Hist_PeriodoEscolher}" Tag="custom"/>
+                </ComboBox>
+                <ComboBox x:Name="SearchFieldBox" DockPanel.Dock="Right" Width="150" Margin="8,0,0,0" Padding="8,5" SelectedIndex="0"
+                          SelectionChanged="OnSearchChanged" ToolTip="{DynamicResource Hist_BuscarEm}">
+                    <ComboBoxItem Content="{DynamicResource Hist_BuscaTudo}" Tag="all"/>
+                    <ComboBoxItem Content="{DynamicResource Hist_BuscaTitulo}" Tag="title"/>
+                    <ComboBoxItem Content="{DynamicResource Hist_BuscaIntencao}" Tag="intent"/>
+                    <ComboBoxItem Content="{DynamicResource Hist_BuscaCriterios}" Tag="criteria"/>
+                </ComboBox>
+                <Grid>
+                    <TextBox x:Name="SearchBox" Padding="8,5" TextChanged="OnSearchChanged"/>
+                    <TextBlock Text="{DynamicResource Hist_BuscarDica}" Style="{StaticResource Muted}" Margin="11,0,0,0" VerticalAlignment="Center"
+                               IsHitTestVisible="False" x:Name="SearchHint"/>
+                </Grid>
+            </DockPanel>
         </StackPanel>
 
-        <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
+        <!-- Duas linhas: o caminho do worktree em cima (largura toda) e os botões embaixo. Lado a lado,
+             o caminho longo quebrava em várias linhas e esticava os botões na altura. -->
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <TextBlock x:Name="StatusText" Style="{StaticResource Muted}" TextWrapping="Wrap" FontSize="11.5" Margin="0,0,0,8"/>
+            <WrapPanel HorizontalAlignment="Right">
                 <Button x:Name="RemoveButton" Content="{DynamicResource Hist_Remover}" Style="{StaticResource DangerButton}" Click="OnRemoveClick"/>
+                <Button x:Name="CloneButton" Content="{DynamicResource Hist_Clonar}" ToolTip="{DynamicResource Hist_ClonarDica}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnCloneClick"/>
                 <Button x:Name="TimelineButton" Content="{DynamicResource Hist_LinhaDoTempo}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnTimelineClick"/>
                 <Button x:Name="WorktreeButton" Content="{DynamicResource Hist_AbrirWorktree}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnWorktreeClick"/>
                 <Button x:Name="OpenButton" Content="{DynamicResource Hist_Abrir}" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Click="OnOpenClick" IsDefault="True"/>
                 <Button Content="{DynamicResource Hist_Fechar}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" IsCancel="True"/>
-            </StackPanel>
-            <!-- Ocupa só o espaço que sobra à esquerda dos botões (caminho longo quebra a linha). -->
-            <TextBlock x:Name="StatusText" Style="{StaticResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="11.5"/>
-        </DockPanel>
+            </WrapPanel>
+        </StackPanel>
 
         <Grid>
             <DataGrid x:Name="Grid" SelectionChanged="OnSelectionChanged" MouseDoubleClick="OnOpenClick">
@@ -37,4 +71,5 @@
                        HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
         </Grid>
     </DockPanel>
+    </Border>
 </Window>

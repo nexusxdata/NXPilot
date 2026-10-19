@@ -26,6 +26,9 @@ public partial class HistoryWindow : Window
     /// <summary>Tarefa escolhida para abrir na tela principal; nula = só fechou.</summary>
     public TaskRecord? ToOpen { get; private set; }
 
+    /// <summary>Tarefa escolhida para clonar: a Nova tarefa abre preenchida com os dados dela.</summary>
+    public TaskRecord? ToClone { get; private set; }
+
     public HistoryWindow(bool taskRunning)
     {
         InitializeComponent();
@@ -44,11 +47,70 @@ public partial class HistoryWindow : Window
             return new Row(r, r.CreatedAt.ToString("dd/MM HH:mm"), r.Info.Title, label, findings,
                 r.Tokens is { Total: > 0 } t ? NXPilot.Agents.TokenUsage.Format(t.Total) : "—", r.Info.Subject is { } subject ? "◆ " + subject : r.Info.RepoPath);
         }).ToList();
+        _allRows = rows;
+        ApplyFilter();
+    }
+
+    private List<Row> _allRows = new();
+
+    private void OnSearchChanged(object sender, RoutedEventArgs e)
+    {
+        if (!IsInitialized || SearchBox == null || PeriodBox == null || ToDate == null) return; // SelectionChanged dispara durante o InitializeComponent
+        CustomPeriodPanel.Visibility = PeriodTag == "custom" ? Visibility.Visible : Visibility.Collapsed;
+        SearchHint.Visibility = SearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ApplyFilter();
+    }
+
+    /// <summary>Busca dinâmica a partir desta quantidade de letras; com menos, a lista mostra tudo.</summary>
+    private const int MinSearchLength = 3;
+
+    /// <summary>Filtra enquanto você digita: em tudo (título, intenção, critérios, estado, pasta) ou num campo só.</summary>
+    private void ApplyFilter()
+    {
+        var term = SearchBox.Text.Trim();
+        if (term.Length < MinSearchLength) term = "";
+        var field = (SearchFieldBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
+        var (from, to) = PeriodRange();
+        var inPeriod = _allRows.Where(r => (from == null || r.Record.CreatedAt >= from) && (to == null || r.Record.CreatedAt < to)).ToList();
+        var rows = term.Length == 0 ? inPeriod : inPeriod.Where(r => field switch
+        {
+            "title" => Matches(r.Record.Info.Title, term),
+            "intent" => Matches(r.Record.Info.Intent, term),
+            "criteria" => Matches(r.Record.Info.Criteria, term),
+            _ => Matches(r.Record.Info.Title, term) || Matches(r.Record.Info.Intent, term) || Matches(r.Record.Info.Criteria, term)
+                 || Matches(r.State, term) || Matches(r.Repo, term),
+        }).ToList();
+        var selected = Selected;
         Grid.ItemsSource = rows;
+        EmptyText.Text = _allRows.Count == 0
+            ? T("Nenhuma tarefa ainda. Use + Nova tarefa.", "No tasks yet. Use + New task.", "Aún no hay tareas. Use + Nueva tarea.")
+            : T("Nenhuma tarefa encontrada com essa busca ou período.", "No task matches this search or period.", "Ninguna tarea coincide con esta búsqueda o período.");
         EmptyText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (rows.Count > 0) Grid.SelectedIndex = 0;
+        if (rows.Count > 0) Grid.SelectedItem = rows.FirstOrDefault(r => r.Record == selected) ?? rows[0];
         OnSelectionChanged(this, null!);
     }
+
+    private string PeriodTag => (PeriodBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "any";
+
+    /// <summary>Início (inclusive) e fim (exclusivo) do período escolhido; nulo = sem limite daquele lado.</summary>
+    private (DateTime? From, DateTime? To) PeriodRange()
+    {
+        var today = DateTime.Today;
+        return PeriodTag switch
+        {
+            "today" => (today, null),
+            "7" => (today.AddDays(-6), null),
+            "30" => (today.AddDays(-29), null),
+            "month" => (new DateTime(today.Year, today.Month, 1), null),
+            "custom" => (FromDate.SelectedDate?.Date, ToDate.SelectedDate?.Date.AddDays(1)), // "até" inclui o dia inteiro
+            _ => (null, null),
+        };
+    }
+
+    /// <summary>Contém o termo, sem diferenciar maiúsculas nem acentos ("intencao" acha "intenção").</summary>
+    private static bool Matches(string? text, string term) =>
+        text != null && System.Globalization.CultureInfo.InvariantCulture.CompareInfo.IndexOf(text, term,
+            System.Globalization.CompareOptions.IgnoreCase | System.Globalization.CompareOptions.IgnoreNonSpace) >= 0;
 
     private TaskRecord? Selected => (Grid.SelectedItem as Row)?.Record;
 
@@ -59,6 +121,7 @@ public partial class HistoryWindow : Window
         OpenButton.IsEnabled = r != null && !_taskRunning;
         WorktreeButton.IsEnabled = worktreeExists;
         TimelineButton.IsEnabled = r != null;
+        CloneButton.IsEnabled = r != null && !_taskRunning;
         RemoveButton.IsEnabled = r != null && !_taskRunning;
         StatusText.Text = _taskRunning
             ? T("Há uma tarefa em andamento: termine ou interrompa para abrir outra.", "A task is running: finish or stop it to open another one.", "Hay una tarea en ejecución: termínela o interrúmpala para abrir otra.")
@@ -69,6 +132,13 @@ public partial class HistoryWindow : Window
     {
         if (Selected is not { } r || _taskRunning) return;
         ToOpen = r;
+        Close();
+    }
+
+    private void OnCloneClick(object sender, RoutedEventArgs e)
+    {
+        if (Selected is not { } r || _taskRunning) return;
+        ToClone = r;
         Close();
     }
 
