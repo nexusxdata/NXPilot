@@ -1,10 +1,14 @@
 <#
 .SYNOPSIS
-Compila e abre o NXPilot-Setup para testar o instalador sem gerar o zip.
+Compila e abre o NXPilot-Setup para testar o instalador sem gerar o zip — SO PARA
+DESENVOLVIMENTO.
 
-O Setup precisa do app publicado self-contained ao lado (ou via --payload). Este script
-publica o app em dist\app\publish-win-x64 (pule com -SkipPublish se nada mudou no app)
-e abre o Setup apontando para essa pasta.
+O Setup de verdade (release-nxpilot-setup.ps1) leva so a base e baixa o app do GitHub ao
+instalar. Aqui, para testar o Setup com o codigo da maquina (inclusive o que ainda nao foi
+publicado), o script publica o app INTEIRO (base + nucleo do NXPilot) em
+dist\app\publish-win-x64 e abre o Setup com --payload nessa pasta: com o NxPilot.exe ao
+lado, o Setup instala essa copia local em vez de baixar. Pule o publish com -SkipPublish
+se nada mudou no app.
 
   .\run-nxpilot-setup.ps1
   .\run-nxpilot-setup.ps1 -SkipPublish
@@ -33,7 +37,7 @@ if ($processes) {
 }
 
 if (-not $SkipPublish -or -not (Test-Path (Join-Path $AppPublishDir "NxPilot.exe"))) {
-    Write-Host "Publicando NXPilot self-contained ($Runtime) para o Setup instalar..." -ForegroundColor Cyan
+    Write-Host "Teste local: publicando o app completo ($Runtime) para o Setup instalar esta copia, sem baixar do GitHub..." -ForegroundColor Cyan
     & dotnet publish (Join-Path $SolutionDir "NXPilot.Desktop\NXPilot.Desktop.csproj") -c $Configuration -r $Runtime --self-contained true -o $AppPublishDir -v q --nologo
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Publish do NXPilot falhou." -ForegroundColor Red
@@ -54,7 +58,7 @@ if (-not (Test-Path $exe)) {
     exit 1
 }
 
-Write-Host "Iniciando NXPilot-Setup (pacote: $AppPublishDir)..." -ForegroundColor Cyan
+Write-Host "Iniciando NXPilot-Setup em modo de teste (app local: $AppPublishDir)..." -ForegroundColor Cyan
 & $exe --payload $AppPublishDir
 $exitCode = $LASTEXITCODE
 
