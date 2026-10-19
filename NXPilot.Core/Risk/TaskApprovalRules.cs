@@ -10,7 +10,8 @@ namespace NXPilot.Risk;
 /// <summary>
 /// Atalhos de aprovação que VOCÊ liga numa tarefa: "aprovar semelhantes" (mesma assinatura de
 /// comando) e "aprovar médio e baixo". Valem só enquanto a tarefa dura e NUNCA liberam ALTO —
-/// risco alto (inclusive escrever fora do worktree) sempre volta para você.
+/// risco alto (inclusive escrever fora do worktree) sempre volta para você. Exceção única: no
+/// disparo de uma tarefa modelo, a mesma ação que você aprovou na execução de teste.
 /// </summary>
 public sealed class TaskApprovalRules
 {
@@ -22,19 +23,37 @@ public sealed class TaskApprovalRules
     /// <summary>Assinaturas liberadas ("aprovar semelhantes").</summary>
     public IReadOnlyCollection<string> SimilarSignatures => _similar;
 
-    public bool IsEmpty => !ApproveMedium && _similar.Count == 0;
+    public bool IsEmpty => !ApproveMedium && _similar.Count == 0 && _preApproved.Count == 0;
 
     public void AddSimilar(string action) => _similar.Add(Signature(action));
+
+    private readonly HashSet<string> _preApproved = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Disparo de tarefa modelo: assinaturas que você aprovou na EXECUÇÃO DE TESTE ao criar o modelo.
+    /// Única regra que libera ALTO — e só a mesma ação já vista e aprovada; ALTO novo continua com você.
+    /// </summary>
+    public IReadOnlyCollection<string> PreApprovedSignatures => _preApproved;
+
+    public void AddPreApproved(string signature) => _preApproved.Add(signature);
+
+    /// <summary>Ação com o caminho do worktree trocado por &lt;worktree&gt;: cada disparo roda numa cópia nova.</summary>
+    public static string Portable(string action, string? worktree) =>
+        string.IsNullOrEmpty(worktree) ? action : action.Replace(worktree.TrimEnd('\\', '/'), "<worktree>", StringComparison.OrdinalIgnoreCase);
 
     public void Clear()
     {
         ApproveMedium = false;
         _similar.Clear();
+        _preApproved.Clear();
     }
 
     /// <summary>Motivo da aprovação automática, ou nulo se a decisão volta para você.</summary>
-    public string? Allows(string action, RiskLevel level)
+    /// <param name="worktree">Worktree da tarefa (para comparar com as pré-aprovações do modelo).</param>
+    public string? Allows(string action, RiskLevel level, string? worktree = null)
     {
+        if (_preApproved.Count > 0 && _preApproved.Contains(Signature(Portable(action, worktree))))
+            return NxText.T("pré-aprovado na execução de teste do modelo", "pre-approved in the template test run", "preaprobado en la ejecución de prueba del modelo");
         if (level == RiskLevel.Alto) return null;
         if (ApproveMedium) return NxText.T("regra da tarefa: médio e baixo", "task rule: medium and low", "regla de la tarea: medio y bajo");
         return _similar.Contains(Signature(action))

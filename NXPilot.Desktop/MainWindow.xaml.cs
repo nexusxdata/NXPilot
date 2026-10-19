@@ -29,7 +29,15 @@ public partial class MainWindow : Window
         LanguageBox.SelectedIndex = NxText.IsSpanish ? 2 : NxText.IsEnglish ? 1 : 0;
         Closing += OnClosing;
         Tour.Ended += OnLessonEnded;
+        // Hook: a execução de teste pede o {texto} que um evento traria.
+        Vm.HookTestTextRequested = task => Views.TextPromptWindow.Ask(this,
+            NxText.T("Execução de teste do hook", "Hook test run", "Ejecución de prueba del hook"),
+            NxText.T("Digite o texto que um evento traria (entra no lugar de {texto}, como dado). Os riscos que você aprovar nesta execução ficam pré-aprovados nos disparos; depois dela, use ⚡ Armar hook.",
+                     "Type the text an event would bring (it replaces {texto}, as data). The risks you approve in this run become pre-approved for triggers; afterwards, use ⚡ Arm hook.",
+                     "Escriba el texto que traería un evento (reemplaza {texto}, como dato). Los riesgos que apruebe en esta ejecución quedan preaprobados en los disparos; después, use ⚡ Armar hook."),
+            NxText.T("Executar teste", "Run test", "Ejecutar prueba"));
         Vm.Notifications.Raised += _ => FlashIfAway();
+        Services.TeamsNotifier.Attach(Vm.Notifications, () => Vm.CurrentTask?.Info.SubjectFolder); // extensão Teams: os avisos escolhidos vão para o canal
         KeyDown += (_, e) =>
         {
             if (e.Key == Key.F1 && !Tour.IsRunning) { OpenHelp(); e.Handled = true; }
@@ -94,6 +102,9 @@ public partial class MainWindow : Window
         else if (dialog.ToClone is { } clone)
             await StartNewTaskAsync(new Views.NewTaskWindow(clone.Info) { Owner = this });
     }
+
+    /// <summary>⚡ Hooks: tarefas em modo escuta (disparar, pausar, limites, remover).</summary>
+    private void OnHooksClick(object sender, RoutedEventArgs e) => new Views.HooksWindow(Vm) { Owner = this }.ShowDialog();
 
     /// <summary>Work items do Azure DevOps: escolher um abre a Nova tarefa já preenchida.</summary>
     private async void OnWorkItemsClick(object sender, RoutedEventArgs e)
@@ -239,7 +250,7 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Captura para documentação/CI:
-    ///   NxPilot.exe --shot saida.png [--tab N] [--bench [--llama]] [--lesson id --step N] [--window about|license|history|workitems] [--exit]
+    ///   NxPilot.exe --shot saida.png [--tab N] [--bench [--llama]] [--lesson id --step N] [--window about|license|history|workitems|newtask|hooks] [--exit]
     /// Renderiza a própria árvore visual (RenderTargetBitmap) — captura de tela externa
     /// não pega janelas WPF aceleradas por hardware de forma confiável.
     /// </summary>
@@ -288,16 +299,21 @@ public partial class MainWindow : Window
         }
         await Task.Delay(800);
 
-        // --window about|license|history|workitems: captura o Sobre, a Licença (modo primeira execução), o Histórico ou os Work items.
-        if (ArgValue(args, "--window") is "about" or "license" or "history" or "workitems")
+        // --window about|license|history|workitems|newtask: captura o Sobre, a Licença (modo primeira execução), o Histórico, os Work items ou a Nova tarefa.
+        if (ArgValue(args, "--window") is "about" or "license" or "history" or "workitems" or "newtask" or "hooks")
         {
             Window win = ArgValue(args, "--window") switch
             {
                 "about" => new Views.AboutWindow { Owner = this },
                 "history" => new Views.HistoryWindow(taskRunning: false) { Owner = this },
                 "workitems" => new Views.WorkItemsWindow { Owner = this },
+                "newtask" => new Views.NewTaskWindow { Owner = this },
+                "hooks" => new Views.HooksWindow(Vm) { Owner = this },
                 _ => new Views.LicenseWindow { Owner = this, RequireAcceptance = true },
             };
+            if (win is Views.NewTaskWindow newTask && args.Contains("--options")) newTask.ShowOptions();
+            if (win is Views.NewTaskWindow citing && ArgValue(args, "--cite") is { } cited)
+                citing.CiteForShot(NxText.T("Atualizar os totais de", "Update the totals of", "Actualizar los totales de"), cited.Split('|'));
             win.Show();
             await Task.Delay(win is Views.WorkItemsWindow ? 8000 : 800); // Work items consulta o DevOps/GitHub
             SaveVisual((FrameworkElement)win.Content, win, shot);

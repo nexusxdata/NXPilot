@@ -1,37 +1,123 @@
 <Window x:Class="NXPilot.Desktop.Views.NewTaskWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="{DynamicResource NewTask_Titulo}" Width="1000" SizeToContent="Height"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
+        Title="{DynamicResource NewTask_Titulo}" Width="1100" Height="720" MinWidth="760" MinHeight="520"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip" ShowInTaskbar="False"
         Background="{StaticResource BackgroundBrush}" FontFamily="Segoe UI" FontSize="13">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-    <StackPanel Margin="22,18">
-        <TextBlock Text="{DynamicResource NewTask_Titulo}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"/>
-        <TextBlock Text="{DynamicResource NewTask_Subtitulo}" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,14"/>
+    <Border Padding="22,18">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="{DynamicResource NewTask_Titulo}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"/>
+            <TextBlock Text="{DynamicResource NewTask_Subtitulo}" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,12"/>
+            <!-- Resumo de "onde e com quem": com as opções recolhidas, o texto ganha a largura toda. -->
+            <Border Background="{StaticResource PrimarySoftBrush}" CornerRadius="4" Padding="10,6" Margin="0,0,0,12">
+                <DockPanel>
+                    <Button x:Name="OptionsToggle" DockPanel.Dock="Right" Style="{StaticResource SubtleButton}" Padding="12,3" Click="OnToggleOptionsClick"/>
+                    <!-- Versionamento local: o assunto se troca aqui mesmo (sincronizado com o das opções). -->
+                    <StackPanel x:Name="SummarySubjectPanel" DockPanel.Dock="Left" Orientation="Horizontal">
+                        <TextBlock x:Name="SummarySubjectLabel" VerticalAlignment="Center" Foreground="{StaticResource PrimaryBrush}"/>
+                        <ComboBox x:Name="SummarySubjectBox" Width="260" Padding="6,2" Margin="6,0,12,0" DisplayMemberPath="GroupedName"
+                                  SelectionChanged="OnSummarySubjectChanged"/>
+                    </StackPanel>
+                    <TextBlock x:Name="SummaryText" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{StaticResource PrimaryBrush}" Margin="0,0,12,0"/>
+                </DockPanel>
+            </Border>
+        </StackPanel>
 
-        <!-- Esquerda: o que fazer. Direita: onde e com quem. -->
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
+                <Button Content="{DynamicResource NewTask_Cancelar}" Style="{StaticResource SubtleButton}" IsCancel="True"/>
+                <Button Content="{DynamicResource NewTask_GerarPlano}" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" IsDefault="True" Click="OnCreateClick"/>
+            </StackPanel>
+            <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" Visibility="Collapsed"/>
+        </DockPanel>
+
+        <!-- Esquerda: o que fazer (cresce com a janela). Direita: onde e com quem (recolhível). -->
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="24"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition x:Name="GapColumn" Width="24"/>
+                <ColumnDefinition x:Name="OptionsColumn" Width="430"/>
             </Grid.ColumnDefinitions>
 
-            <DockPanel>
-                <StackPanel DockPanel.Dock="Top">
-                    <TextBlock Text="{DynamicResource NewTask_NomeTarefa}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
-                    <TextBox x:Name="TitleBox" Padding="4,4"/>
-                    <TextBlock Text="{DynamicResource NewTask_Intencao}" Style="{StaticResource Muted}" Margin="0,10,0,2"/>
-                </StackPanel>
-                <StackPanel DockPanel.Dock="Bottom">
-                    <TextBlock Text="{DynamicResource NewTask_Criterios}" Style="{StaticResource Muted}" Margin="0,10,0,2"/>
-                    <TextBox x:Name="CriteriaBox" Padding="4,4" Height="80" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
-                </StackPanel>
-                <!-- A intenção ocupa a altura que sobra ao lado da coluna da direita. -->
-                <TextBox x:Name="IntentBox" Padding="4,4" MinHeight="150" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
-            </DockPanel>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <!-- Cada rótulo com o contador de caracteres à direita ("123 / 150 · faltam 27"). -->
+                <DockPanel Margin="0,0,0,2">
+                    <TextBlock x:Name="TitleCount" DockPanel.Dock="Right" Style="{StaticResource Muted}" FontSize="11" VerticalAlignment="Bottom"/>
+                    <TextBlock Text="{DynamicResource NewTask_NomeTarefa}" Style="{StaticResource Muted}"/>
+                </DockPanel>
+                <TextBox x:Name="TitleBox" Grid.Row="1" Padding="4,4" MaxLength="150" TextChanged="OnTextChanged"/>
 
-            <StackPanel Grid.Column="2">
+                <DockPanel Grid.Row="2" Margin="0,12,0,2">
+                    <TextBlock x:Name="IntentCount" DockPanel.Dock="Right" Style="{StaticResource Muted}" FontSize="11" VerticalAlignment="Bottom"/>
+                    <!-- Citar arquivo: só o caminho entra no texto (nada é copiado nem anexado). -->
+                    <Button x:Name="InsertPlaceholderButton" DockPanel.Dock="Right" Content="{DynamicResource NewTask_InserirTexto}" ToolTip="{DynamicResource NewTask_InserirTextoDica}"
+                            Style="{StaticResource NavButton}" Padding="6,0" Margin="0,0,4,0" FontSize="11.5" Visibility="Collapsed" Click="OnInsertPlaceholderClick"/>
+                    <Button DockPanel.Dock="Right" Content="{DynamicResource NewTask_CitarPasta}" ToolTip="{DynamicResource NewTask_CitarArquivoDica}"
+                            Style="{StaticResource NavButton}" Padding="6,0" Margin="0,0,12,0" FontSize="11.5" Click="OnCiteFolderClick"/>
+                    <Button DockPanel.Dock="Right" Content="{DynamicResource NewTask_CitarArquivo}" ToolTip="{DynamicResource NewTask_CitarArquivoDica}"
+                            Style="{StaticResource NavButton}" Padding="6,0" Margin="0,0,4,0" FontSize="11.5" Click="OnCiteFileClick"/>
+                    <TextBlock Text="{DynamicResource NewTask_Intencao}" Style="{StaticResource Muted}"/>
+                </DockPanel>
+                <!-- Arrastar arquivos/pastas para cá: entra o caminho (relativo ao assunto/repositório quando está dentro dele). -->
+                <TextBox x:Name="IntentBox" Grid.Row="3" Padding="6,5" MinHeight="120" MaxLength="10000" TextWrapping="Wrap" AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto" TextChanged="OnTextChanged" AllowDrop="True"
+                         PreviewDragOver="OnFileDragOver" PreviewDrop="OnFileDrop" GotFocus="OnTextBoxFocus" ToolTip="{DynamicResource NewTask_CitarArquivoDica}"/>
+
+                <!-- Citações: no texto fica só [#1]…[#N]; a lista (como as referências de um artigo) vai
+                     para o agente como legenda no fim da intenção. ✕ tira e renumera. -->
+                <Border x:Name="CitationsPanel" Grid.Row="4" Background="{StaticResource PrimarySoftBrush}" CornerRadius="4" Padding="8,6" Margin="0,6,0,0" Visibility="Collapsed">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource NewTask_Citacoes}" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Margin="0,3,10,0"/>
+                        <ItemsControl x:Name="CitationsList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="8,1,2,1" Margin="0,0,6,4" ToolTip="{Binding FullPath}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontSize="11.5" VerticalAlignment="Center">
+                                                <Run Text="{Binding Marker, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"/><Run Text=" "/><Run Text="{Binding Display, Mode=OneWay}" FontFamily="{StaticResource MonoFont}"/>
+                                            </TextBlock>
+                                            <Button Content="✕" Style="{StaticResource NavButton}" Padding="5,0" Margin="2,0,0,0" FontSize="10" Tag="{Binding}"
+                                                    ToolTip="{DynamicResource NewTask_TirarCitacao}" Click="OnRemoveCitationClick"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DockPanel>
+                </Border>
+
+                <DockPanel Grid.Row="5" Margin="0,12,0,2">
+                    <TextBlock x:Name="CriteriaCount" DockPanel.Dock="Right" Style="{StaticResource Muted}" FontSize="11" VerticalAlignment="Bottom"/>
+                    <TextBlock Text="{DynamicResource NewTask_Criterios}" Style="{StaticResource Muted}"/>
+                </DockPanel>
+                <TextBox x:Name="CriteriaBox" Grid.Row="6" Padding="6,5" Height="130" MaxLength="5000" TextWrapping="Wrap" AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto" TextChanged="OnTextChanged" AllowDrop="True"
+                         PreviewDragOver="OnFileDragOver" PreviewDrop="OnFileDrop" GotFocus="OnTextBoxFocus"/>
+            </Grid>
+
+            <ScrollViewer x:Name="OptionsPanel" Grid.Column="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- Modo da tarefa: Online executa depois do plano; Hook faz um teste e fica em modo escuta. -->
+                <TextBlock Text="{DynamicResource NewTask_ModoTarefa}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
+                <ComboBox x:Name="TaskModeBox" SelectedIndex="0" Padding="6,4" SelectionChanged="OnTaskModeChanged">
+                    <ComboBoxItem Content="{DynamicResource NewTask_ModoOnline}" Tag="Online"/>
+                    <ComboBoxItem Content="{DynamicResource NewTask_ModoHook}" Tag="Hook"/>
+                </ComboBox>
+                <TextBlock x:Name="TaskModeHint" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,10"/>
+
                 <TextBlock Text="{DynamicResource NewTask_Versionamento}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
                 <ComboBox x:Name="VersioningBox" SelectedIndex="0" Padding="6,4" SelectionChanged="OnVersioningChanged">
                     <ComboBoxItem Content="{DynamicResource NewTask_VersaoLocal}" Tag="Local"/>
@@ -52,7 +138,7 @@
                     <TextBlock Text="{DynamicResource NewTask_Repositorio}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="{DynamicResource NewTask_Escolher}" Style="{StaticResource SubtleButton}" Padding="10,4" Margin="6,0,0,0" Click="OnBrowseClick"/>
-                        <TextBox x:Name="RepoBox" Padding="4,4" FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+                        <TextBox x:Name="RepoBox" Padding="4,4" FontFamily="{StaticResource MonoFont}" FontSize="12" TextChanged="OnOptionChanged"/>
                     </DockPanel>
                 </StackPanel>
 
@@ -77,7 +163,7 @@
                     </StackPanel>
                     <StackPanel Grid.Column="2">
                         <TextBlock Text="{DynamicResource NewTask_Modelo}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
-                        <ComboBox x:Name="ModelBox" SelectedIndex="0" Padding="6,4">
+                        <ComboBox x:Name="ModelBox" SelectedIndex="0" Padding="6,4" SelectionChanged="OnOptionChanged">
                             <ComboBoxItem Content="{DynamicResource NewTask_ModeloPadrao}" Tag=""/>
                             <ComboBoxItem Content="Opus" Tag="opus"/>
                             <ComboBoxItem Content="Sonnet" Tag="sonnet"/>
@@ -88,7 +174,7 @@
 
                     <StackPanel Grid.Row="2" Margin="0,10,0,0">
                         <TextBlock Text="{DynamicResource NewTask_Revisor}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
-                        <ComboBox x:Name="ReviewerBox" SelectedIndex="0" Padding="6,4">
+                        <ComboBox x:Name="ReviewerBox" SelectedIndex="0" Padding="6,4" SelectionChanged="OnOptionChanged">
                             <ComboBoxItem Content="{DynamicResource NewTask_RevisorCodex}" Tag="Codex"/>
                             <ComboBoxItem Content="{DynamicResource NewTask_RevisorClaude}" Tag="Claude"/>
                             <ComboBoxItem Content="{DynamicResource NewTask_RevisorNenhum}" Tag="None"/>
@@ -96,20 +182,27 @@
                     </StackPanel>
                     <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,10,0,0">
                         <TextBlock Text="{DynamicResource NewTask_ModeloCodex}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
-                        <ComboBox x:Name="CodexModelBox" IsEditable="True" Padding="4,3" FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+                        <ComboBox x:Name="CodexModelBox" IsEditable="True" Padding="4,3" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                  SelectionChanged="OnOptionChanged" LostFocus="OnOptionChanged"/>
                     </StackPanel>
                 </Grid>
                 <TextBlock x:Name="CodexModelHint" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0"/>
-            </StackPanel>
-        </Grid>
 
-        <DockPanel Margin="0,16,0,0">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
-                <Button Content="{DynamicResource NewTask_Cancelar}" Style="{StaticResource SubtleButton}" IsCancel="True"/>
-                <Button Content="{DynamicResource NewTask_GerarPlano}" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" IsDefault="True" Click="OnCreateClick"/>
+                <!-- Padrão do assunto: agente, modelos e revisor gravados para o assunto escolhido. -->
+                <Border x:Name="SubjectDefaultsCard" Style="{StaticResource Card}" Padding="12,10" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource NewTask_PadraoAssunto}" FontWeight="SemiBold"/>
+                        <TextBlock Text="{DynamicResource NewTask_PadraoAssuntoDica}" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                        <TextBlock x:Name="SubjectDefaultsState" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="SaveSubjectDefaultsButton" Content="{DynamicResource NewTask_GravarPadrao}" Style="{StaticResource SubtleButton}" Padding="10,4" Click="OnSaveSubjectDefaultsClick"/>
+                            <Button x:Name="ClearSubjectDefaultsButton" Content="{DynamicResource NewTask_RemoverPadrao}" Style="{StaticResource NavButton}" Margin="8,0,0,0" Click="OnClearSubjectDefaultsClick"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
             </StackPanel>
-            <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" Visibility="Collapsed"/>
-        </DockPanel>
-    </StackPanel>
-    </ScrollViewer>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+    </Border>
 </Window>

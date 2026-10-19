@@ -44,7 +44,7 @@ public partial class HistoryWindow : Window
             var findings = r.Verification is { } v
                 ? T($"{v.Findings.Count(f => f.Severity == "Critico")} crít. · {v.Findings.Count} total", $"{v.Findings.Count(f => f.Severity == "Critico")} crit. · {v.Findings.Count} total", $"{v.Findings.Count(f => f.Severity == "Critico")} crít. · {v.Findings.Count} total")
                 : "—";
-            return new Row(r, r.CreatedAt.ToString("dd/MM HH:mm"), r.Info.Title, label, findings,
+            return new Row(r, r.CreatedAt.ToString("dd/MM HH:mm"), (r.Info.AsTemplate ? "⚡ " : "") + r.Info.Title, label, findings,
                 r.Tokens is { Total: > 0 } t ? NXPilot.Agents.TokenUsage.Format(t.Total) : "—", r.Info.Subject is { } subject ? "◆ " + subject : r.Info.RepoPath);
         }).ToList();
         _allRows = rows;
@@ -55,7 +55,7 @@ public partial class HistoryWindow : Window
 
     private void OnSearchChanged(object sender, RoutedEventArgs e)
     {
-        if (!IsInitialized || SearchBox == null || PeriodBox == null || ToDate == null) return; // SelectionChanged dispara durante o InitializeComponent
+        if (!IsInitialized || SearchBox == null || PeriodBox == null || ToDate == null || TypeBox == null) return; // SelectionChanged dispara durante o InitializeComponent
         CustomPeriodPanel.Visibility = PeriodTag == "custom" ? Visibility.Visible : Visibility.Collapsed;
         SearchHint.Visibility = SearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         ApplyFilter();
@@ -71,7 +71,10 @@ public partial class HistoryWindow : Window
         if (term.Length < MinSearchLength) term = "";
         var field = (SearchFieldBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
         var (from, to) = PeriodRange();
-        var inPeriod = _allRows.Where(r => (from == null || r.Record.CreatedAt >= from) && (to == null || r.Record.CreatedAt < to)).ToList();
+        var type = (TypeBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
+        var inPeriod = _allRows.Where(r => (from == null || r.Record.CreatedAt >= from) && (to == null || r.Record.CreatedAt < to))
+            .Where(r => type switch { "hooks" => r.Record.Info.AsTemplate, "tasks" => !r.Record.Info.AsTemplate, _ => true })
+            .ToList();
         var rows = term.Length == 0 ? inPeriod : inPeriod.Where(r => field switch
         {
             "title" => Matches(r.Record.Info.Title, term),

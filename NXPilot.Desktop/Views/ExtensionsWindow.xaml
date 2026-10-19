@@ -150,6 +150,50 @@
                 </StackPanel>
             </TabItem>
 
+            <!-- ============================== Teams ============================== -->
+            <!-- Webhook de um canal: a URL já tem a autorização (cifrada aqui). Só o aviso curto sai. -->
+            <TabItem x:Name="TeamsTab">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse x:Name="TeamsDot" Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Teams"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource Ext_TeamsUrl}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
+                    <PasswordBox x:Name="TeamsUrlBox" Padding="4,3" PasswordChanged="OnTeamsUrlChanged"/>
+                    <TextBlock x:Name="TeamsUrlState" Style="{StaticResource Muted}" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                    <Border Background="#EEF4FB" CornerRadius="4" Padding="10,8" Margin="0,10,0,0">
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#24527A" Text="{DynamicResource Ext_TeamsComo}"/>
+                    </Border>
+                    <TextBlock Text="{DynamicResource Ext_TeamsEnviar}" Style="{StaticResource SectionHeader}" Margin="0,12,0,4"/>
+                    <WrapPanel>
+                        <CheckBox x:Name="TeamsDecisionsCheck" Content="{DynamicResource Ext_TeamsDecisoes}" Margin="0,0,16,4"/>
+                        <CheckBox x:Name="TeamsTasksCheck" Content="{DynamicResource Ext_TeamsTarefas}" Margin="0,0,16,4"/>
+                        <CheckBox x:Name="TeamsFailuresCheck" Content="{DynamicResource Ext_TeamsFalhas}" Margin="0,0,16,4"/>
+                        <CheckBox x:Name="TeamsMessagesCheck" Content="{DynamicResource Ext_TeamsMensagens}" Margin="0,0,16,4"/>
+                    </WrapPanel>
+                    <TextBlock Text="{DynamicResource Ext_TeamsAssuntos}" Style="{StaticResource SectionHeader}" Margin="0,12,0,4"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                        <RadioButton x:Name="TeamsAllSubjects" Content="{DynamicResource Ext_TeamsTodosAssuntos}" GroupName="TeamsSubjects" Margin="0,0,16,0" Checked="OnTeamsSubjectsModeChanged"/>
+                        <RadioButton x:Name="TeamsSomeSubjects" Content="{DynamicResource Ext_TeamsSoMarcados}" GroupName="TeamsSubjects" Checked="OnTeamsSubjectsModeChanged"/>
+                    </StackPanel>
+                    <!-- "Agrupador › assunto", como na Nova tarefa. -->
+                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="8,6" MaxHeight="130">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="TeamsSubjectsPanel"/>
+                        </ScrollViewer>
+                    </Border>
+                    <TextBlock Text="{DynamicResource Ext_TeamsAssuntosDica}" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                    <TextBlock Text="{DynamicResource Ext_TeamsOQueSai}" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button x:Name="TeamsTestButton" Content="{DynamicResource Ext_TeamsTestar}" Style="{StaticResource SubtleButton}" Click="OnTeamsTestClick"/>
+                        <Button Content="{DynamicResource Ext_TeamsRemover}" Style="{StaticResource NavButton}" Margin="8,0,0,0" Click="OnTeamsClearClick"/>
+                    </StackPanel>
+                    <TextBlock x:Name="TeamsStatus" TextWrapping="Wrap" FontSize="12" Margin="0,8,0,0"/>
+                </StackPanel>
+            </TabItem>
+
             <!-- ============================== E-mail ============================== -->
             <TabItem x:Name="MailTab">
                 <TabItem.Header>

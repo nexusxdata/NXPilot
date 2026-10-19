@@ -105,7 +105,7 @@ public sealed partial class MainViewModel : ObservableObject
         LanguageService.LanguageChanged += OnLanguageChanged;
         // Cronômetro da etapa em andamento (faixa de estado da tarefa).
         var clock = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        clock.Tick += (_, _) => CurrentTask?.Tick();
+        clock.Tick += async (_, _) => { CurrentTask?.Tick(); await DrainFireQueueAsync(); };
         clock.Start();
         _ = RebuildGateAsync();
         // Ponte com o hook dos agentes reais: fica escutando enquanto o app estiver aberto.
@@ -250,9 +250,152 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task ApprovePlan()
     {
         if (CurrentTask is not { CanApprove: true } task) return;
+        string? note = null;
+        if (task.Info.AsTemplate)
+        {
+            // Hook: a aprovação do plano leva à EXECUÇÃO DE TESTE, com o {texto} digitado por você.
+            if (HookTestTextRequested?.Invoke(task) is not { } testText) return; // cancelou
+            note = HookRunNote(task, TemplateTriggers.BuildIntent(task.Info.Intent, testText, T("manual (execução de teste)", "manual (test run)", "manual (ejecución de prueba)")));
+            AddLog(T("Você", "You", "Usted"), T("hook: execução de teste", "hook: test run", "hook: ejecución de prueba"),
+                T("os riscos que você aprovar agora ficam pré-aprovados nos disparos", "the risks you approve now become pre-approved for triggers", "los riesgos que apruebe ahora quedan preaprobados en los disparos"));
+        }
+        else if (task.Info.TemplateId != null)
+        {
+            // Disparo de hook que esperou você por frequência: ao aprovar, segue com as pré-aprovações do hook.
+            LoadHookPreApprovals(task.Info.TemplateId);
+            note = HookRunNote(task, task.Info.Intent);
+        }
         AddLog(T("Você", "You", "Usted"), T("aprovado", "approved", "aprobado"), T($"Plano aprovado: {task.Title}", $"Plan approved: {task.Title}", $"Plan aprobado: {task.Title}"));
         ReplacePlanArtifact(T("aprovado por você", "approved by you", "aprobado por usted"));
-        await ExecutePhasesAsync(task, resumeNote: null);
+        await ExecutePhasesAsync(task, note);
+    }
+
+    // ================================================================== hook (tarefa em modo escuta)
+
+    /// <summary>A tela pede o {texto} da execução de teste do hook (nulo = cancelou).</summary>
+    public Func<TaskSession, string?>? HookTestTextRequested { get; set; }
+
+    /// <summary>
+    /// Execução de teste concluída: arma o hook (modo escuta) com o plano e as ações que você
+    /// aprovou no teste. Daí em diante, cada evento cria uma tarefa comum com esse plano.
+    /// </summary>
+    [RelayCommand]
+    private void ArmHook()
+    {
+        if (CurrentTask is not { CanArm: true } task) return;
+        var hook = new TaskTemplate
+        {
+            Id = task.Id,
+            Info = task.Info with { AsTemplate = false },
+            PlanText = task.PlanText,
+            Phases = task.Phases.ToList(),
+            PreApprovals = task.PreApprovals.ToList(),
+        };
+        TemplateStore.Save(hook);
+        task.State = TaskState.Armed;
+        AddLog(T("Você", "You", "Usted"), T("hook armado", "hook armed", "hook armado"),
+            T($"\"{task.Title}\" em modo escuta · {hook.PreApprovals.Count} ação(ões) pré-aprovada(s) no teste",
+              $"\"{task.Title}\" listening · {hook.PreApprovals.Count} action(s) pre-approved in the test",
+              $"\"{task.Title}\" en modo escucha · {hook.PreApprovals.Count} acción(es) preaprobada(s) en la prueba"));
+        Notifications.Notify(NotificationKind.Task, T("Hook armado", "Hook armed", "Hook armado"), task.Title);
+        Persist();
+    }
+
+    private readonly Queue<(string HookId, string? Text, string Source, DateTime At)> _fireQueue = new();
+
+    /// <summary>Disparos de hook esperando a tarefa atual terminar.</summary>
+    public int HookQueueCount => _fireQueue.Count;
+
+    /// <summary>
+    /// Um evento (monitor de apps, manual…) aciona o hook: cria uma TAREFA COMUM com o plano do hook
+    /// e executa sem pedir aprovação — as ações aprovadas no teste já vêm pré-aprovadas, MÉDIO e
+    /// BAIXO passam. Pede você só se o ritmo sair do normal (&lt; intervalo mínimo ou acima do limite
+    /// por hora) ou se aparecer um ALTO que não estava no teste. Com outra tarefa rodando, entra na fila.
+    /// </summary>
+    public async Task FireHookAsync(string hookId, string? text, string source)
+    {
+        if (TemplateStore.Load(hookId) is not { } hook) return;
+        if (!hook.Armed)
+        {
+            AddLog("⚡ " + hook.Title, T("ignorado", "ignored", "ignorado"), T($"hook pausado · {source}", $"hook paused · {source}", $"hook pausado · {source}"));
+            return;
+        }
+        if (Busy)
+        {
+            _fireQueue.Enqueue((hookId, text, source, DateTime.Now));
+            AddLog("⚡ " + hook.Title, T("na fila", "queued", "en cola"), T($"{source} — roda quando a tarefa atual terminar", $"{source} — runs when the current task ends", $"{source} — se ejecuta cuando termine la tarea actual"));
+            return;
+        }
+        await RunHookAsync(hook, text, source, DateTime.Now);
+    }
+
+    /// <summary>Tarefa rodando ou esperando você: o disparo espera na fila.</summary>
+    private bool Busy => CurrentTask is { IsRunning: true } or { State: TaskState.AwaitingApproval } || _draining;
+
+    private async Task RunHookAsync(TaskTemplate hook, string? text, string source, DateTime at)
+    {
+        var check = TemplateTriggers.CheckRate(hook.Fires, at, hook.MinIntervalSeconds, hook.MaxPerHour);
+        hook.Fires.Add(at);
+        hook.RunCount++;
+
+        // Tarefa comum (um clone automático do hook): só guarda de qual hook veio.
+        var info = hook.Info with { Intent = TemplateTriggers.BuildIntent(hook.Info.Intent, text, source), AsTemplate = false, TemplateId = hook.Id };
+        var task = new TaskSession(info, DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+        hook.LastTaskId = task.Id;
+        TemplateStore.Save(hook);
+
+        ShowTask(task);
+        AddLog("⚡ " + hook.Title, T("disparado", "triggered", "disparado"), T($"origem: {source}", $"source: {source}", $"origen: {source}"));
+        if (!await PrepareAsync(task)) return;
+        // O plano é o do hook (aprovado e testado): não replaneja.
+        task.Phases = hook.Phases.ToList();
+        task.PhaseStatus = task.Phases.Select(_ => "Pendente").ToList();
+        task.PlanText = hook.PlanText;
+        RenderPhases(task);
+
+        if (check.NeedsApproval)
+        {
+            task.State = TaskState.AwaitingApproval;
+            SetAgent(ExecutorName, "Aguardando", T("disparo fora do ritmo — aguardando você", "trigger out of pace — waiting for you", "disparo fuera de ritmo — esperando por usted"));
+            AddLog("⚡ " + hook.Title, T("aprovação", "approval", "aprobación"), check.Reason!);
+            Notifications.Notify(NotificationKind.Decision, T("Hook disparou fora do ritmo — aprove para executar", "Hook fired out of pace — approve to run", "El hook se disparó fuera de ritmo — apruebe para ejecutar"),
+                $"{hook.Title} · {check.Reason}");
+            Persist();
+            return;
+        }
+
+        Notifications.Notify(NotificationKind.Task, T("Hook disparado", "Hook triggered", "Hook disparado"), $"{hook.Title} · {source}");
+        LoadHookPreApprovals(hook.Id);
+        await ExecutePhasesAsync(task, HookRunNote(task, task.Info.Intent));
+    }
+
+    /// <summary>Regras do disparo: as ações aprovadas no teste (até ALTO, só as mesmas) + MÉDIO e BAIXO.</summary>
+    private void LoadHookPreApprovals(string hookId)
+    {
+        _taskRules.ApproveMedium = true;
+        foreach (var signature in TemplateStore.Load(hookId)?.PreApprovals ?? new()) _taskRules.AddPreApproved(signature);
+        RefreshTaskRulesText();
+    }
+
+    /// <summary>Contexto para o agente: intenção (com o evento como dado) e o plano aprovado.</summary>
+    private static string HookRunNote(TaskSession task, string intent) => T(
+        $"EXECUÇÃO DE HOOK: o plano abaixo foi aprovado pelo usuário; siga-o.\nIntenção:\n{intent}\n\nCritérios de aceite: {task.Info.Criteria}\n\nPlano aprovado:\n{task.PlanText}",
+        $"HOOK RUN: the plan below was approved by the user; follow it.\nIntent:\n{intent}\n\nAcceptance criteria: {task.Info.Criteria}\n\nApproved plan:\n{task.PlanText}",
+        $"EJECUCIÓN DE HOOK: el plan de abajo fue aprobado por el usuario; sígalo.\nIntención:\n{intent}\n\nCriterios de aceptación: {task.Info.Criteria}\n\nPlan aprobado:\n{task.PlanText}");
+
+    private bool _draining;
+
+    /// <summary>A cada segundo: com a tarefa atual terminada, roda o próximo disparo da fila.</summary>
+    private async Task DrainFireQueueAsync()
+    {
+        if (_fireQueue.Count == 0 || Busy) return;
+        _draining = true;
+        try
+        {
+            var (id, text, source, at) = _fireQueue.Dequeue();
+            if (TemplateStore.Load(id) is { Armed: true } hook) await RunHookAsync(hook, text, source, at);
+        }
+        finally { _draining = false; }
     }
 
     /// <summary>
@@ -672,7 +815,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         // Regra que você ligou nesta tarefa (semelhantes / médio e baixo). ALTO nunca entra aqui.
-        if (await OnUiGet(() => _taskRules.Allows(req.Action, r.Level)) is { } rule)
+        if (await OnUiGet(() => _taskRules.Allows(req.Action, r.Level, worktree)) is { } rule)
         {
             await OnUi(() =>
             {
@@ -909,6 +1052,9 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (!PendingDecisions.Remove(d)) return;
         d.Response?.TrySetResult(true); // agente real: libera a ferramenta que estava esperando
+        // Execução de teste do hook: o que você aprova agora vira pré-aprovação nos disparos.
+        if (CurrentTask is { Info.AsTemplate: true } hookTest)
+            hookTest.PreApprovals.Add(TaskApprovalRules.Signature(TaskApprovalRules.Portable(d.Action, hookTest.Worktree)));
         AddLog(T("Você", "You", "Usted"), T("aprovado", "approved", "aprobado"), $"{d.Agent}: {d.Action} ({T("risco", "risk", "riesgo")} {d.Level})");
     }
 
@@ -1027,7 +1173,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Pedidos que já estavam esperando e agora se encaixam numa regra da tarefa.</summary>
     private void ApplyTaskRulesToPending()
     {
-        foreach (var p in PendingDecisions.Where(p => p.Level is { } level && _taskRules.Allows(p.Action, level) != null).ToList())
+        foreach (var p in PendingDecisions.Where(p => p.Level is { } level && _taskRules.Allows(p.Action, level, CurrentTask?.Worktree) != null).ToList())
             Approve(p);
         RefreshTaskRulesText();
     }

@@ -86,6 +86,20 @@ else {
 
 Ensure-DevCertificateTrusted
 
+# Este script NAO compila. Se o codigo mudou depois do build que vai abrir, avisa: senao a
+# tela antiga parece "a mudanca nao funcionou" (aconteceu com a Nova tarefa).
+$exeTime = (Get-Item $exe).LastWriteTime
+$newest = Get-ChildItem -Path $PSScriptRoot -Recurse -File -Include *.cs, *.xaml, *.csproj -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch '\\(bin|obj|dist)\\' -and $_.Name -notlike '*_wpftmp*' } |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if ($newest -and $newest.LastWriteTime -gt $exeTime.AddSeconds(5)) {
+    Write-Host ""
+    Write-Host "Atencao: o codigo mudou depois deste build ($($exeTime.ToString('dd/MM HH:mm')))." -ForegroundColor Yellow
+    Write-Host "  Mais recente: $($newest.FullName.Substring($PSScriptRoot.Length + 1)) ($($newest.LastWriteTime.ToString('dd/MM HH:mm')))" -ForegroundColor Yellow
+    Write-Host "  Para ver as mudancas: .\build-nxpilot.ps1 -Run  (fecha o NXPilot, compila, testa e abre)" -ForegroundColor Yellow
+    Write-Host ""
+}
+
 Write-Host "Iniciando NXPilot..." -ForegroundColor Cyan
 # Chamada direta (nao Start-Process): o script espera o app fechar e mostra o codigo de saida.
 & $exe

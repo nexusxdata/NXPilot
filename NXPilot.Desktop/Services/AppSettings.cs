@@ -13,6 +13,9 @@ namespace NXPilot.Desktop.Services;
 /// últimas escolhas da Nova tarefa. Ler e gravar sempre o objeto inteiro evita que salvar
 /// uma preferência apague outra.
 /// </summary>
+/// <summary>O que o "Gravar como padrão do assunto" guarda.</summary>
+public sealed record SubjectDefaults(string Executor, string? Model, string Reviewer, string? CodexModel, DateTime SavedAt);
+
 public sealed class AppSettings
 {
     public string? Language { get; set; }
@@ -26,6 +29,12 @@ public sealed class AppSettings
     public string? CodexModel { get; set; }
     public string? Reviewer { get; set; }
     public string? Executor { get; set; }
+
+    /// <summary>
+    /// Padrão por assunto (chave: pasta do assunto): agente, modelos e revisor que voltam sozinhos
+    /// ao escolher o assunto na Nova tarefa. Assunto sem padrão segue a última escolha.
+    /// </summary>
+    public Dictionary<string, SubjectDefaults> SubjectDefaults { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXPilot", "settings.json");

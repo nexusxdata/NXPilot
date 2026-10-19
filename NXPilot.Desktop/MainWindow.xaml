@@ -78,6 +78,7 @@
                 <StackPanel Margin="12">
                     <Button x:Name="NewTaskButton" Content="{DynamicResource Main_NovaTarefa}" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Padding="12,8" Click="OnNewTaskClick"/>
                     <Button x:Name="HistoryButton" Content="{DynamicResource Main_Historico}" Style="{StaticResource NavButton}" Margin="0,8,0,0" Click="OnHistoryClick"/>
+                    <Button x:Name="HooksButton" Content="{DynamicResource Main_Hooks}" Style="{StaticResource NavButton}" Click="OnHooksClick"/>
                     <Button x:Name="NotificationsButton" Style="{StaticResource NavButton}" Click="OnNotificationsClick">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{DynamicResource Main_Notificacoes}"/>
@@ -213,9 +214,13 @@
                                          VerticalScrollBarVisibility="Auto" Padding="8" FontSize="12.5" BorderBrush="{StaticResource BorderBrush}"/>
 
                                 <WrapPanel Margin="0,12,0,0">
-                                    <Button Content="{DynamicResource Task_AprovarExecutar}" Command="{Binding ApprovePlanCommand}" Margin="0,0,8,6"
+                                    <Button Content="{Binding CurrentTask.ApproveLabel}" Command="{Binding ApprovePlanCommand}" Margin="0,0,8,6"
                                             Style="{StaticResource PrimaryButton}" Background="{StaticResource AccentBrush}" BorderBrush="{StaticResource AccentBrush}"
                                             Visibility="{Binding CurrentTask.CanApprove, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
+                                    <Button Content="{DynamicResource Task_ArmarHook}" Command="{Binding ArmHookCommand}" Margin="0,0,8,6"
+                                            Style="{StaticResource PrimaryButton}" Background="{StaticResource AccentBrush}" BorderBrush="{StaticResource AccentBrush}"
+                                            ToolTip="{DynamicResource Task_ArmarHookDica}"
+                                            Visibility="{Binding CurrentTask.CanArm, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
                                     <Button Content="{DynamicResource Task_Descartar}" Command="{Binding DiscardPlanCommand}" Style="{StaticResource DangerButton}" Margin="0,0,8,6"
                                             Visibility="{Binding CurrentTask.CanDiscard, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
                                     <Button Content="{DynamicResource Task_Interromper}" Command="{Binding StopTaskCommand}" Style="{StaticResource DangerButton}" Margin="0,0,8,6"

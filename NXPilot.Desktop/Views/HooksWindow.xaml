@@ -1,0 +1,48 @@
+<Window x:Class="NXPilot.Desktop.Views.HooksWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="1040" Height="560" MinWidth="760" MinHeight="380" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{StaticResource BackgroundBrush}" FontFamily="Segoe UI" FontSize="13">
+    <Border Padding="22,18">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock x:Name="Heading" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"/>
+            <TextBlock x:Name="SubHeading" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,12"/>
+        </StackPanel>
+
+        <!-- Duas linhas: limites do hook escolhido e a situação em cima; os botões embaixo. -->
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <WrapPanel Margin="0,0,0,8">
+                <TextBlock x:Name="LimitsLabel" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox x:Name="MinIntervalBox" Width="56" Padding="4,2" HorizontalContentAlignment="Right"/>
+                <TextBlock x:Name="MinIntervalUnit" VerticalAlignment="Center" Margin="4,0,14,0"/>
+                <TextBox x:Name="MaxPerHourBox" Width="56" Padding="4,2" HorizontalContentAlignment="Right"/>
+                <TextBlock x:Name="MaxPerHourUnit" VerticalAlignment="Center" Margin="4,0,10,0"/>
+                <Button x:Name="SaveLimitsButton" Style="{StaticResource SubtleButton}" Padding="10,2" Click="OnSaveLimitsClick"/>
+            </WrapPanel>
+            <TextBlock x:Name="StatusText" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <WrapPanel HorizontalAlignment="Right">
+                <Button x:Name="RemoveButton" Style="{StaticResource DangerButton}" Click="OnRemoveClick"/>
+                <Button x:Name="ArmButton" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnArmClick"/>
+                <Button x:Name="FireButton" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Click="OnFireClick"/>
+                <Button x:Name="CloseButton" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" IsCancel="True"/>
+            </WrapPanel>
+        </StackPanel>
+
+        <Grid>
+            <DataGrid x:Name="Grid" SelectionChanged="OnSelectionChanged" MouseDoubleClick="OnFireClick">
+                <DataGrid.Columns>
+                    <DataGridTextColumn x:Name="ColTitle" Binding="{Binding Title}" Width="2*"/>
+                    <DataGridTextColumn x:Name="ColSubject" Binding="{Binding Subject}" Width="1.4*"/>
+                    <DataGridTextColumn x:Name="ColState" Binding="{Binding State}" Width="110"/>
+                    <DataGridTextColumn x:Name="ColRuns" Binding="{Binding Runs}" Width="140"/>
+                    <DataGridTextColumn x:Name="ColLimits" Binding="{Binding Limits}" Width="110"/>
+                    <DataGridTextColumn x:Name="ColPre" Binding="{Binding PreApprovals}" Width="110"/>
+                </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock x:Name="EmptyText" Style="{StaticResource Muted}" FontSize="14" TextWrapping="Wrap" TextAlignment="Center"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560" Visibility="Collapsed"/>
+        </Grid>
+    </DockPanel>
+    </Border>
+</Window>

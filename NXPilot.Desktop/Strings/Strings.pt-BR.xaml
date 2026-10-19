@@ -373,4 +373,43 @@
     <sys:String x:Key="Ext_WiGitHubToken">Token do GitHub (escopos read:project e repo)</sys:String>
     <sys:String x:Key="Ext_WiTestarGitHubProjects">Testar GitHub Projects</sys:String>
     <sys:String x:Key="Main_WorkItems">⧉  Work items</sys:String>
+    <!-- Padrão do assunto (Nova tarefa) -->
+    <sys:String x:Key="NewTask_PadraoAssunto">Padrão do assunto</sys:String>
+    <sys:String x:Key="NewTask_PadraoAssuntoDica">Grava o agente, o modelo do Claude, o revisor e o modelo do Codex escolhidos acima como padrão deste assunto. Ao escolher o assunto numa nova tarefa, essas opções voltam sozinhas (dá para mudar na hora). Vale só para este assunto: os outros seguem a última escolha.</sys:String>
+    <sys:String x:Key="NewTask_GravarPadrao">💾 Gravar como padrão do assunto</sys:String>
+    <sys:String x:Key="NewTask_RemoverPadrao">Remover padrão</sys:String>
+    <!-- Citar arquivos/pastas na Nova tarefa -->
+    <sys:String x:Key="NewTask_CitarArquivo">📎 Citar arquivo…</sys:String>
+    <sys:String x:Key="NewTask_CitarPasta">📁 Citar pasta…</sys:String>
+    <sys:String x:Key="NewTask_CitarArquivoDica">Arraste arquivos ou pastas para a Intenção ou os Critérios, ou use Citar arquivo / Citar pasta: só o caminho entra no texto — nada é copiado nem anexado. Dentro do assunto (ou repositório) entra o caminho relativo, que o agente encontra na cópia de trabalho; fora dele, o caminho completo (ler fora da pasta passa pelo gate).</sys:String>
+    <sys:String x:Key="NewTask_Citacoes">Citações</sys:String>
+    <sys:String x:Key="NewTask_TirarCitacao">Tirar esta citação (os marcadores dela saem do texto e as seguintes são renumeradas)</sys:String>
+    <!-- Extensão Teams -->
+    <sys:String x:Key="Ext_TeamsUrl">URL do webhook do canal (Workflows ou Incoming Webhook)</sys:String>
+    <sys:String x:Key="Ext_TeamsComo">No Teams, no canal: ⋯ → Workflows → "Post to a channel when a webhook request is received" (ou o Incoming Webhook antigo) e copie a URL. Ela já contém a autorização: quem tiver a URL posta no canal — por isso fica cifrada só neste usuário do Windows.</sys:String>
+    <sys:String x:Key="Ext_TeamsEnviar">ENVIAR PARA O CANAL</sys:String>
+    <sys:String x:Key="Ext_TeamsDecisoes">Decisões esperando você</sys:String>
+    <sys:String x:Key="Ext_TeamsTarefas">Plano pronto e tarefa concluída</sys:String>
+    <sys:String x:Key="Ext_TeamsFalhas">Falhas</sys:String>
+    <sys:String x:Key="Ext_TeamsMensagens">Mensagens prioritárias dos Canais</sys:String>
+    <sys:String x:Key="Ext_TeamsOQueSai">Sai só o aviso: título da tarefa, o texto curto e o tipo — nunca código, diff ou conteúdo de arquivos.</sys:String>
+    <sys:String x:Key="Ext_TeamsTestar">Enviar teste</sys:String>
+    <sys:String x:Key="Ext_TeamsRemover">Remover URL</sys:String>
+    <sys:String x:Key="Ext_TeamsAssuntos">DE QUAIS ASSUNTOS</sys:String>
+    <sys:String x:Key="Ext_TeamsTodosAssuntos">Todos os assuntos</sys:String>
+    <sys:String x:Key="Ext_TeamsSoMarcados">Só os marcados</sys:String>
+    <sys:String x:Key="Ext_TeamsAssuntosDica">O cartão leva o assunto com o agrupador (ex.: NXPilot › testePilot01). Tarefas em repositório git e mensagens dos Canais não passam por este filtro.</sys:String>
+    <!-- Hook (tarefa em modo escuta) -->
+    <sys:String x:Key="NewTask_InserirTexto">+ {texto}</sys:String>
+    <sys:String x:Key="NewTask_InserirTextoDica">Insere {texto} na intenção: ali entra o que o evento trouxer (ex.: a linha lida pelo monitor de apps), marcado como dado.</sys:String>
+    <sys:String x:Key="Task_ArmarHook">⚡ Armar hook (modo escuta)</sys:String>
+    <sys:String x:Key="Task_ArmarHookDica">Guarda o plano e as ações que você aprovou nesta execução de teste. Cada evento passa a criar uma tarefa comum com este plano.</sys:String>
+    <sys:String x:Key="NewTask_ModoTarefa">Modo da tarefa</sys:String>
+    <sys:String x:Key="NewTask_ModoOnline">Online — executa depois do plano</sys:String>
+    <sys:String x:Key="NewTask_ModoHook">⚡ Hook — teste e modo escuta (disparada por eventos)</sys:String>
+    <sys:String x:Key="Main_Hooks">⚡  Hooks</sys:String>
+    <sys:String x:Key="Hist_Tipo">Tipo</sys:String>
+    <sys:String x:Key="Hist_TipoTodas">Todas</sys:String>
+    <sys:String x:Key="Hist_TipoHooks">⚡ Hooks</sys:String>
+    <sys:String x:Key="Hist_TipoTarefas">Tarefas</sys:String>
 </ResourceDictionary>

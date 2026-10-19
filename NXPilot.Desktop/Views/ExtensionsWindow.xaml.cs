@@ -25,6 +25,7 @@ public partial class ExtensionsWindow : Window
     private readonly GitRepoSettings _git;
     private readonly MailSettings _mail;
     private readonly WorkItemSettings _wi;
+    private readonly TeamsSettings _teams;
     private readonly Services.WindowsUiSettings _windows;
 
     public ExtensionsWindow(string? tab = null)
@@ -35,6 +36,20 @@ public partial class ExtensionsWindow : Window
         _git = GitRepoSettings.Load();
         _mail = MailSettings.Load();
         _wi = WorkItemSettings.Load();
+        _teams = TeamsSettings.Load();
+        TeamsDecisionsCheck.IsChecked = _teams.SendDecisions;
+        TeamsTasksCheck.IsChecked = _teams.SendTasks;
+        TeamsFailuresCheck.IsChecked = _teams.SendFailures;
+        TeamsMessagesCheck.IsChecked = _teams.SendMessages;
+        foreach (var subject in NXPilot.Agents.ShadowRepo.LoadSubjects())
+            TeamsSubjectsPanel.Children.Add(new CheckBox
+            {
+                Content = subject.GroupedName, Tag = subject.Path, ToolTip = subject.Path, Margin = new Thickness(0, 0, 0, 3),
+                IsChecked = _teams.Subjects.Any(s => string.Equals(s, subject.Path, StringComparison.OrdinalIgnoreCase)),
+            });
+        if (TeamsSubjectsPanel.Children.Count == 0)
+            TeamsSubjectsPanel.Children.Add(new TextBlock { Text = T("Nenhum assunto ainda.", "No subjects yet.", "Aún no hay asuntos."), Foreground = Brushes.Gray });
+        (_teams.Subjects.Count == 0 ? TeamsAllSubjects : TeamsSomeSubjects).IsChecked = true;
         WiAdoOrgBox.Text = _wi.DevOpsOrganizationUrl;
         WiAdoProjectBox.Text = _wi.DevOpsProject;
         WiGhOwnerBox.Text = _wi.GitHubOwner;
@@ -56,6 +71,7 @@ public partial class ExtensionsWindow : Window
         {
             "git" => GitTab,
             "workitems" or "work-items" => WorkItemsTab,
+            "teams" => TeamsTab,
             "mail" or "email" => MailTab,
             "powerbi" => PowerBiTab,
             "windows" or "janelas" => WindowsTab,
@@ -80,6 +96,7 @@ public partial class ExtensionsWindow : Window
         WiAdoPatState.Text = Saved(_wi.DevOpsPat);
         WiGhTokenState.Text = Saved(_wi.GitHubToken);
         RefreshWorkItemOrigins(_wi);
+        RefreshTeams();
 
         Dot(DatabricksDot, _db.ToConnection().IsComplete);
         Dot(GitDot, _git.GitHubToken.Length > 0 || _git.AzureDevOpsToken.Length > 0);
@@ -223,6 +240,65 @@ public partial class ExtensionsWindow : Window
         _wi.GitHubToken = "";
         WiGhTokenState.Text = "";
         RefreshWorkItemOrigins(CollectWorkItems());
+    }
+
+    // ------------------------------------------------------------ Teams
+
+    private TeamsSettings CollectTeams() => new()
+    {
+        WebhookUrl = TeamsUrlBox.Password.Trim().Length > 0 ? TeamsUrlBox.Password.Trim() : _teams.WebhookUrl,
+        SendDecisions = TeamsDecisionsCheck.IsChecked == true,
+        SendTasks = TeamsTasksCheck.IsChecked == true,
+        SendFailures = TeamsFailuresCheck.IsChecked == true,
+        SendMessages = TeamsMessagesCheck.IsChecked == true,
+        Subjects = TeamsSomeSubjects.IsChecked == true
+            ? TeamsSubjectsPanel.Children.OfType<CheckBox>().Where(c => c.IsChecked == true).Select(c => (string)c.Tag).ToList()
+            : new(),
+    };
+
+    /// <summary>"Todos os assuntos" desabilita a lista; "Só os marcados" libera.</summary>
+    private void OnTeamsSubjectsModeChanged(object sender, RoutedEventArgs e)
+    {
+        if (TeamsSubjectsPanel != null) TeamsSubjectsPanel.IsEnabled = TeamsSomeSubjects.IsChecked == true;
+    }
+
+    private void OnTeamsUrlChanged(object sender, RoutedEventArgs e) => RefreshTeams();
+
+    /// <summary>Estado da URL (salva/cifrada, formato detectado) e o último erro de envio.</summary>
+    private void RefreshTeams()
+    {
+        var url = TeamsUrlBox.Password.Trim().Length > 0 ? TeamsUrlBox.Password.Trim() : _teams.WebhookUrl;
+        var saved = TeamsUrlBox.Password.Length == 0 && _teams.WebhookUrl.Length > 0
+            ? T("Salva (cifrada). Deixe em branco para manter. ", "Saved (encrypted). Leave blank to keep it. ", "Guardada (cifrada). Déjela en blanco para mantenerla. ") : "";
+        TeamsUrlState.Text = url.Length == 0 ? ""
+            : !TeamsWebhookClient.IsValidUrl(url) ? T("A URL precisa começar com https://.", "The URL must start with https://.", "La URL debe comenzar con https://.")
+            : saved + (TeamsWebhookClient.KindOf(url) == TeamsWebhookKind.IncomingWebhook
+                ? T("Formato: Incoming Webhook (conector antigo do Office 365).", "Format: Incoming Webhook (legacy Office 365 connector).", "Formato: Incoming Webhook (conector antiguo de Office 365).")
+                : T("Formato: Workflows (Adaptive Card).", "Format: Workflows (Adaptive Card).", "Formato: Workflows (Adaptive Card)."));
+        if (Services.TeamsNotifier.LastError is { } error && TeamsStatus.Text.Length == 0)
+            Status(TeamsStatus, T("Último envio falhou: ", "Last send failed: ", "El último envío falló: ") + error, Brushes.Firebrick);
+        Dot(TeamsDot, url.Length > 0 && TeamsWebhookClient.IsValidUrl(url));
+    }
+
+    /// <summary>Manda um cartão de teste com o mesmo formato dos avisos (usa o que está na tela, sem salvar).</summary>
+    private async void OnTeamsTestClick(object sender, RoutedEventArgs e) => await Run(TeamsTestButton, TeamsStatus, async () =>
+    {
+        var s = CollectTeams();
+        if (!s.IsConfigured) return (T("Cole a URL do webhook do canal.", "Paste the channel webhook URL.", "Pegue la URL del webhook del canal."), Brushes.Firebrick);
+        using var client = new TeamsWebhookClient(s.WebhookUrl);
+        await client.SendAsync(Services.TeamsNotifier.MessageFor(ViewModels.NotificationKind.Task,
+            T("Teste da extensão Teams", "Teams extension test", "Prueba de la extensión Teams"),
+            T("Se este cartão apareceu no canal, o NXPilot já pode avisar aqui.", "If this card showed up in the channel, NXPilot can post here.", "Si esta tarjeta apareció en el canal, NXPilot ya puede avisar aquí.")));
+        return (T("Enviado. Confira o canal no Teams.", "Sent. Check the channel in Teams.", "Enviado. Revise el canal en Teams."), Brushes.SeaGreen);
+    });
+
+    /// <summary>Esquece a URL (o canal deixa de receber avisos ao salvar).</summary>
+    private void OnTeamsClearClick(object sender, RoutedEventArgs e)
+    {
+        TeamsUrlBox.Password = "";
+        _teams.WebhookUrl = "";
+        TeamsStatus.Text = "";
+        RefreshTeams();
     }
 
     // ------------------------------------------------------------ Databricks
@@ -378,6 +454,7 @@ public partial class ExtensionsWindow : Window
             CollectGit().Save();
             CollectMail().Save();
             CollectWorkItems().Save();
+            CollectTeams().Save();
             CollectWindows().Save();
             DialogResult = true;
         }

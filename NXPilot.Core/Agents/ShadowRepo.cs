@@ -22,6 +22,10 @@ public sealed class ShadowSubject
 
     [JsonIgnore] public string Name => new DirectoryInfo(Path).Name;
 
+    /// <summary>Com o agrupador (a pasta onde o assunto está, normalmente a pasta dos assuntos): "NXPilot › testePilot01".</summary>
+    [JsonIgnore] public string GroupedName =>
+        System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(Path.TrimEnd('\\', '/'))) is { Length: > 0 } group ? $"{group} › {Name}" : Name;
+
     /// <summary>Repositório-sombra (histórico) do assunto.</summary>
     [JsonIgnore] public string Dir => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Path)!, ShadowRepo.HistoryFolder, Name);
 

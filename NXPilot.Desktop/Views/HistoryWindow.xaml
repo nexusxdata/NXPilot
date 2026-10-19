@@ -1,7 +1,7 @@
 <Window x:Class="NXPilot.Desktop.Views.HistoryWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="{DynamicResource Hist_Titulo}" Width="1060" Height="560" MinWidth="700" MinHeight="360"
+        Title="{DynamicResource Hist_Titulo}" Width="1180" Height="560" MinWidth="700" MinHeight="360"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="{StaticResource BackgroundBrush}" FontFamily="Segoe UI" FontSize="13">
     <Border Padding="22,18">
@@ -18,6 +18,13 @@
                     <TextBlock Text="{DynamicResource Hist_Ate}" VerticalAlignment="Center" Margin="8,0,4,0"/>
                     <DatePicker x:Name="ToDate" Width="120" SelectedDateChanged="OnSearchChanged"/>
                 </StackPanel>
+                <!-- Tipo: o hook (a tarefa em modo escuta) separado das tarefas comuns (inclusive as que ele disparou). -->
+                <ComboBox x:Name="TypeBox" DockPanel.Dock="Right" Width="130" Margin="8,0,0,0" Padding="8,5" SelectedIndex="0"
+                          SelectionChanged="OnSearchChanged" ToolTip="{DynamicResource Hist_Tipo}">
+                    <ComboBoxItem Content="{DynamicResource Hist_TipoTodas}" Tag="all"/>
+                    <ComboBoxItem Content="{DynamicResource Hist_TipoHooks}" Tag="hooks"/>
+                    <ComboBoxItem Content="{DynamicResource Hist_TipoTarefas}" Tag="tasks"/>
+                </ComboBox>
                 <ComboBox x:Name="PeriodBox" DockPanel.Dock="Right" Width="160" Margin="8,0,0,0" Padding="8,5" SelectedIndex="0"
                           SelectionChanged="OnSearchChanged" ToolTip="{DynamicResource Hist_Periodo}">
                     <ComboBoxItem Content="{DynamicResource Hist_PeriodoQualquer}" Tag="any"/>

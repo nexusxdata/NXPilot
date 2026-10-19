@@ -373,4 +373,43 @@
     <sys:String x:Key="Ext_WiGitHubToken">Token de GitHub (alcances read:project y repo)</sys:String>
     <sys:String x:Key="Ext_WiTestarGitHubProjects">Probar GitHub Projects</sys:String>
     <sys:String x:Key="Main_WorkItems">⧉  Work items</sys:String>
+    <!-- Padrão do assunto (Nova tarefa) -->
+    <sys:String x:Key="NewTask_PadraoAssunto">Predeterminado del asunto</sys:String>
+    <sys:String x:Key="NewTask_PadraoAssuntoDica">Guarda el agente, el modelo de Claude, el revisor y el modelo de Codex elegidos arriba como predeterminado de este asunto. Al elegir el asunto en una nueva tarea, estas opciones vuelven solas (se pueden cambiar en el momento). Vale solo para este asunto: los demás siguen la última elección.</sys:String>
+    <sys:String x:Key="NewTask_GravarPadrao">💾 Guardar como predeterminado del asunto</sys:String>
+    <sys:String x:Key="NewTask_RemoverPadrao">Quitar predeterminado</sys:String>
+    <!-- Citar arquivos/pastas na Nova tarefa -->
+    <sys:String x:Key="NewTask_CitarArquivo">📎 Citar archivo…</sys:String>
+    <sys:String x:Key="NewTask_CitarPasta">📁 Citar carpeta…</sys:String>
+    <sys:String x:Key="NewTask_CitarArquivoDica">Arrastre archivos o carpetas a la Intención o a los Criterios, o use Citar archivo / Citar carpeta: solo la ruta entra en el texto — nada se copia ni se adjunta. Dentro del asunto (o repositorio) entra la ruta relativa, que el agente encuentra en su copia de trabajo; fuera de él, la ruta completa (leer fuera de la carpeta pasa por el gate).</sys:String>
+    <sys:String x:Key="NewTask_Citacoes">Citas</sys:String>
+    <sys:String x:Key="NewTask_TirarCitacao">Quitar esta cita (sus marcadores salen del texto y las siguientes se renumeran)</sys:String>
+    <!-- Extensão Teams -->
+    <sys:String x:Key="Ext_TeamsUrl">URL del webhook del canal (Workflows o Incoming Webhook)</sys:String>
+    <sys:String x:Key="Ext_TeamsComo">En Teams, en el canal: ⋯ → Workflows → "Post to a channel when a webhook request is received" (o el Incoming Webhook antiguo) y copie la URL. Ya contiene la autorización: quien tenga la URL publica en el canal — por eso queda cifrada solo en este usuario de Windows.</sys:String>
+    <sys:String x:Key="Ext_TeamsEnviar">ENVIAR AL CANAL</sys:String>
+    <sys:String x:Key="Ext_TeamsDecisoes">Decisiones esperándolo</sys:String>
+    <sys:String x:Key="Ext_TeamsTarefas">Plan listo y tarea concluida</sys:String>
+    <sys:String x:Key="Ext_TeamsFalhas">Errores</sys:String>
+    <sys:String x:Key="Ext_TeamsMensagens">Mensajes prioritarios de los Canales</sys:String>
+    <sys:String x:Key="Ext_TeamsOQueSai">Solo sale el aviso: título de la tarea, el texto corto y el tipo — nunca código, diff ni contenido de archivos.</sys:String>
+    <sys:String x:Key="Ext_TeamsTestar">Enviar prueba</sys:String>
+    <sys:String x:Key="Ext_TeamsRemover">Quitar URL</sys:String>
+    <sys:String x:Key="Ext_TeamsAssuntos">DE QUÉ ASUNTOS</sys:String>
+    <sys:String x:Key="Ext_TeamsTodosAssuntos">Todos los asuntos</sys:String>
+    <sys:String x:Key="Ext_TeamsSoMarcados">Solo los marcados</sys:String>
+    <sys:String x:Key="Ext_TeamsAssuntosDica">La tarjeta muestra el asunto con su agrupador (p. ej. NXPilot › testePilot01). Las tareas en repositorio git y los mensajes de los Canales no pasan por este filtro.</sys:String>
+    <!-- Hook (tarefa em modo escuta) -->
+    <sys:String x:Key="NewTask_InserirTexto">+ {texto}</sys:String>
+    <sys:String x:Key="NewTask_InserirTextoDica">Inserta {texto} en la intención: ahí entra lo que traiga el evento (p. ej., la línea leída por el monitor de apps), marcado como dato.</sys:String>
+    <sys:String x:Key="Task_ArmarHook">⚡ Armar hook (modo escucha)</sys:String>
+    <sys:String x:Key="Task_ArmarHookDica">Guarda el plan y las acciones que aprobó en esta ejecución de prueba. Cada evento pasa a crear una tarea común con este plan.</sys:String>
+    <sys:String x:Key="NewTask_ModoTarefa">Modo de la tarea</sys:String>
+    <sys:String x:Key="NewTask_ModoOnline">Online — se ejecuta tras el plan</sys:String>
+    <sys:String x:Key="NewTask_ModoHook">⚡ Hook — prueba y modo escucha (disparada por eventos)</sys:String>
+    <sys:String x:Key="Main_Hooks">⚡  Hooks</sys:String>
+    <sys:String x:Key="Hist_Tipo">Tipo</sys:String>
+    <sys:String x:Key="Hist_TipoTodas">Todas</sys:String>
+    <sys:String x:Key="Hist_TipoHooks">⚡ Hooks</sys:String>
+    <sys:String x:Key="Hist_TipoTarefas">Tareas</sys:String>
 </ResourceDictionary>

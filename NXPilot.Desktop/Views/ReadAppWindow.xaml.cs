@@ -47,6 +47,9 @@ public partial class ReadAppWindow : Window
         ActionBox.Items.Add(new ComboBoxItem { Content = T("Só avisar (nenhuma ação)", "Only alert (no action)", "Solo avisar (sin acción)") });
         foreach (var p in Services.UiProcessStore.Load().Where(p => p.IsApproved))
             ActionBox.Items.Add(new ComboBoxItem { Content = T($"Executar o processo \"{p.Name}\" ({p.ProcessName})", $"Run process \"{p.Name}\" ({p.ProcessName})", $"Ejecutar el proceso \"{p.Name}\" ({p.ProcessName})"), Tag = p });
+        // Hooks armados: o alerta cria uma tarefa com o plano do hook (as linhas lidas viram o {texto}).
+        foreach (var h in Services.TemplateStore.LoadAll().Where(h => h.Armed))
+            ActionBox.Items.Add(new ComboBoxItem { Content = T($"⚡ Acionar o hook \"{h.Title}\"", $"⚡ Trigger hook \"{h.Title}\"", $"⚡ Disparar el hook \"{h.Title}\""), Tag = h });
         ActionBox.SelectedIndex = 0;
     }
 
@@ -90,6 +93,7 @@ public partial class ReadAppWindow : Window
         catch (ArgumentOutOfRangeException ex) { Status(ex.Message.Split(" (")[0], Brushes.Firebrick); return; }
 
         var action = (ActionBox.SelectedItem as ComboBoxItem)?.Tag as UiProcess;
+        var hook = (ActionBox.SelectedItem as ComboBoxItem)?.Tag as Services.TaskTemplate;
         var where = options.Origin != null ? T($" na área \"{options.Origin}\"", $" in the \"{options.Origin}\" area", $" en el área \"{options.Origin}\"") : "";
         var what = options.Keywords.Count > 0
             ? T($"avisando quando aparecer{where}: {string.Join(", ", options.Keywords)}", $"alerting when it shows{where}: {string.Join(", ", options.Keywords)}", $"avisando cuando aparezca{where}: {string.Join(", ", options.Keywords)}")
@@ -98,6 +102,10 @@ public partial class ReadAppWindow : Window
             ? T($"\n\nAo disparar, executa o processo aprovado \"{action.Name}\" (no máximo 1 vez por leitura; exclusões pedem confirmação).",
                 $"\n\nWhen it fires, runs the approved process \"{action.Name}\" (at most once per read; deletions ask for confirmation).",
                 $"\n\nAl dispararse, ejecuta el proceso aprobado \"{action.Name}\" (como máximo una vez por lectura; las eliminaciones piden confirmación).")
+            : hook != null
+            ? T($"\n\nAo disparar, aciona o hook \"{hook.Title}\": cria uma tarefa com o plano dele, usando as linhas lidas como texto do evento. Disparos a menos de {hook.MinIntervalSeconds} s ou acima de {hook.MaxPerHour}/h pedem a sua aprovação.",
+                $"\n\nWhen it fires, triggers the hook \"{hook.Title}\": creates a task with its plan, using the lines read as the event text. Triggers under {hook.MinIntervalSeconds} s apart or above {hook.MaxPerHour}/h ask for your approval.",
+                $"\n\nAl dispararse, dispara el hook \"{hook.Title}\": crea una tarea con su plan, usando las líneas leídas como texto del evento. Los disparos a menos de {hook.MinIntervalSeconds} s o por encima de {hook.MaxPerHour}/h piden su aprobación.")
             : "";
         var confirm = T($"Monitorar {w.ProcessName} a cada {options.Interval.TotalSeconds:F0} s por {options.Duration.TotalMinutes:F0} min, {what}? Só leitura; para sozinho no fim do tempo.{then}",
                         $"Monitor {w.ProcessName} every {options.Interval.TotalSeconds:F0} s for {options.Duration.TotalMinutes:F0} min, {what}? Read-only; stops by itself when time is up.{then}",
@@ -124,6 +132,11 @@ public partial class ReadAppWindow : Window
                     if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
                     Activate();
                     if (action != null && !_acting) _ = ActAsync(action);
+                    if (hook != null && Application.Current.MainWindow?.DataContext is ViewModels.MainViewModel vm)
+                    {
+                        MonitorLog.Items.Insert(0, T($"⚡ Hook \"{hook.Title}\" acionado", $"⚡ Hook \"{hook.Title}\" triggered", $"⚡ Hook \"{hook.Title}\" disparado"));
+                        _ = vm.FireHookAsync(hook.Id, string.Join("\n", r.Matches), T($"monitor de apps · {w.ProcessName}", $"app monitor · {w.ProcessName}", $"monitor de apps · {w.ProcessName}"));
+                    }
                 }
                 else
                     MonitorLog.Items.Insert(0, new ListBoxItem
