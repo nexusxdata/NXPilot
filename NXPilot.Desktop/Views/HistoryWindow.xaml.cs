@@ -42,7 +42,7 @@ public partial class HistoryWindow : Window
                 ? T($"{v.Findings.Count(f => f.Severity == "Critico")} crít. · {v.Findings.Count} total", $"{v.Findings.Count(f => f.Severity == "Critico")} crit. · {v.Findings.Count} total", $"{v.Findings.Count(f => f.Severity == "Critico")} crít. · {v.Findings.Count} total")
                 : "—";
             return new Row(r, r.CreatedAt.ToString("dd/MM HH:mm"), r.Info.Title, label, findings,
-                r.CostUsd > 0 ? $"US$ {r.CostUsd:0.00}" : "—", r.Info.Subject is { } subject ? "◆ " + subject : r.Info.RepoPath);
+                r.Tokens is { Total: > 0 } t ? NXPilot.Agents.TokenUsage.Format(t.Total) : "—", r.Info.Subject is { } subject ? "◆ " + subject : r.Info.RepoPath);
         }).ToList();
         Grid.ItemsSource = rows;
         EmptyText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -58,6 +58,7 @@ public partial class HistoryWindow : Window
         var worktreeExists = r?.Worktree is { } wt && Directory.Exists(wt);
         OpenButton.IsEnabled = r != null && !_taskRunning;
         WorktreeButton.IsEnabled = worktreeExists;
+        TimelineButton.IsEnabled = r != null;
         RemoveButton.IsEnabled = r != null && !_taskRunning;
         StatusText.Text = _taskRunning
             ? T("Há uma tarefa em andamento: termine ou interrompa para abrir outra.", "A task is running: finish or stop it to open another one.", "Hay una tarea en ejecución: termínela o interrúmpala para abrir otra.")
@@ -69,6 +70,12 @@ public partial class HistoryWindow : Window
         if (Selected is not { } r || _taskRunning) return;
         ToOpen = r;
         Close();
+    }
+
+    /// <summary>Cada pedido, decisão, fase e commit da tarefa, numa tela (vale para tarefa local ou git).</summary>
+    private void OnTimelineClick(object sender, RoutedEventArgs e)
+    {
+        if (Selected is { } r) new TimelineWindow(r) { Owner = this }.ShowDialog();
     }
 
     private void OnWorktreeClick(object sender, RoutedEventArgs e)

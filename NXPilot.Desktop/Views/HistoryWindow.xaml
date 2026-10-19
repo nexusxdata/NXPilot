@@ -11,13 +11,15 @@
         </StackPanel>
 
         <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
-            <TextBlock x:Name="StatusText" Style="{StaticResource Muted}" VerticalAlignment="Center" MaxWidth="420"/>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
                 <Button x:Name="RemoveButton" Content="{DynamicResource Hist_Remover}" Style="{StaticResource DangerButton}" Click="OnRemoveClick"/>
+                <Button x:Name="TimelineButton" Content="{DynamicResource Hist_LinhaDoTempo}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnTimelineClick"/>
                 <Button x:Name="WorktreeButton" Content="{DynamicResource Hist_AbrirWorktree}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnWorktreeClick"/>
                 <Button x:Name="OpenButton" Content="{DynamicResource Hist_Abrir}" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Click="OnOpenClick" IsDefault="True"/>
                 <Button Content="{DynamicResource Hist_Fechar}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" IsCancel="True"/>
             </StackPanel>
+            <!-- Ocupa só o espaço que sobra à esquerda dos botões (caminho longo quebra a linha). -->
+            <TextBlock x:Name="StatusText" Style="{StaticResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="11.5"/>
         </DockPanel>
 
         <Grid>

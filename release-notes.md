@@ -13,32 +13,27 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 - **Já tem o NXPilot:** abra **⚙ Configurar** e use **Verificar atualização**. O app baixa só o NXPilot-Release.zip, troca os arquivos e reabre. Nenhum script é executado.
 - **Voltar versão:** em **⚙ Configurar**, escolha uma versão anterior e clique em **Instalar esta versão**.
 
-> **Esta versão traz uma biblioteca nova na base** (o git embutido). Quem atualizar por **Verificar atualização** recebe o aviso e o app baixa o Setup novo sozinho.
+> **Se o NXPilot fecha ao criar uma tarefa** depois de atualizar para a v1.0.0.07, falta a biblioteca do git na base: baixe e rode o [NXPilot-Setup](https://github.com/nexusxdata/NXPilot/releases/tag/nxpilot-setup-latest) uma vez. A partir desta versão, a atualização confere a base sozinha.
 
 ### Novidades
 
-**🗂 Criar tarefa sem git: versionamento local por assunto**
+**🔄 Atualização confere o Setup primeiro (como no NXProject)**
 
-- A Nova tarefa tem o campo **Versionamento**. **Local** (o padrão) não exige git nem Git instalado. **Repositório git do projeto** é para clones do GitHub, Azure DevOps e outros.
-- No modo local, cada **assunto** é uma pasta comum (por exemplo, `Documentos\NXPilot\Relatórios`) onde ficam os arquivos. O histórico fica numa pasta oculta ao lado, e a pasta do assunto não ganha `.git`.
-- A tarefa trabalha numa cópia isolada. A pasta do assunto só muda quando você clica em **Aplicar na pasta original**. Se você também mexeu num arquivo depois que a tarefa começou, o NXPilot mostra o conflito e só sobrescreve se você confirmar.
-- Na janela **Assuntos…**:
-  - **Pasta dos assuntos:** pode ser uma pasta do OneDrive ou do Google Drive, para ter backup.
-  - **Mover para outra pasta…:** leva a pasta e o histórico juntos.
-  - **Mover para o GitHub…:** cria um repositório privado e envia o histórico. Pede a sua aprovação, porque é push na branch principal (risco ALTO).
-- O git agora vem embutido no NXPilot (LibGit2Sharp, licença MIT), inclusive no modo git, que deixou de precisar do Git instalado.
+- **Verificar atualização** agora olha a base antes de tudo. Se ela mudou, oferece o NXPilot-Setup, que instala a base nova e o app mais novo juntos, em vez de atualizar só o app e deixar faltar biblioteca.
+- Instalações feitas por um Setup antigo, sem o carimbo da base, também recebem o aviso.
+- Se mesmo assim faltar uma biblioteca, o NXPilot **não fecha mais**: avisa qual arquivo falta e oferece abrir a página do Setup.
 
-**✅ Decisões mais rápidas, sem perder o controle**
+**🕘 Linha do tempo da tarefa**
 
-- **Aprovar semelhantes:** aprova o pedido e libera, até o fim da tarefa, os próximos com o mesmo comando (com outros argumentos).
-- **Aprovar médio e baixo:** deixa os pedidos de risco médio e baixo passarem sozinhos até o fim da tarefa.
-- **Risco ALTO sempre volta para você**, inclusive gravar fora do worktree. As regras valem só para a tarefa atual, aparecem no painel com o botão **Desligar** e cada aprovação automática fica registrada no Log.
-- **Ver script:** quando o pedido roda um `.py`, `.ps1`, `.js` e similares (inclusive `python -m pacote.modulo`), o arquivo abre numa janela de leitura do NXPilot, nunca pelo programa padrão, que executaria o script.
+- Novo botão **Linha do tempo**, no Histórico e no card da tarefa.
+- Os eventos ficam agrupados em árvore por etapa: Planejamento, cada fase, Verificação e Correção. Cada etapa vem recolhida, com horário e totais (pedidos, decisões suas, aprovações automáticas, erros), e cada evento expande para o texto completo.
+- Filtros por Decisões, Fases e Erros, e os botões Expandir tudo e Recolher tudo.
+- Aba **Fases (commits e diff):** cada commit de fase ou correção, com o diff colorido.
 
-**🔁 Tarefas**
+**🔢 Tokens no lugar do custo**
 
-- **Retomar de onde parou:** uma tarefa interrompida ou que falhou continua a partir da fase que não terminou.
-- **Analisar e corrigir achados:** quando a verificação cruzada não aprova, os achados voltam para o agente. Ele corrige o que procede (sob o gate), e a verificação roda de novo.
-- **Arquivos do resultado:** o card da tarefa lista o que foi criado ou alterado, com **Abrir** (só para documentos) e **Mostrar na pasta**.
-- **Indicador de execução:** barra animada e cronômetro enquanto o agente trabalha.
-- **Nova tarefa** em duas colunas: mais larga e mais baixa.
+- O card da tarefa e o Histórico mostram **tokens** (gerados, lidos e do cache) em vez de dólares. O valor em dólar era uma estimativa pelo preço da API, que não é o que se paga num plano de assinatura, e podia ser somado em dobro ao retomar a sessão.
+
+**🧹 Ajustes**
+
+- Histórico: o texto do caminho não cobre mais o botão **Remover registro**.

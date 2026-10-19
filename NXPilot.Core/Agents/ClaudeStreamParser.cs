@@ -64,7 +64,8 @@ public static class ClaudeStreamParser
                     var cost = root.TryGetProperty("total_cost_usd", out var c) && c.TryGetDecimal(out var d) ? d : (decimal?)null;
                     var failed = Str(root, "subtype") != "success" || (root.TryGetProperty("is_error", out var ie) && ie.ValueKind == JsonValueKind.True);
                     yield return new AgentEvent(failed ? AgentEventKind.Error : AgentEventKind.Result,
-                        Str(root, "result") ?? Str(root, "subtype") ?? "", SessionId: session, IsError: failed, CostUsd: cost, Raw: line);
+                        Str(root, "result") ?? Str(root, "subtype") ?? "", SessionId: session, IsError: failed, CostUsd: cost, Raw: line,
+                        Tokens: Usage(root));
                     break;
             }
         }
@@ -115,6 +116,15 @@ public static class ClaudeStreamParser
     {
         s = s.Replace("\r", "").Trim();
         return s.Length > max ? s[..max] + "…" : s;
+    }
+
+    /// <summary>"usage" do evento result: tokens desta execução (entrada, saída, cache lido/gravado).</summary>
+    private static TokenUsage? Usage(JsonElement root)
+    {
+        if (!root.TryGetProperty("usage", out var u) || u.ValueKind != JsonValueKind.Object) return null;
+        long N(string name) => u.TryGetProperty(name, out var v) && v.TryGetInt64(out var n) ? n : 0;
+        var usage = new TokenUsage(N("input_tokens"), N("output_tokens"), N("cache_read_input_tokens"), N("cache_creation_input_tokens"));
+        return usage.Total > 0 ? usage : null;
     }
 
     private static string? Str(JsonElement e, string name) =>

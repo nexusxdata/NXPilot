@@ -96,8 +96,13 @@ public sealed class UpdateService(HttpMessageHandler? handler = null, string rep
         }
     }
 
-    /// <summary>A base (Setup) mudou? Só com carimbo conhecido: sem ele, nunca dispara (evita falso positivo).</summary>
-    public static bool SetupChanged(DateTimeOffset? installed, DateTimeOffset published) => installed is { } i && published > i;
+    /// <summary>
+    /// A base (Setup) mudou? Sem carimbo instalado (instalação feita por um Setup antigo) conta
+    /// como mudou: rodar o Setup uma vez a mais é melhor do que atualizar só o app e faltar uma
+    /// biblioteca da base (o app fecharia ao usá-la). Depois do Setup o carimbo existe e a
+    /// comparação volta a ser exata.
+    /// </summary>
+    public static bool SetupChanged(DateTimeOffset? installed, DateTimeOffset published) => installed is not { } i || published > i;
 
     /// <summary>Carimbo da base instalada (arquivo gravado pelo Setup na pasta do app).</summary>
     public static DateTimeOffset? InstalledSetupStamp(string appDir)

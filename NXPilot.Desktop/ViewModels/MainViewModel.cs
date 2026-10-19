@@ -468,6 +468,13 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Linha do tempo da tarefa na tela (pedidos, decisões, fases, commits).</summary>
+    [RelayCommand]
+    private void OpenTimeline()
+    {
+        if (CurrentTask is { } task) new Views.TimelineWindow(task.ToRecord()) { Owner = Application.Current.MainWindow }.Show();
+    }
+
     [RelayCommand]
     private void OpenWorktree()
     {
@@ -527,6 +534,7 @@ public sealed partial class MainViewModel : ObservableObject
                 // fase seguinte precisa continuar de onde a anterior parou. Revisor não entra.
                 if (ev.SessionId != null && failTask) task.SessionId = ev.SessionId;
                 if (ev.CostUsd is { } c) task.CostUsd += c;
+                if (ev.Tokens is { } tokens) task.Tokens = task.Tokens is { } sum ? sum + tokens : tokens;
                 switch (ev.Kind)
                 {
                     case AgentEventKind.Started: AppendTerminal("[init] " + ev.Text); break;

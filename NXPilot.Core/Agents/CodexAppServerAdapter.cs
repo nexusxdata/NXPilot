@@ -91,6 +91,9 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
 
     private Process? _process;
     private string? _threadId;
+
+    /// <summary>Tokens acumulados da thread (o Codex informa o total) e o total no início do turno atual.</summary>
+    private TokenUsage _threadTokens = new(0, 0), _turnStartTokens = new(0, 0);
     private string? _cwd;
     private int _nextId;
     private AgentMode _mode;
@@ -115,6 +118,7 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
         try
         {
             await EnsureThreadAsync(request, ct);
+            _turnStartTokens = _threadTokens;
             await RequestAsync("turn/start", new JsonObject
             {
                 ["threadId"] = _threadId,
@@ -173,6 +177,7 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
             ["ephemeral"] = true,
         }, ct);
         _threadId = started?["thread"]?["id"]?.GetValue<string>() ?? throw new InvalidOperationException("thread/start sem id");
+        _threadTokens = _turnStartTokens = new(0, 0); // thread nova: o total do Codex recomeça do zero
         _cwd = request.WorkingDirectory;
         _events?.Writer.TryWrite(new AgentEvent(AgentEventKind.Started, $"Codex · {started?["model"]} · {_cwd}", SessionId: _threadId));
     }
@@ -201,6 +206,26 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
         catch { /* processo encerrado */ }
         foreach (var p in _pending.Values) p.TrySetException(new InvalidOperationException(NxText.T("o Codex encerrou", "Codex exited", "Codex terminó")));
         _events?.Writer.TryWrite(new AgentEvent(AgentEventKind.Error, NxText.T("O processo do Codex terminou.", "The Codex process ended.", "El proceso de Codex terminó."), IsError: true));
+    }
+
+    /// <summary>
+    /// Total de tokens da thread na notificação de uso (formato tolerante: camelCase ou
+    /// snake_case, dentro de "tokenUsage"/"total" ou direto). Entrada do Codex inclui o cache lido.
+    /// </summary>
+    internal static TokenUsage? ReadTotalTokens(JsonNode p)
+    {
+        var node = p["tokenUsage"] ?? p["token_usage"] ?? p["usage"] ?? p;
+        node = node["total"] ?? node["total_token_usage"] ?? node;
+        long N(params string[] names)
+        {
+            foreach (var n in names)
+                if (node[n] is JsonValue v && v.TryGetValue<long>(out var x)) return x;
+            return 0;
+        }
+        var input = N("inputTokens", "input_tokens");
+        var cached = N("cachedInputTokens", "cached_input_tokens");
+        var output = N("outputTokens", "output_tokens");
+        return input + output == 0 ? null : new TokenUsage(Math.Max(0, input - cached), output, cached);
     }
 
     private void HandleNotification(string method, JsonNode? p)
@@ -239,13 +264,17 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
                 break;
             case "turn/completed":
                 var status = p["turn"]?["status"]?.GetValue<string>();
+                var turnTokens = _threadTokens - _turnStartTokens;
                 w.TryWrite(status == "completed"
-                    ? new AgentEvent(AgentEventKind.Result, _lastMessage ?? "", SessionId: _threadId)
+                    ? new AgentEvent(AgentEventKind.Result, _lastMessage ?? "", SessionId: _threadId, Tokens: turnTokens.Total > 0 ? turnTokens : null)
                     : new AgentEvent(AgentEventKind.Error, NxText.T($"Turno do Codex terminou como \"{status}\". ", $"Codex turn ended as \"{status}\". ", $"El turno de Codex terminó como \"{status}\". ")
                         + (p["turn"]?["error"]?["message"]?.ToString() ?? ""), IsError: true));
                 break;
             case "error":
                 w.TryWrite(new AgentEvent(AgentEventKind.Stderr, p["error"]?["message"]?.ToString() ?? p.ToJsonString()));
+                break;
+            case var m when m.Contains("tokenUsage", StringComparison.OrdinalIgnoreCase):
+                if (ReadTotalTokens(p) is { } total) _threadTokens = total;
                 break;
         }
     }

@@ -7,6 +7,12 @@ using LibGit2Sharp;
 
 namespace NXPilot.Agents;
 
+/// <summary>Um checkpoint da tarefa (fase ou correção) no branch dela.</summary>
+public sealed record TaskCommit(string Sha, string Message, DateTime When)
+{
+    public string ShortSha => Sha[..Math.Min(8, Sha.Length)];
+}
+
 /// <summary>
 /// Um git worktree por tarefa: o agente trabalha numa cópia isolada, num branch próprio
 /// (nxpilot/&lt;tarefa&gt;), e nunca mexe na pasta em que você está trabalhando. Juntar o
@@ -57,6 +63,26 @@ public static class GitWorktree
         Commands.Stage(repo, "*");
         var tree = baseCommit is { Length: > 0 } ? repo.Lookup<Commit>(baseCommit)?.Tree : repo.Head.Tip?.Tree;
         return repo.Diff.Compare<Patch>(tree, DiffTargets.Index).Content;
+    }, ct);
+
+    /// <summary>Commits da tarefa desde a base (um por fase/correção), do mais antigo para o mais novo.</summary>
+    public static Task<IReadOnlyList<TaskCommit>> CommitsAsync(string worktree, string? baseCommit, CancellationToken ct = default) => Task.Run<IReadOnlyList<TaskCommit>>(() =>
+    {
+        using var repo = new Repository(worktree);
+        if (repo.Head.Tip == null) return [];
+        var filter = new CommitFilter { IncludeReachableFrom = repo.Head.Tip, SortBy = CommitSortStrategies.Topological | CommitSortStrategies.Reverse };
+        if (baseCommit is { Length: > 0 }) filter.ExcludeReachableFrom = baseCommit;
+        return repo.Commits.QueryBy(filter)
+            .Select(c => new TaskCommit(c.Sha, c.MessageShort, c.Author.When.LocalDateTime))
+            .ToList();
+    }, ct);
+
+    /// <summary>O que um commit mudou em relação ao commit anterior.</summary>
+    public static Task<string> CommitDiffAsync(string worktree, string sha, CancellationToken ct = default) => Task.Run(() =>
+    {
+        using var repo = new Repository(worktree);
+        var commit = repo.Lookup<Commit>(sha) ?? throw new InvalidOperationException("commit " + sha);
+        return repo.Diff.Compare<Patch>(commit.Parents.FirstOrDefault()?.Tree, commit.Tree).Content;
     }, ct);
 
     /// <summary>Arquivos que a tarefa criou ou alterou desde <paramref name="baseCommit"/> (apagados ficam de fora).</summary>

@@ -31,7 +31,7 @@ public sealed record TaskRecord(
     string Id, NewTaskInfo Info, TaskState State, DateTime CreatedAt, DateTime UpdatedAt,
     string? Worktree, string? Branch, string? BaseCommit, string? SessionId,
     string PlanText, List<PlannedPhase> Phases, List<string> PhaseStatus,
-    VerificationResult? Verification, decimal CostUsd, List<LogEntry> Log);
+    VerificationResult? Verification, decimal CostUsd, List<LogEntry> Log, TokenUsage? Tokens = null);
 
 /// <summary>
 /// Uma tarefa real: intenção → plano em fases (agente em modo plan) → sua aprovação → fases
@@ -57,7 +57,11 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     /// <summary>Projeto Power BI (.pbip) encontrado no worktree; nulo se não for um projeto PBIP.</summary>
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasPowerBi))] private NXPilot.Integrations.PowerBiProject? _powerBi;
     public bool HasPowerBi => PowerBi != null;
-    [ObservableProperty] [NotifyPropertyChangedFor(nameof(CostLabel))] private decimal _costUsd;
+    /// <summary>Estimativa em dólar que o Claude informa (preço de API). Guardada, mas não exibida: em plano de assinatura não é o que você paga.</summary>
+    [ObservableProperty] private decimal _costUsd;
+
+    /// <summary>Tokens somados de todas as execuções da tarefa (planejar, fases, correção, verificação).</summary>
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(CostLabel))] private TokenUsage? _tokens;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(StateLabel), nameof(CanFixFindings))] private VerificationResult? _verification;
 
     /// <summary>Quando a etapa que está rodando começou (planejar, executar, corrigir, verificar); nulo parada.</summary>
@@ -102,7 +106,11 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     public bool CanApplyToFolder => Info.Versioning == VersioningMode.Local && State == TaskState.Done;
     public bool IsFinished => State is TaskState.Done or TaskState.Failed or TaskState.Discarded or TaskState.Stopped;
 
-    public string CostLabel => CostUsd > 0 ? T($"custo informado pelos agentes: US$ {CostUsd:0.00}", $"cost reported by the agents: US$ {CostUsd:0.00}", $"costo informado por los agentes: US$ {CostUsd:0.00}") : "";
+    public string CostLabel => Tokens is { Total: > 0 } t
+        ? T($"tokens: {TokenUsage.Format(t.Output)} gerados · {TokenUsage.Format(t.Input + t.CacheWrite)} lidos · {TokenUsage.Format(t.CacheRead)} do cache",
+            $"tokens: {TokenUsage.Format(t.Output)} generated · {TokenUsage.Format(t.Input + t.CacheWrite)} read · {TokenUsage.Format(t.CacheRead)} from cache",
+            $"tokens: {TokenUsage.Format(t.Output)} generados · {TokenUsage.Format(t.Input + t.CacheWrite)} leídos · {TokenUsage.Format(t.CacheRead)} de caché")
+        : "";
 
     public string StateLabel => State switch
     {
@@ -128,7 +136,7 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     }
 
     public TaskRecord ToRecord() => new(Id, Info, State, CreatedAt, DateTime.Now, Worktree, Branch, BaseCommit, SessionId,
-        PlanText, Phases, PhaseStatus, Verification, CostUsd, Log.ToList());
+        PlanText, Phases, PhaseStatus, Verification, CostUsd, Log.ToList(), Tokens);
 
     public static TaskSession FromRecord(TaskRecord r)
     {
@@ -136,7 +144,7 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
         {
             CreatedAt = r.CreatedAt,
             Worktree = r.Worktree, Branch = r.Branch, BaseCommit = r.BaseCommit, SessionId = r.SessionId,
-            PlanText = r.PlanText, CostUsd = r.CostUsd, Verification = r.Verification,
+            PlanText = r.PlanText, CostUsd = r.CostUsd, Tokens = r.Tokens, Verification = r.Verification,
             Phases = r.Phases, PhaseStatus = r.PhaseStatus,
             // Tarefa que estava rodando quando o app fechou não continua sozinha.
             State = r.State is TaskState.Preparing or TaskState.Planning or TaskState.Executing or TaskState.Verifying ? TaskState.Stopped : r.State,

@@ -208,6 +208,7 @@
                                             Visibility="{Binding CurrentTask.CanResume, Converter={StaticResource BoolToVis}}"/>
                                     <Button Content="{DynamicResource Task_AplicarNaPasta}" Command="{Binding ApplyToFolderCommand}" Style="{StaticResource PrimaryButton}" Margin="0,0,8,6"
                                             Visibility="{Binding CurrentTask.CanApplyToFolder, Converter={StaticResource BoolToVis}}"/>
+                                    <Button Content="{DynamicResource Hist_LinhaDoTempo}" Command="{Binding OpenTimelineCommand}" Style="{StaticResource SubtleButton}" Margin="0,0,8,6"/>
                                     <Button Content="{DynamicResource Task_AbrirWorktree}" Command="{Binding OpenWorktreeCommand}" Style="{StaticResource SubtleButton}" Margin="0,0,8,6"/>
                                     <Button Content="{DynamicResource Task_CapturarPowerBi}" Command="{Binding CapturePowerBiCommand}" Style="{StaticResource SubtleButton}" Margin="0,0,8,6"
                                             Visibility="{Binding CurrentTask.HasPowerBi, Converter={StaticResource BoolToVis}}"/>

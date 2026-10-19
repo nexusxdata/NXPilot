@@ -59,16 +59,46 @@ public partial class SettingsWindow : Window
     {
         await Busy(async () =>
         {
+            // Como no NXProject: a base vem PRIMEIRO. Se ela mudou, o Setup instala a base e o app mais novo juntos.
+            if (await BaseChangedAsync()) { await OfferSetupAsync(); return; }
             var latest = await _updates.CheckForUpdateAsync();
             if (latest == null) { Status(T("Você já está na versão mais nova.", "You are already on the latest version.", "Ya tiene la versión más reciente."), Brushes.Green); return; }
             await InstallAsync(latest, rollback: false);
         });
     }
 
+    /// <summary>A base publicada é mais nova que a instalada (ou a instalação não tem carimbo)?</summary>
+    private async Task<bool> BaseChangedAsync()
+    {
+        var setup = await _updates.GetSetupReleaseAsync();
+        return setup != null && UpdateService.SetupChanged(UpdateService.InstalledSetupStamp(AppDir), setup.BuiltAt);
+    }
+
+    /// <summary>Base nova: explica e, com o seu OK, segue pelo Setup (atualizar só o app deixaria faltar biblioteca).</summary>
+    private async Task OfferSetupAsync()
+    {
+        SetupBanner.Visibility = Visibility.Visible;
+        var ask = T("Esta atualização traz bibliotecas novas na base do NXPilot. Atualizar só o app deixaria faltar arquivos (o app fecharia ao usá-los).\n\nBaixar e abrir o NXPilot-Setup agora? Ele instala a base nova e a versão mais nova do app. O NXPilot vai fechar.",
+                    "This update brings new libraries in the NXPilot base. Updating only the app would leave files missing (the app would close when using them).\n\nDownload and open NXPilot-Setup now? It installs the new base and the latest app version. NXPilot will close.",
+                    "Esta actualización trae bibliotecas nuevas en la base de NXPilot. Actualizar solo la app dejaría archivos faltantes (la app se cerraría al usarlos).\n\n¿Descargar y abrir NXPilot-Setup ahora? Instala la base nueva y la versión más reciente de la app. NXPilot se cerrará.");
+        if (MessageBox.Show(this, ask, "NXPilot", MessageBoxButton.OKCancel, MessageBoxImage.Information) != MessageBoxResult.OK)
+        {
+            Status(T("Atualização adiada: use o botão do Setup quando quiser.", "Update postponed: use the Setup button whenever you want.", "Actualización pospuesta: use el botón del Setup cuando quiera."), Brushes.DimGray);
+            return;
+        }
+        await RunSetupAsync();
+    }
+
     private async void OnInstallVersionClick(object sender, RoutedEventArgs e)
     {
         if ((VersionsBox.SelectedItem as ComboBoxItem)?.Tag is not PublishedVersion p) return;
-        await Busy(() => InstallAsync(p, rollback: p.Version < UpdateService.CurrentVersion));
+        var rollback = p.Version < UpdateService.CurrentVersion;
+        await Busy(async () =>
+        {
+            // Subir de versão com a base mudada vai pelo Setup (voltar versão não precisa de base nova).
+            if (!rollback && await BaseChangedAsync()) { await OfferSetupAsync(); return; }
+            await InstallAsync(p, rollback);
+        });
     }
 
     /// <summary>Confirma, baixa, confere, troca os arquivos e reinicia. Tarefas em andamento são interrompidas.</summary>
@@ -96,19 +126,22 @@ public partial class SettingsWindow : Window
     /// <summary>A base mudou (runtime/bibliotecas): baixa o Setup, extrai e abre — ele instala e atualiza o app.</summary>
     private async void OnSetupClick(object sender, RoutedEventArgs e)
     {
-        await Busy(async () =>
-        {
-            var setup = await _updates.GetSetupReleaseAsync() ?? throw new UpdateException(T("Setup não encontrado no GitHub.", "Setup not found on GitHub.", "Setup no encontrado en GitHub."));
-            var zip = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", UpdateService.SetupAsset);
-            Status(T("Baixando o Setup…", "Downloading the Setup…", "Descargando el Setup…"), Brushes.DimGray);
-            await _updates.DownloadFileAsync(setup.DownloadUrl, zip);
-            var dir = Path.Combine(Path.GetTempPath(), "nxpilot-setup-" + Guid.NewGuid().ToString("N"));
-            System.IO.Compression.ZipFile.ExtractToDirectory(zip, dir);
-            var exe = Directory.GetFiles(dir, "NXPilot-Setup.exe", SearchOption.AllDirectories).FirstOrDefault()
-                      ?? throw new UpdateException(T("O zip do Setup não tem o NXPilot-Setup.exe.", "The Setup zip has no NXPilot-Setup.exe.", "El zip del Setup no contiene NXPilot-Setup.exe."));
-            Process.Start(new ProcessStartInfo(exe) { WorkingDirectory = Path.GetDirectoryName(exe), UseShellExecute = true });
-            Application.Current.Shutdown(); // o Setup encerra o app se ainda estiver aberto
-        });
+        await Busy(RunSetupAsync);
+    }
+
+    /// <summary>Baixa o Setup, extrai e abre — ele instala a base e atualiza o app.</summary>
+    private async Task RunSetupAsync()
+    {
+        var setup = await _updates.GetSetupReleaseAsync() ?? throw new UpdateException(T("Setup não encontrado no GitHub.", "Setup not found on GitHub.", "Setup no encontrado en GitHub."));
+        var zip = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", UpdateService.SetupAsset);
+        Status(T("Baixando o Setup…", "Downloading the Setup…", "Descargando el Setup…"), Brushes.DimGray);
+        await _updates.DownloadFileAsync(setup.DownloadUrl, zip);
+        var dir = Path.Combine(Path.GetTempPath(), "nxpilot-setup-" + Guid.NewGuid().ToString("N"));
+        System.IO.Compression.ZipFile.ExtractToDirectory(zip, dir);
+        var exe = Directory.GetFiles(dir, "NXPilot-Setup.exe", SearchOption.AllDirectories).FirstOrDefault()
+                  ?? throw new UpdateException(T("O zip do Setup não tem o NXPilot-Setup.exe.", "The Setup zip has no NXPilot-Setup.exe.", "El zip del Setup no contiene NXPilot-Setup.exe."));
+        Process.Start(new ProcessStartInfo(exe) { WorkingDirectory = Path.GetDirectoryName(exe), UseShellExecute = true });
+        Application.Current.Shutdown(); // o Setup encerra o app se ainda estiver aberto
     }
 
     private async Task Busy(Func<Task> action)

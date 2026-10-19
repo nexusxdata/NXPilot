@@ -21,7 +21,24 @@ public sealed record AgentEvent(
     string? SessionId = null,
     bool IsError = false,
     decimal? CostUsd = null,
-    string? Raw = null);
+    string? Raw = null,
+    TokenUsage? Tokens = null);
+
+/// <summary>
+/// Tokens de UMA execução do agente (o que ela consumiu, não o acumulado da sessão). Lidos do
+/// cache são bem mais baratos/rápidos e por isso aparecem separados.
+/// </summary>
+public sealed record TokenUsage(long Input, long Output, long CacheRead = 0, long CacheWrite = 0)
+{
+    public long Total => Input + Output + CacheRead + CacheWrite;
+    public static TokenUsage operator +(TokenUsage a, TokenUsage b) =>
+        new(a.Input + b.Input, a.Output + b.Output, a.CacheRead + b.CacheRead, a.CacheWrite + b.CacheWrite);
+    public static TokenUsage operator -(TokenUsage a, TokenUsage b) =>
+        new(Math.Max(0, a.Input - b.Input), Math.Max(0, a.Output - b.Output), Math.Max(0, a.CacheRead - b.CacheRead), Math.Max(0, a.CacheWrite - b.CacheWrite));
+
+    /// <summary>"1,2 mi" / "85 mil" / "930".</summary>
+    public static string Format(long n) => n >= 1_000_000 ? $"{n / 1_000_000d:0.#} mi" : n >= 1_000 ? $"{n / 1_000d:0} mil" : n.ToString();
+}
 
 /// <summary>Pedido ao agente: o prompt, onde trabalhar e se é planejamento ou execução.</summary>
 public sealed record AgentRequest(

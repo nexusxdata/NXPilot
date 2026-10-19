@@ -261,6 +261,9 @@ public static class CriticalTests
                 AssertTrue(await GitWorktree.CommitAllAsync(wt, "fase 1"), "Fase com mudança deve gerar commit.");
                 AssertFalse(await GitWorktree.CommitAllAsync(wt, "fase 2"), "Fase sem mudança não deve gerar commit.");
                 AssertContains("novo.txt", await GitWorktree.DiffAsync(wt, head), "Diff desde a base inclui o commit da fase.");
+                var commits = await GitWorktree.CommitsAsync(wt, head);
+                AssertEqual("fase 1", string.Join(",", commits.Select(c => c.Message)), "Linha do tempo: só os commits da tarefa, desde a base.");
+                AssertContains("+x", await GitWorktree.CommitDiffAsync(wt, commits[0].Sha), "Diff do commit da fase.");
                 AssertFalse(File.Exists(Path.Combine(repo, "novo.txt")), "O repositório original NÃO pode mudar.");
                 await GitWorktree.RemoveAsync(repo, wt, branch);
                 AssertFalse(Directory.Exists(wt), "Worktree removido.");
@@ -802,7 +805,7 @@ public static class CriticalTests
                 AssertEqual(new DateTimeOffset(2026, 10, 19, 9, 0, 0, TimeSpan.Zero), setup?.BuiltAt, "Carimbo do Setup publicado.");
                 AssertTrue(NXPilot.Updates.UpdateService.SetupChanged(setup!.BuiltAt.AddDays(-1), setup.BuiltAt), "Base mais nova publicada: avisa.");
                 AssertFalse(NXPilot.Updates.UpdateService.SetupChanged(setup.BuiltAt, setup.BuiltAt), "Mesma base: não avisa.");
-                AssertFalse(NXPilot.Updates.UpdateService.SetupChanged(null, setup.BuiltAt), "Sem carimbo instalado: nunca dispara (sem falso positivo).");
+                AssertTrue(NXPilot.Updates.UpdateService.SetupChanged(null, setup.BuiltAt), "Sem carimbo instalado (Setup antigo): oferece o Setup — nunca atualiza só o app sem a base.");
             }
             finally { if (Directory.Exists(root)) ForceDelete(root); }
         }),
