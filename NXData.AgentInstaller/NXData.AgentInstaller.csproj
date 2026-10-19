@@ -14,11 +14,11 @@
     <IsPackable>true</IsPackable>
     <PackageId>NXData.AgentInstaller</PackageId>
     <!-- Versão própria do pacote (não a do app); o workflow nuget.yml usa a da tag nxdata-agentinstaller-vX.Y.Z. -->
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Authors>Nexus XData Tecnologia Ltda</Authors>
     <Company>Nexus XData Tecnologia Ltda</Company>
     <Product>NXData.AgentInstaller</Product>
-    <PackageDescription>Instala e localiza Claude Code e Codex CLI no Windows, na área do usuário e sem administrador: modo automático (baixa do site oficial, confere o SHA-256, sem rodar script) ou instalador oficial; última versão ou a versão testada (com queda para a última se ela sair do ar).</PackageDescription>
+    <PackageDescription>Instala e localiza Claude Code e Codex CLI no Windows e os modelos locais (IA Local LLaMA e ONNX), na área do usuário e sem administrador: modo automático (baixa do site oficial, confere o SHA-256, sem rodar script) ou instalador oficial; última versão ou a versão testada (com queda para a última se ela sair do ar).</PackageDescription>
     <PackageTags>claude-code;codex;ai-agents;installer;windows;nexus-xdata</PackageTags>
     <PackageProjectUrl>https://github.com/nexusxdata/NXPilot/tree/main/NXData.AgentInstaller</PackageProjectUrl>
     <RepositoryUrl>https://github.com/nexusxdata/NXPilot</RepositoryUrl>

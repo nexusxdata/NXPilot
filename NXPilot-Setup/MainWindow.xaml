@@ -28,129 +28,151 @@
         <TextBlock Text="{DynamicResource Setup_OrquestradorDeAgentesDe}"
                    FontSize="12" Foreground="#777" TextWrapping="Wrap" Margin="0,0,0,14"/>
 
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="16"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <StackPanel>
-                <!-- Passo 1: .NET 10 Desktop Runtime (como no NXProject-Setup) -->
-                <Border Style="{StaticResource StepCard}">
-                    <StackPanel>
-                        <TextBlock Text="{DynamicResource Setup_1DotNet}" Style="{StaticResource StepTitle}"/>
-                        <TextBlock Text="{DynamicResource Setup_DotNetNota}" Style="{StaticResource Note}" Margin="0,0,0,8"/>
-                        <TextBlock x:Name="DotNetStatusText" FontSize="12" Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                        <StackPanel Orientation="Horizontal">
-                            <Button x:Name="DotNetButton" Content="{DynamicResource Setup_DotNetInstalar}" Width="220" Style="{StaticResource StepButton}" Click="OnDotNetClick"/>
-                            <Button x:Name="DotNetManualButton" Content="{DynamicResource Setup_DotNetManual}" Padding="10,0" Margin="8,0,0,0" Click="OnDotNetManualClick"/>
-                        </StackPanel>
-                        <ProgressBar x:Name="DotNetProgress" Height="18" Minimum="0" Maximum="100" Margin="0,10,0,0" Visibility="Collapsed"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Passo 2: o app (baixado do GitHub; o Setup traz só a base) -->
-                <Border Style="{StaticResource StepCard}">
-                    <StackPanel>
-                        <TextBlock Text="{DynamicResource Setup_1InstalarONxpilot}" Style="{StaticResource StepTitle}"/>
-                        <TextBlock x:Name="Step1StatusText" FontSize="12" Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                        <TextBlock FontSize="10.5" Foreground="#999" TextWrapping="Wrap" Margin="0,0,0,10">
-                            <Run x:Name="AppPathRun"/>
-                            <Hyperlink Click="OnOpenAppFolder"><Run Text="{DynamicResource Setup_AbrirPasta}"/></Hyperlink>
-                        </TextBlock>
-                        <Button x:Name="Step1Button" Content="{DynamicResource Setup_Instalar}" Width="220" Style="{StaticResource StepButton}" Click="OnStep1Click"/>
-                        <ProgressBar x:Name="Step1Progress" Height="18" Minimum="0" Maximum="100" Margin="0,10,0,0"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Passo 3: modelo ONNX do DecisionGate -->
-                <Border Style="{StaticResource StepCard}">
-                    <StackPanel>
-                        <TextBlock Text="{DynamicResource Setup_2ClassificadorDeRisco}" Style="{StaticResource StepTitle}"/>
-                        <TextBlock Text="{DynamicResource Setup_ModeloAllMinilmL6}"
-                                   Style="{StaticResource Note}" Margin="0,0,0,8"/>
-                        <TextBlock x:Name="Step2StatusText" FontSize="12" Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                        <TextBlock FontSize="10.5" Foreground="#999" TextWrapping="Wrap" Margin="0,0,0,10">
-                            <Run x:Name="OnnxPathRun"/>
-                            <Hyperlink Click="OnOpenOnnxFolder"><Run Text="{DynamicResource Setup_AbrirPasta}"/></Hyperlink>
-                        </TextBlock>
-                        <Button x:Name="Step2Button" Content="{DynamicResource Setup_BaixarModelo}" Width="220" Style="{StaticResource StepButton}" Click="OnStep2Click"/>
-                        <TextBlock x:Name="Step2ProgressText" FontSize="11" Foreground="#555" Margin="0,8,0,0"/>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-
-            <StackPanel Grid.Column="2">
-                <!-- Passo 4: agentes — o NXPilot coordena, não substitui -->
-                <Border Style="{StaticResource StepCard}">
-                    <StackPanel>
-                        <TextBlock Text="{DynamicResource Setup_3AgentesDeCodigo}" Style="{StaticResource StepTitle}"/>
-                        <TextBlock Text="{DynamicResource Setup_ONxpilotCoordenaOs}"
-                                   Style="{StaticResource Note}" Margin="0,0,0,10"/>
-
-                        <!-- Como instalar (NXData.AgentInstaller): interna = sem script (antivírus); script = instalador oficial. -->
-                        <Grid Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition/>
-                                <RowDefinition/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="{DynamicResource Setup_ComoInstalar}" FontSize="11" Foreground="#555" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <RadioButton x:Name="ModeInternal" Content="{DynamicResource Setup_ModoInterno}" ToolTip="{DynamicResource Setup_ModoInternoTip}" IsChecked="True" Margin="0,0,14,0" Checked="OnInstallOptionChanged"/>
-                                <RadioButton x:Name="ModeScript" Content="{DynamicResource Setup_ModoScript}" ToolTip="{DynamicResource Setup_ModoScriptTip}" Checked="OnInstallOptionChanged"/>
+        <!-- Duas abas: a instalação do app (runtime, base e versão nova) e o que ele coordena
+             (agentes, ONNX e IA Local). Os nomes dos controles não mudaram: o código é o mesmo. -->
+        <TabControl x:Name="Tabs" Padding="12,12,12,4">
+            <TabItem x:Name="InstallTab" Header="{DynamicResource Setup_AbaInstalacao}" Padding="14,6">
+                <!-- Um abaixo do outro: primeiro o .NET, depois o app (a ordem em que se instala). -->
+                <StackPanel>
+                        <!-- Passo 1: .NET 10 Desktop Runtime (como no NXProject-Setup) -->
+                        <Border Style="{StaticResource StepCard}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource Setup_1DotNet}" Style="{StaticResource StepTitle}"/>
+                                <TextBlock Text="{DynamicResource Setup_DotNetNota}" Style="{StaticResource Note}" Margin="0,0,0,8"/>
+                                <TextBlock x:Name="DotNetStatusText" FontSize="12" Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="DotNetButton" Content="{DynamicResource Setup_DotNetInstalar}" Width="220" Style="{StaticResource StepButton}" Click="OnDotNetClick"/>
+                                    <Button x:Name="DotNetManualButton" Content="{DynamicResource Setup_DotNetManual}" Padding="10,0" Margin="8,0,0,0" Click="OnDotNetManualClick"/>
+                                </StackPanel>
+                                <ProgressBar x:Name="DotNetProgress" Height="18" Minimum="0" Maximum="100" Margin="0,10,0,0" Visibility="Collapsed"/>
                             </StackPanel>
-                            <TextBlock Grid.Row="1" Text="{DynamicResource Setup_Versao}" FontSize="11" Foreground="#555" VerticalAlignment="Center" Margin="0,6,10,0"/>
-                            <ComboBox x:Name="VersionBox" Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" Padding="6,2" SelectionChanged="OnInstallOptionChanged">
-                                <ComboBoxItem x:Name="VersionLatestItem" Tag="Latest" IsSelected="True"/>
-                                <ComboBoxItem x:Name="VersionTestedItem" Tag="Tested"/>
-                            </ComboBox>
-                        </Grid>
+                        </Border>
+                        <!-- Passo 2: o app (baixado do GitHub; o Setup traz só a base) -->
+                        <Border Style="{StaticResource StepCard}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource Setup_1InstalarONxpilot}" Style="{StaticResource StepTitle}"/>
+                                <TextBlock x:Name="Step1StatusText" FontSize="12" Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                <TextBlock FontSize="10.5" Foreground="#999" TextWrapping="Wrap" Margin="0,0,0,10">
+                                    <Run x:Name="AppPathRun"/>
+                                    <Hyperlink Click="OnOpenAppFolder"><Run Text="{DynamicResource Setup_AbrirPasta}"/></Hyperlink>
+                                </TextBlock>
+                                <Button x:Name="Step1Button" Content="{DynamicResource Setup_Instalar}" Width="220" Style="{StaticResource StepButton}" Click="OnStep1Click"/>
+                                <ProgressBar x:Name="Step1Progress" Height="18" Minimum="0" Maximum="100" Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </Border>
+                </StackPanel>
+            </TabItem>
 
-                        <DockPanel Margin="0,0,0,4">
-                            <TextBlock x:Name="ClaudeStatus" DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center"/>
-                            <TextBlock Text="Claude Code" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        </DockPanel>
-                        <DockPanel Margin="0,0,0,12">
-                            <Button x:Name="ClaudeInstallButton" DockPanel.Dock="Right" Content="{DynamicResource Setup_Instalar}" Padding="10,2" Margin="6,0,0,0" Tag="claude" ToolTip="{DynamicResource Setup_InstalarAgenteTip}" Click="OnInstallAgentClick"/>
-                            <Button DockPanel.Dock="Right" Content="{DynamicResource Setup_Copiar}" Padding="10,2" Margin="6,0,0,0" Tag="claude" ToolTip="{DynamicResource Setup_CopiarTip}" Click="OnCopyCommand"/>
-                            <TextBox x:Name="ClaudeCommand" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="11" Padding="4,3" BorderBrush="#DDE1E6"/>
-                        </DockPanel>
-
-                        <DockPanel Margin="0,0,0,4">
-                            <TextBlock x:Name="CodexStatus" DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center"/>
-                            <TextBlock Text="Codex" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        </DockPanel>
-                        <DockPanel Margin="0,0,0,8">
-                            <Button x:Name="CodexInstallButton" DockPanel.Dock="Right" Content="{DynamicResource Setup_Instalar}" Padding="10,2" Margin="6,0,0,0" Tag="codex" ToolTip="{DynamicResource Setup_InstalarAgenteTip}" Click="OnInstallAgentClick"/>
-                            <Button DockPanel.Dock="Right" Content="{DynamicResource Setup_Copiar}" Padding="10,2" Margin="6,0,0,0" Tag="codex" ToolTip="{DynamicResource Setup_CopiarTip}" Click="OnCopyCommand"/>
-                            <TextBox x:Name="CodexCommand" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="11" Padding="4,3" BorderBrush="#DDE1E6"/>
-                        </DockPanel>
-                        <TextBlock x:Name="AgentProgress" Style="{StaticResource Note}" Margin="0,0,0,6" Foreground="#24527A"/>
-                        <TextBlock Text="{DynamicResource Setup_NotaAgentes}"
-                                   Style="{StaticResource Note}" Margin="0,0,0,8"/>
-                        <Button Content="{DynamicResource Setup_VerificarDeNovo}" Style="{StaticResource StepButton}" Click="OnRecheckClick"/>
+            <TabItem x:Name="AgentsTab" Header="{DynamicResource Setup_AbaAgentes}" Padding="14,6">
+                <DockPanel>
+                    <!-- Fim do fluxo: depois dos agentes e modelos, fechar o Setup daqui mesmo. -->
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,8">
+                        <Button Content="{DynamicResource Setup_Fechar}" Height="30" Padding="22,0" Cursor="Hand" Click="OnCloseClick"/>
                     </StackPanel>
-                </Border>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <!-- Passo 4: agentes — o NXPilot coordena, não substitui -->
+                            <Border Style="{StaticResource StepCard}">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource Setup_3AgentesDeCodigo}" Style="{StaticResource StepTitle}"/>
+                                    <TextBlock Text="{DynamicResource Setup_ONxpilotCoordenaOs}"
+                                               Style="{StaticResource Note}" Margin="0,0,0,10"/>
 
-                <!-- Passo 5: IA Local compartilhada com o NXProject -->
-                <Border Style="{StaticResource StepCard}">
-                    <StackPanel>
-                        <DockPanel Margin="0,0,0,6">
-                            <TextBlock x:Name="LlamaStatus" DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center"/>
-                            <TextBlock Text="{DynamicResource Setup_4IaLocalLlama}" Style="{StaticResource StepTitle}" Margin="0"/>
-                        </DockPanel>
-                        <TextBlock Text="{DynamicResource Setup_UsadaSoNasAcoes}"
-                                   Style="{StaticResource Note}"/>
-                        <TextBlock x:Name="LlamaPathText" FontSize="10.5" Foreground="#999" Margin="0,6,0,0"/>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-        </Grid>
+                                    <!-- Como instalar (NXData.AgentInstaller): interna = sem script (antivírus); script = instalador oficial. -->
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition/>
+                                            <RowDefinition/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="{DynamicResource Setup_ComoInstalar}" FontSize="11" Foreground="#555" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <RadioButton x:Name="ModeInternal" Content="{DynamicResource Setup_ModoInterno}" ToolTip="{DynamicResource Setup_ModoInternoTip}" IsChecked="True" Margin="0,0,14,0" Checked="OnInstallOptionChanged"/>
+                                            <RadioButton x:Name="ModeScript" Content="{DynamicResource Setup_ModoScript}" ToolTip="{DynamicResource Setup_ModoScriptTip}" Checked="OnInstallOptionChanged"/>
+                                        </StackPanel>
+                                        <TextBlock Grid.Row="1" Text="{DynamicResource Setup_Versao}" FontSize="11" Foreground="#555" VerticalAlignment="Center" Margin="0,6,10,0"/>
+                                        <ComboBox x:Name="VersionBox" Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" Padding="6,2" SelectionChanged="OnInstallOptionChanged">
+                                            <ComboBoxItem x:Name="VersionLatestItem" Tag="Latest" IsSelected="True"/>
+                                            <ComboBoxItem x:Name="VersionTestedItem" Tag="Tested"/>
+                                        </ComboBox>
+                                    </Grid>
+
+                                    <DockPanel Margin="0,0,0,4">
+                                        <TextBlock x:Name="ClaudeStatus" DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Claude Code" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    </DockPanel>
+                                    <DockPanel Margin="0,0,0,12">
+                                        <Button x:Name="ClaudeInstallButton" DockPanel.Dock="Right" Content="{DynamicResource Setup_Instalar}" Padding="10,2" Margin="6,0,0,0" Tag="claude" ToolTip="{DynamicResource Setup_InstalarAgenteTip}" Click="OnInstallAgentClick"/>
+                                        <Button DockPanel.Dock="Right" Content="{DynamicResource Setup_Copiar}" Padding="10,2" Margin="6,0,0,0" Tag="claude" ToolTip="{DynamicResource Setup_CopiarTip}" Click="OnCopyCommand"/>
+                                        <TextBox x:Name="ClaudeCommand" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="11" Padding="4,3" BorderBrush="#DDE1E6"/>
+                                    </DockPanel>
+
+                                    <DockPanel Margin="0,0,0,4">
+                                        <TextBlock x:Name="CodexStatus" DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Codex" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    </DockPanel>
+                                    <DockPanel Margin="0,0,0,8">
+                                        <Button x:Name="CodexInstallButton" DockPanel.Dock="Right" Content="{DynamicResource Setup_Instalar}" Padding="10,2" Margin="6,0,0,0" Tag="codex" ToolTip="{DynamicResource Setup_InstalarAgenteTip}" Click="OnInstallAgentClick"/>
+                                        <Button DockPanel.Dock="Right" Content="{DynamicResource Setup_Copiar}" Padding="10,2" Margin="6,0,0,0" Tag="codex" ToolTip="{DynamicResource Setup_CopiarTip}" Click="OnCopyCommand"/>
+                                        <TextBox x:Name="CodexCommand" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="11" Padding="4,3" BorderBrush="#DDE1E6"/>
+                                    </DockPanel>
+                                    <TextBlock x:Name="AgentProgress" Style="{StaticResource Note}" Margin="0,0,0,6" Foreground="#24527A"/>
+                                    <TextBlock Text="{DynamicResource Setup_NotaAgentes}"
+                                               Style="{StaticResource Note}" Margin="0,0,0,8"/>
+                                    <Button Content="{DynamicResource Setup_VerificarDeNovo}" Style="{StaticResource StepButton}" Click="OnRecheckClick"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <!-- Passo 3: modelo ONNX do DecisionGate -->
+                            <Border Style="{StaticResource StepCard}">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource Setup_2ClassificadorDeRisco}" Style="{StaticResource StepTitle}"/>
+                                    <TextBlock Text="{DynamicResource Setup_ModeloAllMinilmL6}"
+                                               Style="{StaticResource Note}" Margin="0,0,0,8"/>
+                                    <TextBlock x:Name="Step2StatusText" FontSize="12" Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                    <TextBlock FontSize="10.5" Foreground="#999" TextWrapping="Wrap" Margin="0,0,0,10">
+                                        <Run x:Name="OnnxPathRun"/>
+                                        <Hyperlink Click="OnOpenOnnxFolder"><Run Text="{DynamicResource Setup_AbrirPasta}"/></Hyperlink>
+                                    </TextBlock>
+                                    <Button x:Name="Step2Button" Content="{DynamicResource Setup_BaixarModelo}" Width="220" Style="{StaticResource StepButton}" Click="OnStep2Click"/>
+                                    <TextBlock x:Name="Step2ProgressText" FontSize="11" Foreground="#555" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            <!-- Passo 5: IA Local compartilhada com o NXProject -->
+                            <Border Style="{StaticResource StepCard}">
+                                <StackPanel>
+                                    <DockPanel Margin="0,0,0,6">
+                                        <TextBlock x:Name="LlamaStatus" DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{DynamicResource Setup_4IaLocalLlama}" Style="{StaticResource StepTitle}" Margin="0"/>
+                                    </DockPanel>
+                                    <TextBlock Text="{DynamicResource Setup_UsadaSoNasAcoes}"
+                                               Style="{StaticResource Note}"/>
+                                    <!-- Instalar (desabilitado como "Já instalada" quando já está): backend do LLaMA (NuGet) + modelo Qwen3-4B (~2,5 GB), pelo NXData.AgentInstaller. -->
+                                    <TextBlock x:Name="LlamaPathText" FontSize="10.5" Foreground="#999" TextWrapping="Wrap" Margin="0,8,0,10"/>
+                                    <StackPanel x:Name="LlamaInstallPanel">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button x:Name="LlamaInstallButton" Content="{DynamicResource Setup_InstalarIaLocal}" Width="220" Style="{StaticResource StepButton}" Click="OnInstallLlamaClick"/>
+                                            <Button x:Name="LlamaCancelButton" Content="{DynamicResource Setup_Cancelar}" Padding="12,4" Margin="8,0,0,0" Visibility="Collapsed" Click="OnCancelLlamaClick"/>
+                                        </StackPanel>
+                                        <ProgressBar x:Name="LlamaProgress" Height="18" Minimum="0" Maximum="100" Margin="0,10,0,0" Visibility="Collapsed"/>
+                                        <TextBlock x:Name="LlamaProgressText" FontSize="11" Foreground="#24527A" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
 
         <TextBlock x:Name="ErrorText" Foreground="#C0392B" FontSize="11" TextWrapping="Wrap" Visibility="Collapsed"/>
     </StackPanel>

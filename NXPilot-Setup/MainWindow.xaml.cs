@@ -53,7 +53,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Captura para documentação: NXPilot-Setup.exe --shot saida.png. Renderiza só a própria
+    /// Captura para documentação: NXPilot-Setup.exe --shot saida.png [--tab 2]. Renderiza só a própria
     /// janela (RenderTargetBitmap) — nunca a tela — e fecha.
     /// </summary>
     private async Task TryShotAsync()
@@ -61,6 +61,7 @@ public partial class MainWindow : Window
         var args = Environment.GetCommandLineArgs();
         var i = Array.IndexOf(args, "--shot");
         if (i < 0 || i + 1 >= args.Length) return;
+        if (args.Contains("--tab") && args.SkipWhile(a => a != "--tab").Skip(1).FirstOrDefault() == "2") Tabs.SelectedItem = AgentsTab; // --tab 2: Agentes e IA
         await Task.Delay(4000); // WSL/versões dos agentes
         var root = (FrameworkElement)VisualTreeHelper.GetChild(this, 0); // área cliente inteira (com as margens)
         var dpi = VisualTreeHelper.GetDpi(this);
@@ -504,29 +505,62 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ Passo 5: LLaMA
 
-    /// <summary>Mesma checagem leve do NXProject-Setup: pasta do local-ai.json com um .gguf.</summary>
+    private readonly NXData.AgentInstaller.LocalAiInstaller _llama = new();
+    private CancellationTokenSource? _llamaCts;
+
+    /// <summary>
+    /// Mesma pasta e checagem do NXProject (local-ai.json dele, ou C:\IA_LOCAL): backend + .gguf
+    /// válido. Sem a IA Local, aparece o Instalar (o NXData.AgentInstaller baixa backend e modelo).
+    /// </summary>
     private void RefreshLlama()
     {
-        string? folder = null;
-        try
-        {
-            var cfg = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "NXProject.Community", "local-ai.json");
-            if (File.Exists(cfg))
-            {
-                using var doc = JsonDocument.Parse(File.ReadAllText(cfg));
-                if (doc.RootElement.TryGetProperty("ResourcesFolder", out var f)) folder = f.GetString();
-            }
-        }
-        catch { /* config inválida: trata como não instalada */ }
-        folder ??= @"C:\IA_LOCAL";
-
-        var ok = Directory.Exists(folder) && Directory.GetFiles(folder, "*.gguf").Length > 0
-                 && File.Exists(Path.Combine(folder, "llama.dll"));
+        var status = _llama.Check();
+        var ok = status.Installed;
         LlamaStatus.Text = ok ? T("✓ instalada", "✓ installed", "✓ instalada") : T("não instalada", "not installed", "no instalada");
         LlamaStatus.Foreground = ok ? Brushes.Green : Brushes.Gray;
-        LlamaPathText.Text = T("Pasta: ", "Folder: ", "Carpeta: ") + folder;
+        LlamaPathText.Text = T("Pasta: ", "Folder: ", "Carpeta: ") + status.Folder + (status.ModelFile is { } m && ok ? $"  ·  {m}" : "");
+        // Como o passo do ONNX: o botão fica sempre, desabilitado como "Já instalada".
+        if (_llamaCts != null) return; // instalando: quem cuida do botão é o OnInstallLlamaClick
+        LlamaInstallButton.Content = ok ? T("Já instalada", "Already installed", "Ya instalada") : T("Instalar IA Local (~2,5 GB)", "Install Local AI (~2.5 GB)", "Instalar IA Local (~2,5 GB)");
+        LlamaInstallButton.IsEnabled = !ok;
     }
+
+    private async void OnInstallLlamaClick(object sender, RoutedEventArgs e)
+    {
+        ErrorText.Visibility = Visibility.Collapsed;
+        _llamaCts = new CancellationTokenSource();
+        LlamaInstallButton.IsEnabled = false;
+        LlamaCancelButton.Visibility = LlamaProgress.Visibility = Visibility.Visible;
+        LlamaProgress.Value = 0;
+        try
+        {
+            var progress = new Progress<NXData.AgentInstaller.LocalAiProgress>(p =>
+            {
+                LlamaProgressText.Text = p.Message;
+                LlamaProgress.IsIndeterminate = p.Total <= 0;
+                if (p.Total > 0) LlamaProgress.Value = p.Percent;
+            });
+            var result = await _llama.InstallAsync(progress: progress, ct: _llamaCts.Token);
+            LlamaProgressText.Text = result.Installed
+                ? T("IA Local instalada. O NXPilot e o NXProject usam esta mesma pasta.", "Local AI installed. NXPilot and NXProject share this folder.", "IA Local instalada. NXPilot y NXProject usan esta misma carpeta.")
+                : T("A instalação não terminou: tente de novo.", "The installation did not finish: try again.", "La instalación no terminó: intente de nuevo.");
+        }
+        catch (OperationCanceledException) { LlamaProgressText.Text = T("Cancelado. Dá para instalar depois, aqui ou pelo NXProject.", "Cancelled. You can install it later, here or from NXProject.", "Cancelado. Puede instalarla después, aquí o desde NXProject."); }
+        catch (UnauthorizedAccessException)
+        {
+            ShowError(T($"Sem permissão para gravar em {_llama.ResolveFolder()}. Crie a pasta manualmente e tente de novo.", $"No permission to write to {_llama.ResolveFolder()}. Create the folder manually and try again.", $"Sin permiso para escribir en {_llama.ResolveFolder()}. Cree la carpeta manualmente e intente de nuevo."));
+        }
+        catch (Exception ex) { ShowError(T("Falha ao instalar a IA Local: ", "Local AI installation failed: ", "Error al instalar la IA Local: ") + ex.Message); }
+        finally
+        {
+            _llamaCts.Dispose();
+            _llamaCts = null;
+            LlamaCancelButton.Visibility = LlamaProgress.Visibility = Visibility.Collapsed;
+            RefreshLlama();
+        }
+    }
+
+    private void OnCancelLlamaClick(object sender, RoutedEventArgs e) => _llamaCts?.Cancel();
 
     // ------------------------------------------------------------------ comum
 

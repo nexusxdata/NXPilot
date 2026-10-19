@@ -1,6 +1,6 @@
 # NXData.AgentInstaller
 
-Biblioteca compartilhada pelo **NXPilot** e pelo **NXProject** para instalar e localizar os agentes de IA no Windows: **Claude Code** e **Codex CLI**.
+Biblioteca compartilhada pelo **NXPilot** e pelo **NXProject** para instalar e localizar os agentes de IA no Windows (**Claude Code** e **Codex CLI**) e os modelos locais (**IA Local LLaMA** e **ONNX**).
 Não tem dependências.
 
 ```
@@ -33,4 +33,21 @@ var r = await installer.InstallAsync(AgentCli.Codex, InstallMode.Internal, Versi
 Console.WriteLine(r.Message);   // "Codex 0.162.0 instalado." ou o aviso de queda para a última
 
 var claude = AgentLocator.Find(AgentCli.ClaudeCode);   // PATH, instalador oficial, NXProject, extensão do VS Code
+```
+
+## IA Local (LLaMA) e modelo ONNX
+
+A mesma biblioteca instala os modelos locais que o NXPilot e o NXProject usam, sem script e na mesma pasta para os dois produtos:
+
+- **`LocalAiInstaller`** — IA Local LLaMA: o backend de CPU do LLamaSharp (`llama.dll` e `ggml*.dll`, extraídas do pacote `LLamaSharp.Backend.Cpu` do NuGet, variante AVX2) e o modelo **Qwen3-4B-Instruct-2507** (Apache-2.0, ~2,5 GB) do Hugging Face. A pasta é a configurada no NXProject (`local-ai.json`) ou `C:\IA_LOCAL`. Antes de baixar, confere o espaço livre. O modelo vai para um `.tmp` e só vira `.gguf` depois de conferido: tamanho, **SHA-256 publicado pelo Hugging Face** (lido com um HEAD sem seguir o redirecionamento para a CDN, onde o cabeçalho se perderia) e assinatura GGUF. Grava `backend-version.txt` e `backend-kind.txt`, como o NXProject.
+- **`OnnxModelInstaller`** — modelo de embeddings **all-MiniLM-L6-v2** (~90 MB) em `C:\IA_LOCAL\ONNX`.
+
+O que já está instalado não é baixado de novo.
+
+```csharp
+var ia = new LocalAiInstaller();
+if (!ia.Check().Installed)
+    await ia.InstallAsync(progress: new Progress<LocalAiProgress>(p => Console.WriteLine($"{p.Message} {p.Percent:0}%")));
+
+await new OnnxModelInstaller().InstallAsync();
 ```

@@ -15,25 +15,19 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
-**⧉ Work items: Azure DevOps e GitHub Projects**
+**🧠 IA Local instalada pelo próprio NXPilot-Setup**
 
-- Nova extensão **Work items (DevOps · GitHub)**, em ⚙ Extensões. Ela tem configuração própria do Azure DevOps (organização, projeto e PAT) e do GitHub Projects (dono, número do projeto e token), com botão de teste para cada um.
-- **Campos em branco usam a conexão que o NXProject já tem** neste usuário, somente leitura. A tela mostra qual conexão está valendo.
-- A tela de **Work items** escolhe a **origem** (Azure DevOps ou GitHub Projects), o **projeto** e o **work item Project**, que é o projeto executado. Com ele escolhido, aparecem só os seus itens debaixo dele na hierarquia (Epic → Feature → Story → Task, ou as sub-issues no GitHub). As escolhas ficam lembradas.
-- No GitHub entram as issues abertas e os rascunhos atribuídos a você, com o status do board. Se o corpo da issue tiver uma seção "Critérios de aceite", ela vira os critérios da Nova tarefa.
+- O passo **5 · IA Local LLaMA** ganhou o botão **Instalar IA Local (~2,5 GB)**. Ele baixa o backend do LLaMA (LLamaSharp 0.27.0, CPU) e o modelo **Qwen3-4B-2507** (Apache-2.0), com barra de progresso e Cancelar. Já instalada, o botão aparece como "Já instalada".
+- É a **mesma IA Local do NXProject**: mesma pasta (a configurada nele, ou `C:\IA_LOCAL`) e mesmos arquivos. O que um instala o outro enxerga, e quem tem só o NXPilot não depende mais do NXProject para isso.
+- Antes de baixar, o Setup confere o espaço em disco. O modelo só fica instalado depois de conferido: tamanho, **SHA-256 publicado pelo Hugging Face** e assinatura GGUF.
 
-**🕘 Histórico**
+**🗂 Setup em duas abas**
 
-- **Busca dinâmica** a partir de 3 letras, em tudo ou só no título, na intenção ou nos critérios, sem diferenciar maiúsculas nem acentos.
-- **Período** opcional: hoje, últimos 7 ou 30 dias, este mês, ou datas escolhidas.
-- **Clonar e executar de novo:** abre a Nova tarefa já preenchida com os dados da tarefa escolhida.
-- Os botões ficam numa linha própria, abaixo do caminho do worktree.
+- **1 · Instalação e atualização:** o .NET 10 e o NXPilot, um abaixo do outro.
+- **2 · Agentes e IA:** Claude Code e Codex, o classificador ONNX e a IA Local, com **Fechar** no fim.
 
-**↻ Tentar novamente**
+**📦 NXData.AgentInstaller 1.1.0**
 
-- Se a preparação ou o plano falham, o erro aparece no card da tarefa e o botão **Tentar novamente** pede o plano de novo, na mesma tarefa.
-- Abrir um arquivo do resultado que o Windows não sabe abrir mostra o **Abrir com…**. Arquivo bloqueado mostra a mensagem e oferece tentar de novo.
+- A biblioteca de instalação (a mesma do NXProject) agora instala também a **IA Local** e o **modelo ONNX**, além do Claude Code e do Codex.
 
-**🧹 Ajustes**
-
-- O botão "Analisar e corrigir achados" não aparece mais no painel de exemplo, só numa tarefa real com achados.
+> Esta versão republica o **NXPilot-Setup**. Quem já tem o NXPilot instalado não precisa reinstalar: o app continua atualizando por **⚙ Configurar → Verificar atualização**.

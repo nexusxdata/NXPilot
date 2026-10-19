@@ -977,6 +977,75 @@ public static class CriticalTests
             }
         }),
 
+        new("IA Local e ONNX (NXData.AgentInstaller): backend AVX2 extraído, modelo conferido por SHA-256, SHA errado não instala, reinstalar não baixa", async () =>
+        {
+            var root = Path.Combine(Path.GetTempPath(), "nx-localai-" + Guid.NewGuid().ToString("N")[..8]);
+            try
+            {
+                // Pacote do backend: DLL na raiz do native e a variante AVX2 (que deve vencer).
+                byte[] Nupkg()
+                {
+                    using var ms = new MemoryStream();
+                    using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+                    {
+                        void Add(string path, string text) { using var w = new StreamWriter(zip.CreateEntry(path).Open()); w.Write(text); }
+                        Add("runtimes/win-x64/native/llama.dll", "base");
+                        Add("runtimes/win-x64/native/avx2/llama.dll", "avx2");
+                        Add("runtimes/win-x64/native/avx2/ggml.dll", "ggml");
+                        Add("lib/net8.0/ignorado.dll", "x");
+                    }
+                    return ms.ToArray();
+                }
+                var model = Encoding.ASCII.GetBytes("GGUF" + new string('x', 4096));
+                var goodSha = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(model));
+                var sha = goodSha;
+                var http = new BinaryHttp(url => url.Contains("nuget") ? (Nupkg(), null) : url.Contains("model.gguf") ? (model, sha) : null);
+                var options = new NXData.AgentInstaller.LocalAiInstallOptions
+                {
+                    BackendPackageUrlFormat = "https://nuget.test/backend/{0}", ModelUrl = "https://hf.test/model.gguf", ModelFileName = "model.gguf",
+                    RequiredFreeBytes = 1, LocalAppData = Path.Combine(root, "appdata"),
+                };
+                var installer = new NXData.AgentInstaller.LocalAiInstaller(options, http);
+                AssertEqual(NXData.AgentInstaller.LocalAiInstaller.DefaultFolder, installer.ResolveFolder(), "Sem NXProject: C:\\IA_LOCAL.");
+
+                var folder = Path.Combine(root, "ia");
+                sha = "0" + goodSha[1..]; // SHA publicado diferente do arquivo
+                var failed = false;
+                try { await installer.InstallAsync(folder); } catch (InvalidDataException) { failed = true; }
+                AssertTrue(failed, "SHA-256 que não confere é erro.");
+                AssertFalse(File.Exists(Path.Combine(folder, "model.gguf")), "Modelo com SHA errado não fica instalado (nem o .tmp).");
+                AssertTrue(File.Exists(Path.Combine(folder, "llama.dll")), "O backend já baixado fica.");
+
+                sha = goodSha;
+                http.Urls.Clear();
+                var status = await installer.InstallAsync(folder);
+                AssertTrue(status.Installed, "Instalada: backend + GGUF válido.");
+                AssertFalse(http.Urls.Any(u => u.Contains("nuget")), "Backend presente não é baixado de novo.");
+                AssertEqual("avx2", File.ReadAllText(Path.Combine(folder, "llama.dll")), "Variante AVX2 sobrepõe a da raiz.");
+                AssertTrue(File.Exists(Path.Combine(folder, "ggml.dll")), "Dependências do backend junto.");
+                AssertEqual("0.27.0", File.ReadAllText(Path.Combine(folder, "backend-version.txt")), "Mesmo registro do NXProject (versão).");
+                AssertEqual("Cpu", File.ReadAllText(Path.Combine(folder, "backend-kind.txt")), "Mesmo registro do NXProject (tipo).");
+                http.Urls.Clear();
+                await installer.InstallAsync(folder);
+                AssertEqual(0, http.Urls.Count, "Já instalada: nada é baixado.");
+
+                // Pasta configurada no NXProject (local-ai.json) vale para os dois produtos.
+                Directory.CreateDirectory(Path.Combine(root, "appdata", "NXProject.Community"));
+                File.WriteAllText(Path.Combine(root, "appdata", "NXProject.Community", "local-ai.json"), JsonSerializer.Serialize(new { ResourcesFolder = folder }));
+                AssertEqual(folder, installer.ResolveFolder(), "Pasta do local-ai.json do NXProject.");
+
+                // ONNX: vocab + modelo; o que já existe não é baixado de novo.
+                var onnxHttp = new BinaryHttp(url => url.EndsWith("vocab.txt") ? (Encoding.ASCII.GetBytes("[PAD]"), null) : url.EndsWith("model.onnx") ? (new byte[2048], null) : null);
+                var onnx = new NXData.AgentInstaller.OnnxModelInstaller(Path.Combine(root, "onnx"), onnxHttp, "https://hf.test/");
+                await onnx.InstallAsync();
+                AssertTrue(onnx.IsInstalled, "ONNX instalado (model.onnx + vocab.txt).");
+                onnxHttp.Urls.Clear();
+                await onnx.InstallAsync();
+                AssertEqual(0, onnxHttp.Urls.Count, "ONNX presente: nada é baixado.");
+            }
+            finally { if (Directory.Exists(root)) ForceDelete(root); }
+        }),
+
         new("Work items GitHub Projects: só issues abertas e rascunhos meus; critérios saem do corpo; erro do GraphQL não vira lista vazia", async () =>
         {
             const string page = """
@@ -1067,6 +1136,21 @@ public static class CriticalTests
             if (request.Content != null) Bodies.Add(await request.Content.ReadAsStringAsync(ct));
             var text = status == System.Net.HttpStatusCode.OK ? reply(request) : body ?? "";
             return new HttpResponseMessage(status) { Content = new StringContent(text, Encoding.UTF8, "application/json") };
+        }
+    }
+
+    /// <summary>Servidor binário de mentira: por URL devolve bytes e, opcional, o cabeçalho x-linked-etag (SHA-256 do Hugging Face).</summary>
+    private sealed class BinaryHttp(Func<string, (byte[] Body, string? Sha)?> route) : HttpMessageHandler
+    {
+        public List<string> Urls { get; } = new();
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var url = request.RequestUri!.ToString();
+            Urls.Add(url);
+            if (route(url) is not { } hit) return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
+            var resp = new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(hit.Body) };
+            if (hit.Sha != null) resp.Headers.TryAddWithoutValidation("x-linked-etag", $"\"{hit.Sha}\"");
+            return Task.FromResult(resp);
         }
     }
 

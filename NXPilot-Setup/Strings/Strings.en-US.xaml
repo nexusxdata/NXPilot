@@ -9,16 +9,16 @@
     <sys:String x:Key="Setup_OrquestradorDeAgentesDe">Coding agent orchestrator (Claude Code, Codex) with audit log and decisions. NXPilot installs in your user profile, without administrator; only .NET (step 1) asks for administrator.</sys:String>
     <sys:String x:Key="Setup_1InstalarONxpilot">2 · Install NXPilot</sys:String>
     <sys:String x:Key="Setup_Instalar">Install</sys:String>
-    <sys:String x:Key="Setup_2ClassificadorDeRisco">3 · ONNX risk classifier (recommended)</sys:String>
+    <sys:String x:Key="Setup_2ClassificadorDeRisco">4 · ONNX risk classifier (recommended)</sys:String>
     <sys:String x:Key="Setup_ModeloAllMinilmL6">all-MiniLM-L6-v2 model (~90 MB) that classifies each agent action in milliseconds, on the CPU — no GPU needed. Without it NXPilot uses rules only.</sys:String>
     <sys:String x:Key="Setup_BaixarModelo">Download model</sys:String>
-    <sys:String x:Key="Setup_3AgentesDeCodigo">4 · Coding agents</sys:String>
+    <sys:String x:Key="Setup_3AgentesDeCodigo">3 · Coding agents</sys:String>
     <sys:String x:Key="Setup_ONxpilotCoordenaOs">NXPilot coordinates the agents you already use, with your own subscription. Install at least one.</sys:String>
     <sys:String x:Key="Setup_Copiar">Copy</sys:String>
     <sys:String x:Key="Setup_RodeOComandoNum">Run the command in PowerShell and then click Check again. Installations inside WSL are recognized too.</sys:String>
     <sys:String x:Key="Setup_VerificarDeNovo">Check again</sys:String>
     <sys:String x:Key="Setup_4IaLocalLlama">5 · Local AI LLaMA (optional)</sys:String>
-    <sys:String x:Key="Setup_UsadaSoNasAcoes">Used only for actions where ONNX is unsure (cascade). It is the same Local AI as NXProject — if it is already installed, nothing to do. To install: NXProject → AI → Manage Local AI.</sys:String>
+    <sys:String x:Key="Setup_UsadaSoNasAcoes">Used only for actions where ONNX is unsure (cascade). It is the same Local AI as NXProject — if it already installed it, nothing to do. Otherwise, install it here: the LLaMA backend and the Qwen3-4B-2507 model (Apache-2.0, ~2.5 GB), in the same folder NXProject uses.</sys:String>
     <sys:String x:Key="Setup_AbrirPasta">open folder</sys:String>
     <sys:String x:Key="Setup_ComoInstalar">How to install</sys:String>
     <sys:String x:Key="Setup_ModoInterno">Automatic (recommended)</sys:String>
@@ -33,4 +33,10 @@
     <sys:String x:Key="Setup_DotNetNota">NXPilot already carries the runtime next to the exe; with .NET installed on the machine, Windows does not ask to "install .NET" if a runtime file goes missing (antivirus, interrupted copy). Asks for administrator.</sys:String>
     <sys:String x:Key="Setup_DotNetInstalar">Install .NET 10</sys:String>
     <sys:String x:Key="Setup_DotNetManual">Download in browser</sys:String>
+    <!-- Passo 5: instalar a IA Local -->
+    <sys:String x:Key="Setup_InstalarIaLocal">Install Local AI (~2.5 GB)</sys:String>
+    <sys:String x:Key="Setup_Cancelar">Cancel</sys:String>
+    <!-- Abas do Setup -->
+    <sys:String x:Key="Setup_AbaInstalacao">1 · Installation and updates</sys:String>
+    <sys:String x:Key="Setup_AbaAgentes">2 · Agents and AI</sys:String>
 </ResourceDictionary>
