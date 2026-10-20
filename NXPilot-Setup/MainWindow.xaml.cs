@@ -202,10 +202,10 @@ public partial class MainWindow : Window
         else if (File.Exists(InstalledExe))
         {
             var installed = FileVersionInfo.GetVersionInfo(InstalledExe).FileVersion;
-            Step1StatusText.Text = T($"NXPilot {installed} instalado. Reinstalar baixa a versão mais nova do GitHub.",
-                                     $"NXPilot {installed} installed. Reinstalling downloads the latest version from GitHub.",
-                                     $"NXPilot {installed} instalado. Reinstalar descarga la versión más reciente de GitHub.");
-            Step1Button.Content = T("Reinstalar", "Reinstall", "Reinstalar");
+            Step1StatusText.Text = T($"NXPilot {installed} instalado. Atualizar para a última versão baixa a mais nova do GitHub.",
+                                     $"NXPilot {installed} installed. Update to the latest version downloads the newest one from GitHub.",
+                                     $"NXPilot {installed} instalado. Actualizar a la última versión descarga la más reciente de GitHub.");
+            Step1Button.Content = T("🔄 Atualizar para a última versão", "🔄 Update to the latest version", "🔄 Actualizar a la última versión"); // instalado: igual ao app e ao NXProject
             OpenAppButton.Visibility = Visibility.Visible;
         }
         else

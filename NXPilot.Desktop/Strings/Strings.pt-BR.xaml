@@ -260,12 +260,12 @@
     <sys:String x:Key="Main_Configurar">⚙  Configurar</sys:String>
     <sys:String x:Key="Cfg_Titulo">Configurar</sys:String>
     <sys:String x:Key="Cfg_Versao">Versão</sys:String>
-    <sys:String x:Key="Cfg_Verificar">Verificar atualização</sys:String>
-    <sys:String x:Key="Cfg_VoltarVersao">Instalar outra versão (voltar versão)</sys:String>
+    <sys:String x:Key="Cfg_Verificar">🔄 Atualizar para a última versão</sys:String>
+    <sys:String x:Key="Cfg_VoltarVersao">Voltar para uma versão anterior</sys:String>
     <sys:String x:Key="Cfg_InstalarVersao">Instalar esta versão</sys:String>
     <sys:String x:Key="Cfg_VoltarNota">Baixa o pacote da versão escolhida no GitHub, confere o SHA-256 e reinicia o NXPilot. Suas configurações, tarefas e histórico são mantidos.</sys:String>
-    <sys:String x:Key="Cfg_SetupMudou">Há um Setup novo (runtime ou bibliotecas mudaram). Rode-o para atualizar a base do NXPilot.</sys:String>
-    <sys:String x:Key="Cfg_BaixarSetup">Baixar Setup</sys:String>
+    <sys:String x:Key="Cfg_SetupMudou">A base do NXPilot mudou (runtime ou bibliotecas). Atualize a base: o Setup é baixado, aberto e instala a base e a versão mais nova.</sys:String>
+    <sys:String x:Key="Cfg_BaixarSetup">Atualizar a base (Setup)</sys:String>
     <sys:String x:Key="Cfg_Fechar">Fechar</sys:String>
     <sys:String x:Key="Ext_JanelasLerApp">Ler / monitorar um app…</sys:String>
     <sys:String x:Key="Ext_JanelasProcessos">Processos (clicar e digitar)…</sys:String>
@@ -314,7 +314,7 @@
     <sys:String x:Key="About_Licenca">Licença (Open Core)</sys:String>
     <sys:String x:Key="About_LicencaTexto">NXPilot License 2.0. Edição Community gratuita para pessoas e empresas; vender ou oferecer como serviço pago exige licença comercial.</sys:String>
     <sys:String x:Key="About_NovasVersoes">Novas versões</sys:String>
-    <sys:String x:Key="About_NovasVersoesTexto">Em Configurar → Verificar atualização (ou no GitHub do projeto).</sys:String>
+    <sys:String x:Key="About_NovasVersoesTexto">Em Configurar → 🔄 Atualizar para a última versão (ou no GitHub do projeto).</sys:String>
     <sys:String x:Key="About_NXProject">Da mesma Nexus XData: NXProject</sys:String>
     <sys:String x:Key="About_NXProjectTexto">Gerenciamento de tarefas e projetos com Gantt, importação/exportação e integração com o Azure DevOps.</sys:String>
     <sys:String x:Key="About_NXProjectLink">Conhecer o NXProject →</sys:String>

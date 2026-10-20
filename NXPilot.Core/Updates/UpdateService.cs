@@ -119,13 +119,14 @@ public sealed class UpdateService(HttpMessageHandler? handler = null, string rep
     // ================================================================ baixar e aplicar
 
     /// <summary>Baixa o pacote, confere o SHA-256 publicado pelo GitHub (quando houver) e extrai numa pasta temporária.</summary>
-    public async Task<string> DownloadAsync(PublishedVersion version, IProgress<string>? status = null, CancellationToken ct = default)
+    public async Task<string> DownloadAsync(PublishedVersion version, IProgress<string>? status = null, CancellationToken ct = default,
+        IProgress<(long Downloaded, long Total)>? bytes = null)
     {
         var temp = Path.Combine(Path.GetTempPath(), "nxpilot-update-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temp);
         var zip = Path.Combine(temp, AppAsset);
         status?.Report($"Baixando {version.Tag}…");
-        await DownloadFileAsync(version.DownloadUrl, zip, ct);
+        await DownloadFileAsync(version.DownloadUrl, zip, bytes, ct);
         if (version.Sha256 != null)
         {
             await using var fs = File.OpenRead(zip);
@@ -194,14 +195,35 @@ public sealed class UpdateService(HttpMessageHandler? handler = null, string rep
         return removed;
     }
 
-    public async Task DownloadFileAsync(string url, string destPath, CancellationToken ct = default)
+    public Task DownloadFileAsync(string url, string destPath, CancellationToken ct = default) => DownloadFileAsync(url, destPath, null, ct);
+
+    /// <summary>Baixa com progresso em bytes (baixado, total) — a tela mostra MB e % e, no fim, 100%.</summary>
+    public async Task DownloadFileAsync(string url, string destPath, IProgress<(long Downloaded, long Total)>? bytes, CancellationToken ct = default)
     {
         using var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!resp.IsSuccessStatusCode) throw new UpdateException($"HTTP {(int)resp.StatusCode} ao baixar {url}", (int)resp.StatusCode);
+        var total = resp.Content.Headers.ContentLength ?? 0;
         await using var src = await resp.Content.ReadAsStreamAsync(ct);
         await using var file = File.Create(destPath);
-        await src.CopyToAsync(file, ct);
+        var buffer = new byte[1 << 16];
+        long done = 0, lastReported = -1;
+        int n;
+        while ((n = await src.ReadAsync(buffer, ct)) > 0)
+        {
+            await file.WriteAsync(buffer.AsMemory(0, n), ct);
+            done += n;
+            if (bytes != null && done - lastReported >= 256 * 1024) { bytes.Report((done, total)); lastReported = done; } // a cada ~256 KB
+        }
+        bytes?.Report((done, total > 0 ? total : done)); // fim: sempre 100%
     }
+
+    /// <summary>"45,2 MB de 93,4 MB (48%)" — o mesmo texto do NXProject; no fim, "100% · download concluído".</summary>
+    public static string DescribeProgress(long downloaded, long total) =>
+        total > 0 && downloaded >= total
+            ? NxText.T($"100% · download concluído ({total / 1048576d:0.0} MB)", $"100% · download complete ({total / 1048576d:0.0} MB)", $"100% · descarga concluida ({total / 1048576d:0.0} MB)")
+            : total > 0
+                ? NxText.T($"{downloaded / 1048576d:0.0} MB de {total / 1048576d:0.0} MB ({downloaded * 100 / total}%)", $"{downloaded / 1048576d:0.0} MB of {total / 1048576d:0.0} MB ({downloaded * 100 / total}%)", $"{downloaded / 1048576d:0.0} MB de {total / 1048576d:0.0} MB ({downloaded * 100 / total}%)")
+                : $"{downloaded / 1048576d:0.0} MB";
 
     // ---------------------------------------------------------------- apoio
 

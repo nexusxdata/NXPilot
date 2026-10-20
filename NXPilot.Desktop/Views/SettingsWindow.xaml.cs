@@ -113,7 +113,8 @@ public partial class SettingsWindow : Window
                 $"¿Actualizar a {version.Tag}? NXPilot se cerrará y se volverá a abrir; las tareas en curso se interrumpirán.");
         if (MessageBox.Show(this, question, "NXPilot", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
 
-        var package = await _updates.DownloadAsync(version, new Progress<string>(m => Status(m, Brushes.DimGray)));
+        var package = await _updates.DownloadAsync(version, new Progress<string>(m => Status(m, Brushes.DimGray)), default, BytesProgress());
+        await ShowCompleteAsync();
         Status(T("Instalando…", "Installing…", "Instalando…"), Brushes.DimGray);
         var count = await Task.Run(() => UpdateService.Apply(package, AppDir));
         try { Directory.Delete(Path.GetDirectoryName(package)!, true); } catch { /* temporário */ }
@@ -135,7 +136,9 @@ public partial class SettingsWindow : Window
         var setup = await _updates.GetSetupReleaseAsync() ?? throw new UpdateException(T("Setup não encontrado no GitHub.", "Setup not found on GitHub.", "Setup no encontrado en GitHub."));
         var zip = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", UpdateService.SetupAsset);
         Status(T("Baixando o Setup…", "Downloading the Setup…", "Descargando el Setup…"), Brushes.DimGray);
-        await _updates.DownloadFileAsync(setup.DownloadUrl, zip);
+        await _updates.DownloadFileAsync(setup.DownloadUrl, zip, BytesProgress());
+        await ShowCompleteAsync();
+        Status(T("Extraindo e abrindo o Setup…", "Extracting and opening the Setup…", "Extrayendo y abriendo el Setup…"), Brushes.DimGray);
         var dir = Path.Combine(Path.GetTempPath(), "nxpilot-setup-" + Guid.NewGuid().ToString("N"));
         System.IO.Compression.ZipFile.ExtractToDirectory(zip, dir);
         var exe = Directory.GetFiles(dir, "NXPilot-Setup.exe", SearchOption.AllDirectories).FirstOrDefault()
@@ -148,6 +151,8 @@ public partial class SettingsWindow : Window
     {
         CheckButton.IsEnabled = InstallVersionButton.IsEnabled = false;
         Progress.Visibility = Visibility.Visible;
+        Progress.IsIndeterminate = true; // até o download começar a informar o tamanho
+        Progress.Value = 0;
         try { await action(); }
         catch (Exception ex) { Status(ex.Message, Brushes.Firebrick); }
         finally
@@ -156,6 +161,23 @@ public partial class SettingsWindow : Window
             CheckButton.IsEnabled = true;
             OnVersionSelected(this, null!);
         }
+    }
+
+    /// <summary>Barra com % e MB enquanto baixa (igual ao NXProject).</summary>
+    private Progress<(long Downloaded, long Total)> BytesProgress() => new(b =>
+    {
+        Progress.IsIndeterminate = b.Total <= 0;
+        if (b.Total > 0) Progress.Value = Math.Min(100, b.Downloaded * 100d / b.Total);
+        Status(UpdateService.DescribeProgress(b.Downloaded, b.Total), Brushes.DimGray);
+    });
+
+    /// <summary>Fim do download: barra cheia e "100%" à vista um instante, para ficar claro que acabou.</summary>
+    private async Task ShowCompleteAsync()
+    {
+        Progress.IsIndeterminate = false;
+        Progress.Value = 100;
+        Status(StatusText.Text.StartsWith("100%") ? StatusText.Text : T("100% · download concluído", "100% · download complete", "100% · descarga concluida"), Brushes.Green);
+        await Task.Delay(700);
     }
 
     private void Status(string text, Brush color) { StatusText.Text = text; StatusText.Foreground = color; }
