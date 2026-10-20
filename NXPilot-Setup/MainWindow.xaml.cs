@@ -139,7 +139,7 @@ public partial class MainWindow : Window
             DotNetButton.IsEnabled = false;
             DotNetStatusText.Text = T("Baixando o instalador do .NET 10 Desktop Runtime…", "Downloading the .NET 10 Desktop Runtime installer…", "Descargando el instalador de .NET 10 Desktop Runtime…");
             DotNetProgress.Value = 0;
-            DotNetProgress.Visibility = Visibility.Visible;
+            DotNetProgressPanel.Visibility = Visibility.Visible;
             using (var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(5) })
             using (var response = await client.GetAsync(DotNetRuntimeInstallerUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead))
             {
@@ -179,7 +179,7 @@ public partial class MainWindow : Window
         {
             try { File.Delete(tempExe); } catch { /* temporário */ }
             DotNetProgress.IsIndeterminate = false;
-            DotNetProgress.Visibility = Visibility.Collapsed;
+            DotNetProgressPanel.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -202,10 +202,10 @@ public partial class MainWindow : Window
         else if (File.Exists(InstalledExe))
         {
             var installed = FileVersionInfo.GetVersionInfo(InstalledExe).FileVersion;
-            Step1StatusText.Text = T($"NXPilot {installed} instalado. Atualizar para a última versão baixa a mais nova do GitHub.",
-                                     $"NXPilot {installed} installed. Update to the latest version downloads the newest one from GitHub.",
-                                     $"NXPilot {installed} instalado. Actualizar a la última versión descarga la más reciente de GitHub.");
-            Step1Button.Content = T("🔄 Atualizar para a última versão", "🔄 Update to the latest version", "🔄 Actualizar a la última versión"); // instalado: igual ao app e ao NXProject
+            Step1StatusText.Text = T($"NXPilot {installed} instalado. Atualizar para a última versão baixa a mais nova do GitHub (e a base deste Setup).",
+                                     $"NXPilot {installed} installed. Update to the latest version downloads the newest one from GitHub (and this Setup's base).",
+                                     $"NXPilot {installed} instalado. Actualizar a la última versión descarga la más reciente de GitHub (y la base de este Setup).");
+            Step1Button.Content = T("🔄 Atualizar para a última versão", "🔄 Update to the latest version", "🔄 Actualizar a la última versión"); // instalado: você já verificou no app (era "Reinstalar")
             OpenAppButton.Visibility = Visibility.Visible;
         }
         else
@@ -530,7 +530,7 @@ public partial class MainWindow : Window
         ErrorText.Visibility = Visibility.Collapsed;
         _llamaCts = new CancellationTokenSource();
         LlamaInstallButton.IsEnabled = false;
-        LlamaCancelButton.Visibility = LlamaProgress.Visibility = Visibility.Visible;
+        LlamaCancelButton.Visibility = LlamaProgressPanel.Visibility = Visibility.Visible;
         LlamaProgress.Value = 0;
         try
         {
@@ -555,7 +555,7 @@ public partial class MainWindow : Window
         {
             _llamaCts.Dispose();
             _llamaCts = null;
-            LlamaCancelButton.Visibility = LlamaProgress.Visibility = Visibility.Collapsed;
+            LlamaCancelButton.Visibility = LlamaProgressPanel.Visibility = Visibility.Collapsed;
             RefreshLlama();
         }
     }

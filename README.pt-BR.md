@@ -79,7 +79,7 @@ O NXPilot é publicado em duas partes separadas, como o NXProject:
 
 - [Baixar NXPilot-Setup.zip](../../releases/download/nxpilot-setup-latest/NXPilot-Setup.zip)
 
-**Já tem instalado?** No NXPilot, abra **⚙ Configurar → 🔄 Atualizar para a última versão**: ele baixa só o
+**Já tem instalado?** No NXPilot, abra **⚙ Configurar → Verificar atualização**: ele baixa só o
 `NXPilot-Release.zip` novo, troca os arquivos e reabre o NXPilot. Ou baixe à mão e extraia por cima da instalação:
 
 - [Baixar NXPilot-Release.zip (atualização)](../../releases/latest/download/NXPilot-Release.zip)

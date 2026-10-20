@@ -260,12 +260,12 @@
     <sys:String x:Key="Main_Configurar">⚙  Settings</sys:String>
     <sys:String x:Key="Cfg_Titulo">Settings</sys:String>
     <sys:String x:Key="Cfg_Versao">Version</sys:String>
-    <sys:String x:Key="Cfg_Verificar">🔄 Update to the latest version</sys:String>
-    <sys:String x:Key="Cfg_VoltarVersao">Go back to a previous version</sys:String>
+    <sys:String x:Key="Cfg_Verificar">Check for update</sys:String>
+    <sys:String x:Key="Cfg_VoltarVersao">Install another version (roll back)</sys:String>
     <sys:String x:Key="Cfg_InstalarVersao">Install this version</sys:String>
     <sys:String x:Key="Cfg_VoltarNota">Downloads the chosen version's package from GitHub, checks the SHA-256 and restarts NXPilot. Your settings, tasks and history are kept.</sys:String>
-    <sys:String x:Key="Cfg_SetupMudou">The NXPilot base changed (runtime or libraries). Update the base: the Setup is downloaded, opened and installs the base and the latest version.</sys:String>
-    <sys:String x:Key="Cfg_BaixarSetup">Update the base (Setup)</sys:String>
+    <sys:String x:Key="Cfg_SetupMudou">A new Setup is available (runtime or libraries changed). Run it to update NXPilot's base.</sys:String>
+    <sys:String x:Key="Cfg_BaixarSetup">Download Setup</sys:String>
     <sys:String x:Key="Cfg_Fechar">Close</sys:String>
     <sys:String x:Key="Ext_JanelasLerApp">Read / monitor an app…</sys:String>
     <sys:String x:Key="Ext_JanelasProcessos">Processes (click and type)…</sys:String>
@@ -314,7 +314,7 @@
     <sys:String x:Key="About_Licenca">License (Open Core)</sys:String>
     <sys:String x:Key="About_LicencaTexto">NXPilot License 2.0. Community edition free for individuals and companies; selling it or offering it as a paid service requires a commercial license.</sys:String>
     <sys:String x:Key="About_NovasVersoes">New versions</sys:String>
-    <sys:String x:Key="About_NovasVersoesTexto">In Settings → 🔄 Update to the latest version (or on the project’s GitHub).</sys:String>
+    <sys:String x:Key="About_NovasVersoesTexto">In Settings → Check for update (or on the project's GitHub).</sys:String>
     <sys:String x:Key="About_NXProject">Also from Nexus XData: NXProject</sys:String>
     <sys:String x:Key="About_NXProjectTexto">Task and project management with Gantt, import/export and Azure DevOps integration.</sys:String>
     <sys:String x:Key="About_NXProjectLink">Meet NXProject →</sys:String>
