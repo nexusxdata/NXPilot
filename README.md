@@ -33,9 +33,13 @@ Tokens are encrypted (DPAPI) for your Windows user only, and anything that chang
 | **Git** | [`NXPilot.GitRepos`](NXPilot.GitRepos/README.md) | Clone, commit, push and pull request on GitHub and Azure DevOps; Databricks Git folder | Push, PR and deploy require approval; push to the main branch is HIGH; never `--force` |
 | **E-mail** | [`NXPilot.Mail`](NXPilot.Mail/README.md) | Reads Outlook (Graph `Mail.Read`) and Gmail (`gmail.readonly`) | Read-only; content goes to the agent as data, never as instructions |
 
-#### 🔌 MCP NXPilot
+#### 🔌 MCP NXPilot — extensions the agent uses directly, without generating code
 
-The extensions are also **tools for the agent**. In every task, NXPilot gives Claude Code (`--mcp-config`) and Codex (`-c mcp_servers.nxpilot`) one MCP server, `NxPilot.exe --mcp`. It is only a bridge, through a local named pipe, to the NXPilot that is open: tokens and connections never reach the agent, and every call goes through the same DecisionGate and the same decisions panel. Without NXPilot open, no tool runs.
+Without it, a repetitive job — building a presentation, querying a table, checking a report — makes the agent write a script from scratch every time: install packages, debug, try again. All of that costs tokens and time. With the **MCP NXPilot**, the agent calls a ready, tested tool instead: it describes **what** it wants and NXPilot does the **how**. The result is **fewer tokens per task, less trial and error, and the same result every time**.
+
+And you stay in control: every call goes through NXPilot's decision gate. Reads go on their own; anything that changes something outside the task waits for your approval. Tokens and passwords stay in NXPilot and never reach the agent.
+
+**How it works.** In every task, NXPilot gives Claude Code (`--mcp-config`) and Codex (`-c mcp_servers.nxpilot`) one MCP server, `NxPilot.exe --mcp`. It is only a bridge, through a local named pipe, to the NXPilot that is open: tokens and connections never reach the agent, and every call goes through the same DecisionGate and the same decisions panel. Without NXPilot open, no tool runs.
 
 | Tools | What the agent gets |
 |---|---|

@@ -33,6 +33,24 @@ Los tokens se guardan cifrados (DPAPI) solo para su usuario de Windows, y todo l
 | **Git** | [`NXPilot.GitRepos`](NXPilot.GitRepos/README.md) | Clone, commit, push y pull request en GitHub y Azure DevOps; Git folder de Databricks | Push, PR y deploy requieren aprobación; push a la rama principal es ALTO; nunca `--force` |
 | **Correo** | [`NXPilot.Mail`](NXPilot.Mail/README.md) | Lectura de Outlook (Graph `Mail.Read`) y Gmail (`gmail.readonly`) | Solo lectura; el contenido llega al agente como dato, nunca como instrucción |
 
+#### 🔌 MCP NXPilot — extensiones que el agente usa directamente, sin generar código
+
+Sin esto, una tarea repetitiva, como armar una presentación, consultar una tabla o revisar un informe, hace que el agente escriba un script desde cero cada vez. Instala paquetes, depura y vuelve a intentar, y todo eso consume tokens y tiempo. Con el **MCP NXPilot**, el agente llama a una herramienta lista y probada: describe **qué** quiere y NXPilot se encarga del **cómo**. El resultado es **menos tokens por tarea, menos prueba y error, y el mismo resultado cada vez**.
+
+Y el control sigue siendo suyo. Cada llamada pasa por el mismo gate de decisiones de NXPilot: lo que solo lee sigue solo, y lo que cambia algo fuera de la tarea espera su aprobación. Los tokens y las contraseñas se quedan en NXPilot y nunca llegan al agente.
+
+**Cómo funciona.** En cada tarea, NXPilot entrega a Claude Code (`--mcp-config`) y a Codex (`-c mcp_servers.nxpilot`) un servidor MCP, `NxPilot.exe --mcp`. Es solo un puente, por un named pipe local, hasta el NXPilot abierto: los tokens y las conexiones nunca llegan al agente, y cada llamada pasa por el mismo DecisionGate y el mismo panel de decisiones. Sin NXPilot abierto, ninguna herramienta se ejecuta.
+
+| Herramientas | Qué obtiene el agente |
+|---|---|
+| `pptx_build`, `pptx_read`, `pptx_replace_text`, `pptx_add_slides`, `pptx_delete_slides`, `pptx_reorder_slides`, `pptx_render` | PowerPoint sin Python: diapositivas descritas en JSON (portada, sección, viñetas, dos columnas, tabla, imagen, indicadores, barras), con el tema NX o una plantilla suya; `pptx_render` devuelve las diapositivas como imagen para que el agente las vea |
+| `powerbi_info`, `powerbi_validate`, `powerbi_capture` | Resumen del proyecto PBIP, validación de JSON/TMDL y la imagen del informe en Power BI Desktop |
+| `databricks_list`, `databricks_describe_table`, `databricks_sql` | Catálogo, tablas y SQL; las escrituras van a usted |
+| `git_list_repositories`, `git_push`, `git_create_pull_request` | Push y PR van a usted |
+| `mail_list`, `mail_read`, `workitems_mine`, `teams_send`, `windows_list`, `windows_capture`, `windows_read_text` | Correo (cada mensaje aprobado), work items, Teams (aprobado) y las aplicaciones de Windows que usted permitió |
+
+Solo aparecen las extensiones configuradas. En el plan y la revisión, el MCP solo lee. Actívelo y deténgalo en **⚙ Configurar → MCP NXPilot**; el estado se guarda al cerrar NXPilot.
+
 Los requisitos de cada extensión (token, PAT con alcance Code, app en Entra ID o en Google Cloud) están en el README de cada paquete.
 Las extensiones se probaron con servidores simulados, pero todavía no con cuentas reales.
 
