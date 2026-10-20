@@ -38,6 +38,7 @@ public sealed class UpdateService(HttpMessageHandler? handler = null, string rep
     public const string OldSuffix = ".nxold";
 
     private readonly HttpClient _http = CreateClient(handler);
+    private readonly bool _realNetwork = handler == null; // testes passam um handler e nunca usam o cache
 
     private static HttpClient CreateClient(HttpMessageHandler? handler)
     {
@@ -81,19 +82,19 @@ public sealed class UpdateService(HttpMessageHandler? handler = null, string rep
         return latest != null && latest.Version > (current ?? CurrentVersion) ? latest : null;
     }
 
-    /// <summary>Setup da release fixa, com o carimbo de build (null se ainda não foi publicado).</summary>
+    /// <summary>
+    /// Setup da release fixa, com o carimbo de build (null se ainda não foi publicado). Vai pelo
+    /// link direto da release (github.com/…/releases/download/…), que NÃO conta no limite de 60
+    /// consultas por hora da API sem login — só a lista de versões usa a API.
+    /// </summary>
     public async Task<SetupRelease?> GetSetupReleaseAsync(CancellationToken ct = default)
     {
-        JsonDocument doc;
-        try { doc = await GetJsonAsync($"https://api.github.com/repos/{repo}/releases/tags/{SetupTag}", ct); }
-        catch (UpdateException e) when (e.HttpStatus == 404) { return null; }
-        using (doc)
-        {
-            if (Asset(doc.RootElement, SetupAsset) is not { } zip || Asset(doc.RootElement, SetupStampAsset) is not { } stamp) return null;
-            var text = (await GetStringAsync(stamp.Url, ct)).Trim();
-            if (!DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var builtAt)) return null;
-            return new SetupRelease(zip.Url, builtAt, doc.RootElement.GetProperty("html_url").GetString() ?? "");
-        }
+        var baseUrl = $"https://github.com/{repo}/releases/download/{SetupTag}/";
+        string text;
+        try { text = (await GetStringAsync(baseUrl + SetupStampAsset, ct)).Trim(); }
+        catch (UpdateException e) when (e.HttpStatus == 404) { return null; } // Setup ainda não publicado
+        if (!DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var builtAt)) return null;
+        return new SetupRelease(baseUrl + SetupAsset, builtAt, $"https://github.com/{repo}/releases/tag/{SetupTag}");
     }
 
     /// <summary>
@@ -248,16 +249,44 @@ public sealed class UpdateService(HttpMessageHandler? handler = null, string rep
 
     private async Task<JsonDocument> GetJsonAsync(string url, CancellationToken ct) => JsonDocument.Parse(await GetStringAsync(url, ct));
 
+    // Respostas da API guardadas por alguns minutos: abrir Configurar e clicar em Verificar
+    // repetia a mesma consulta, e o limite sem login é de 60 por hora (somando NXPilot e NXProject).
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime At, string Body)> ApiCache = new();
+    private static readonly TimeSpan ApiCacheTtl = TimeSpan.FromMinutes(5);
+
     private async Task<string> GetStringAsync(string url, CancellationToken ct)
     {
+        var cacheable = _realNetwork && url.StartsWith("https://api.github.com/", StringComparison.OrdinalIgnoreCase); // testes (handler) nunca usam cache
+        if (cacheable && ApiCache.TryGetValue(url, out var hit) && DateTime.UtcNow - hit.At < ApiCacheTtl) return hit.Body;
         HttpResponseMessage resp;
         try { resp = await _http.GetAsync(url, ct); }
         catch (HttpRequestException e) { throw new UpdateException("Sem conexão com o GitHub: " + e.Message); }
         using (resp)
         {
+            if (RateLimitMessage(resp) is { } limited) throw new UpdateException(limited, (int)resp.StatusCode);
             if (!resp.IsSuccessStatusCode) throw new UpdateException($"GitHub HTTP {(int)resp.StatusCode} em {url}", (int)resp.StatusCode);
-            return await resp.Content.ReadAsStringAsync(ct);
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            if (cacheable) ApiCache[url] = (DateTime.UtcNow, body);
+            return body;
         }
+    }
+
+    /// <summary>
+    /// 403/429 com o limite zerado: "O GitHub limitou as consultas sem login (60 por hora). Libera
+    /// às 22:20." — em vez do "HTTP 403" cru, que parece erro do app.
+    /// </summary>
+    public static string? RateLimitMessage(HttpResponseMessage resp)
+    {
+        if (resp.StatusCode is not (System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.TooManyRequests)) return null;
+        string? Header(string name) => resp.Headers.TryGetValues(name, out var v) ? v.FirstOrDefault() : null;
+        if (Header("x-ratelimit-remaining") != "0" && resp.StatusCode != System.Net.HttpStatusCode.TooManyRequests) return null;
+        var limit = Header("x-ratelimit-limit") ?? "60";
+        var until = long.TryParse(Header("x-ratelimit-reset"), out var epoch)
+            ? DateTimeOffset.FromUnixTimeSeconds(epoch).ToLocalTime().ToString("HH:mm") : null;
+        return NxText.T(
+            $"O GitHub limitou as consultas sem login ({limit} por hora, somando todos os programas desta rede).{(until != null ? $" Libera às {until}." : "")} Nada foi alterado; tente de novo depois.",
+            $"GitHub limited unauthenticated requests ({limit} per hour, counting every program on this network).{(until != null ? $" It frees up at {until}." : "")} Nothing was changed; try again later.",
+            $"GitHub limitó las consultas sin inicio de sesión ({limit} por hora, sumando todos los programas de esta red).{(until != null ? $" Se libera a las {until}." : "")} No se cambió nada; inténtelo de nuevo más tarde.");
     }
 }
 

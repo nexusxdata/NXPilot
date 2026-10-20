@@ -773,8 +773,8 @@ public static class CriticalTests
                 {
                     "https://dl/v3.zip" => (200, zipBytes),
                     "https://dl/stamp.txt" => (200, Encoding.ASCII.GetBytes("2026-10-19T09:00:00.0000000Z")),
-                    _ when u.EndsWith("/releases/tags/nxpilot-setup-latest") => (200, Encoding.UTF8.GetBytes(
-                        """{"html_url":"hs","assets":[{"name":"NXPilot-Setup.zip","browser_download_url":"https://dl/setup.zip"},{"name":"NXPilot-Setup.timestamp.txt","browser_download_url":"https://dl/stamp.txt"}]}""")),
+                    // Setup pelo link direto da release (não conta no limite da API).
+                    "https://github.com/nexusxdata/NXPilot/releases/download/nxpilot-setup-latest/NXPilot-Setup.timestamp.txt" => (200, Encoding.ASCII.GetBytes("2026-10-19T09:00:00.0000000Z")),
                     _ when u.Contains("/releases?") => (200, Encoding.UTF8.GetBytes(Releases())),
                     _ => (404, Array.Empty<byte>()),
                 }, new FakeHttp(_ => "{}"));
@@ -806,6 +806,16 @@ public static class CriticalTests
                 AssertTrue(NXPilot.Updates.UpdateService.SetupChanged(setup!.BuiltAt.AddDays(-1), setup.BuiltAt), "Base mais nova publicada: avisa.");
                 AssertFalse(NXPilot.Updates.UpdateService.SetupChanged(setup.BuiltAt, setup.BuiltAt), "Mesma base: não avisa.");
                 AssertTrue(NXPilot.Updates.UpdateService.SetupChanged(null, setup.BuiltAt), "Sem carimbo instalado (Setup antigo): oferece o Setup — nunca atualiza só o app sem a base.");
+                AssertEqual("https://github.com/nexusxdata/NXPilot/releases/download/nxpilot-setup-latest/NXPilot-Setup.zip", setup.DownloadUrl, "Zip do Setup pelo link direto.");
+
+                // Limite da API sem login: mensagem clara com o horário em que libera (não o "HTTP 403" cru).
+                using var limited = new HttpResponseMessage(System.Net.HttpStatusCode.Forbidden);
+                limited.Headers.Add("x-ratelimit-limit", "60");
+                limited.Headers.Add("x-ratelimit-remaining", "0");
+                limited.Headers.Add("x-ratelimit-reset", new DateTimeOffset(2026, 10, 20, 1, 20, 0, TimeSpan.Zero).ToUnixTimeSeconds().ToString());
+                AssertContains("60 por hora", NXPilot.Updates.UpdateService.RateLimitMessage(limited) ?? "", "403 do limite vira explicação.");
+                using var forbidden = new HttpResponseMessage(System.Net.HttpStatusCode.Forbidden);
+                AssertEqual(null, NXPilot.Updates.UpdateService.RateLimitMessage(forbidden), "403 que não é limite segue como erro comum.");
             }
             finally { if (Directory.Exists(root)) ForceDelete(root); }
         }),

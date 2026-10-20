@@ -18,6 +18,7 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 **🔄 Atualizar**
 
 - No **NXPilot-Setup**, com o app já instalado, o botão agora é **🔄 Atualizar para a última versão** (era "Reinstalar") — você já verificou no app. Sem o app instalado, continua **Instalar**. No app, continua **Verificar atualização**.
+- **Limite do GitHub (erro 403):** sem login, o GitHub aceita 60 consultas por hora somando todos os programas da rede. O Setup agora é verificado e baixado pelo link direto da release (não conta no limite), as consultas repetidas ficam guardadas por 5 minutos e, se o limite estourar, a mensagem diz isso e o horário em que libera, em vez de "HTTP 403".
 - **NXPilot-Setup:** o download do app mostra MB e porcentagem e, no fim, o texto diz **✓ 100% · concluído**.
 - **Barras com porcentagem** no app (`45,2 MB de 93,4 MB (48%)`) e no Setup (o número sobre a barra). Ao terminar, mostram **100%**, para ficar claro que acabou.
 
