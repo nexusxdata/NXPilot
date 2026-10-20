@@ -36,6 +36,14 @@ CommunityToolkit.Mvvm 8.2.2
   Licença: MIT — Copyright (c) .NET Foundation and Contributors
   https://github.com/CommunityToolkit/dotnet/blob/main/License.md
 
+DocumentFormat.OpenXml / DocumentFormat.OpenXml.Framework 3.5.1 (Open XML SDK — criar e editar .pptx no MCP NXPilot)
+  Licença: MIT — Copyright (c) .NET Foundation and Contributors
+  https://github.com/dotnet/Open-XML-SDK/blob/main/LICENSE
+
+System.IO.Packaging 8.0.1 (dependência do Open XML SDK)
+  Licença: MIT — Copyright (c) .NET Foundation and Contributors
+  https://github.com/dotnet/runtime/blob/main/LICENSE.TXT
+
 LibGit2Sharp 0.32.0 (git embutido: worktree, commit por fase, diff e versionamento local)
   Licença: MIT — Copyright (c) LibGit2Sharp contributors
   https://github.com/libgit2/libgit2sharp/blob/master/LICENSE.md

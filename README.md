@@ -33,6 +33,20 @@ Tokens are encrypted (DPAPI) for your Windows user only, and anything that chang
 | **Git** | [`NXPilot.GitRepos`](NXPilot.GitRepos/README.md) | Clone, commit, push and pull request on GitHub and Azure DevOps; Databricks Git folder | Push, PR and deploy require approval; push to the main branch is HIGH; never `--force` |
 | **E-mail** | [`NXPilot.Mail`](NXPilot.Mail/README.md) | Reads Outlook (Graph `Mail.Read`) and Gmail (`gmail.readonly`) | Read-only; content goes to the agent as data, never as instructions |
 
+#### 🔌 MCP NXPilot
+
+The extensions are also **tools for the agent**. In every task, NXPilot gives Claude Code (`--mcp-config`) and Codex (`-c mcp_servers.nxpilot`) one MCP server, `NxPilot.exe --mcp`. It is only a bridge, through a local named pipe, to the NXPilot that is open: tokens and connections never reach the agent, and every call goes through the same DecisionGate and the same decisions panel. Without NXPilot open, no tool runs.
+
+| Tools | What the agent gets |
+|---|---|
+| `pptx_build`, `pptx_read`, `pptx_replace_text`, `pptx_add_slides`, `pptx_delete_slides`, `pptx_reorder_slides`, `pptx_render` | PowerPoint without Python: slides described in JSON (title, section, bullets, two columns, table, image, KPIs, bars), NX theme or a template, and `pptx_render` returns the slides as images so the agent can look at them |
+| `powerbi_info`, `powerbi_validate`, `powerbi_capture` | PBIP project summary, JSON/TMDL validation, and a screenshot of the report in Power BI Desktop |
+| `databricks_list`, `databricks_describe_table`, `databricks_sql` | Catalog, tables and SQL; writes go to you |
+| `git_list_repositories`, `git_push`, `git_create_pull_request` | Push and PR go to you |
+| `mail_list`, `mail_read`, `workitems_mine`, `teams_send`, `windows_list`, `windows_capture`, `windows_read_text` | E-mail (each message approved), work items, Teams (approved) and the Windows apps you allowed |
+
+Only configured extensions are listed. Planning and review are read-only. Start and stop it in **⚙ Settings → MCP NXPilot**; the state is kept when NXPilot closes.
+
 The prerequisites of each extension (token, PAT with Code scope, app in Entra ID or Google Cloud) are in each package's README.
 The extensions were tested against simulated servers, but not yet with real accounts.
 

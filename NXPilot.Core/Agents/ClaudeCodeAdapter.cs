@@ -22,6 +22,9 @@ public sealed class ClaudeCodeAdapter(string hookCommand, string gatePipeName, s
 {
     public string Name => "Claude Code";
 
+    /// <summary>MCP NXPilot desta execução (nulo = parado em Configurar: o Claude sobe sem ele).</summary>
+    public McpLaunch? Mcp { get; set; }
+
     public string? ExecutablePath { get; } = executablePath ?? Locate();
 
     /// <summary>
@@ -79,6 +82,9 @@ public sealed class ClaudeCodeAdapter(string hookCommand, string gatePipeName, s
         if (request.Mode == AgentMode.Plan) { psi.ArgumentList.Add("--permission-mode"); psi.ArgumentList.Add("plan"); }
         if (request.ResumeSessionId is { } resume) { psi.ArgumentList.Add("--resume"); psi.ArgumentList.Add(resume); }
         if (!string.IsNullOrWhiteSpace(request.Model)) { psi.ArgumentList.Add("--model"); psi.ArgumentList.Add(request.Model); }
+        // MCP NXPilot: só ele nesta tarefa (--strict-mcp-config ignora outros MCP do usuário).
+        var mcpPath = Mcp?.WriteClaudeConfig();
+        if (mcpPath != null) foreach (var a in new[] { "--mcp-config", mcpPath, "--strict-mcp-config" }) psi.ArgumentList.Add(a);
         psi.Environment[GatePipe.PipeEnvVar] = gatePipeName;
 
         using var process = new Process { StartInfo = psi };
@@ -107,6 +113,7 @@ public sealed class ClaudeCodeAdapter(string hookCommand, string gatePipeName, s
         await process.WaitForExitAsync(CancellationToken.None);
         await stderrTask;
         TryDelete(settingsPath);
+        if (mcpPath != null) TryDelete(mcpPath);
 
         if (ct.IsCancellationRequested)
             yield return new AgentEvent(AgentEventKind.Error, NxText.T("Interrompido pelo usuário.", "Stopped by the user.", "Interrumpido por el usuario."), IsError: true);

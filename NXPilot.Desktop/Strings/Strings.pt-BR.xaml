@@ -267,6 +267,9 @@
     <sys:String x:Key="Cfg_SetupMudou">Há um Setup novo (runtime ou bibliotecas mudaram). Rode-o para atualizar a base do NXPilot.</sys:String>
     <sys:String x:Key="Cfg_BaixarSetup">Baixar Setup</sys:String>
     <sys:String x:Key="Cfg_Fechar">Fechar</sys:String>
+    <sys:String x:Key="Cfg_Mcp">MCP NXPilot</sys:String>
+    <sys:String x:Key="Cfg_McpNota">As extensões (Power BI, PowerPoint, Databricks, Git, e-mail, work items, Teams, apps do Windows) viram ferramentas do Claude Code e do Codex nas tarefas — cada chamada passa pelo gate. Parado, as tarefas sobem sem ele. O estado fica guardado ao fechar o NXPilot.</sys:String>
+    <sys:String x:Key="Cfg_McpFerramentas">Ver ferramentas</sys:String>
     <sys:String x:Key="Ext_JanelasLerApp">Ler / monitorar um app…</sys:String>
     <sys:String x:Key="Ext_JanelasProcessos">Processos (clicar e digitar)…</sys:String>
     <sys:String x:Key="Win_LerTitulo">Ler ou monitorar um app</sys:String>

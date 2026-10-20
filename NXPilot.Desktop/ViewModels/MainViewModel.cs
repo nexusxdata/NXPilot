@@ -110,6 +110,9 @@ public sealed partial class MainViewModel : ObservableObject
         _ = RebuildGateAsync();
         // Ponte com o hook dos agentes reais: fica escutando enquanto o app estiver aberto.
         _ = GatePipe.ServeAsync(_gatePipe, OnGateRequestAsync, _gateCts.Token);
+        // MCP NXPilot: as extensões viram ferramentas do agente (no estado em que você deixou em Configurar).
+        McpHost.CurrentContext = McpContextAsync;
+        McpHost.StartFromSettings();
     }
 
     public int LogCount => Log.Count;
@@ -762,7 +765,7 @@ public sealed partial class MainViewModel : ObservableObject
         return planner;
     }
 
-    private ClaudeCodeAdapter NewClaude() => new($"\"{Environment.ProcessPath}\" --hook", _gatePipe);
+    private ClaudeCodeAdapter NewClaude() => new($"\"{Environment.ProcessPath}\" --hook", _gatePipe) { Mcp = McpHost.Launch };
 
     /// <summary>Executor da tarefa atual; o Codex mantém um processo/thread por tarefa (descartado no fim).</summary>
     private IAgentAdapter _executor = null!;
@@ -779,7 +782,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         (_executor as IDisposable)?.Dispose();
         _executor = task.Info.Executor == ExecutorKind.Codex
-            ? new CodexAppServerAdapter(OnGateRequestAsync, task.Info.CodexModel)
+            ? new CodexAppServerAdapter(OnGateRequestAsync, task.Info.CodexModel) { Mcp = McpHost.Launch }
             : NewClaude();
         return _executor;
     }
@@ -791,6 +794,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private async Task<GateResponse> OnGateRequestAsync(GateRequest req)
     {
+        // Ferramenta do MCP NXPilot: o gate fica DENTRO do servidor (risco por ferramenta, mesmo painel).
+        if (req.Tool.StartsWith("mcp__" + NXPilot.Mcp.McpServer.ServerName + "__", StringComparison.Ordinal))
+            return new GateResponse(true, T("MCP NXPilot: a ferramenta passa pelo gate do NXPilot", "MCP NXPilot: the tool goes through the NXPilot gate", "MCP NXPilot: la herramienta pasa por el gate de NXPilot"));
+
         var agent = await OnUiGet(() => ExecutorName);
         var worktree = await OnUiGet(() => CurrentTask?.Worktree);
         var context = GateContextRules.Evaluate(req, worktree);
@@ -804,23 +811,45 @@ public sealed partial class MainViewModel : ObservableObject
         if (context == GateContextDecision.ForceHigh)
             r = r with { Level = RiskLevel.Alto, Confidence = 1, Reason = T("escreve FORA do worktree da tarefa", "writes OUTSIDE the task worktree", "escribe FUERA del worktree de la tarea") };
 
+        return await DecideAsync(agent, req.Action, r, worktree);
+    }
+
+    /// <summary>
+    /// Contexto do MCP NXPilot: só existe com tarefa em andamento. Plano, aprovação e revisão só
+    /// leem; quem aprova é o mesmo painel do gate.
+    /// </summary>
+    private Task<NXPilot.Mcp.ToolContext?> McpContextAsync() => OnUiGet(() =>
+        CurrentTask is { Worktree: { } wt } task && Directory.Exists(wt)
+            && task.State is TaskState.Planning or TaskState.AwaitingApproval or TaskState.Executing or TaskState.Verifying
+            ? new NXPilot.Mcp.ToolContext
+            {
+                Worktree = wt,
+                ReadOnlyPhase = task.State is not TaskState.Executing,
+                PowerBi = task.PowerBi,
+                Approve = async (action, risk, _) => (await DecideAsync(ExecutorName, action, risk, wt)).Allow,
+            }
+            : null);
+
+    /// <summary>Depois do risco: BAIXO passa sozinho; regra da tarefa; senão vai para o painel e espera você.</summary>
+    private async Task<GateResponse> DecideAsync(string agent, string action, RiskResult r, string? worktree)
+    {
         if (DecisionGate.Decide(r) == GateOutcome.AutoApprove)
         {
             await OnUi(() =>
             {
                 AutoApprovedCount++;
-                AddLog("Gate", T("auto-aprovado", "auto-approved", "auto-aprobado"), $"{agent}: {req.Action} ({r.Level}, {r.Confidence:P0})");
+                AddLog("Gate", T("auto-aprovado", "auto-approved", "auto-aprobado"), $"{agent}: {action} ({r.Level}, {r.Confidence:P0})");
             });
             return new GateResponse(true, $"{r.Level}: {r.Reason}");
         }
 
         // Regra que você ligou nesta tarefa (semelhantes / médio e baixo). ALTO nunca entra aqui.
-        if (await OnUiGet(() => _taskRules.Allows(req.Action, r.Level, worktree)) is { } rule)
+        if (await OnUiGet(() => _taskRules.Allows(action, r.Level, worktree)) is { } rule)
         {
             await OnUi(() =>
             {
                 AutoApprovedCount++;
-                AddLog("Gate", T("aprovado por regra", "approved by rule", "aprobado por regla"), $"{agent}: {req.Action} ({r.Level} · {rule})");
+                AddLog("Gate", T("aprovado por regra", "approved by rule", "aprobado por regla"), $"{agent}: {action} ({r.Level} · {rule})");
             });
             return new GateResponse(true, $"{r.Level}: {rule}");
         }
@@ -829,12 +858,12 @@ public sealed partial class MainViewModel : ObservableObject
         var response = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         await OnUi(() =>
         {
-            var d = new DecisionItem(agent, req.Action, CurrentTask?.Title ?? "") { Response = response, Scripts = ScriptReferences.Find(req.Action, worktree) };
+            var d = new DecisionItem(agent, action, CurrentTask?.Title ?? "") { Response = response, Scripts = ScriptReferences.Find(action, worktree) };
             d.Level = r.Level;
             d.RiskDetail = $"{r.Confidence:P0} · {AiLabViewModel.ShortEngine(r.Engine)} · {BenchmarkRow.FormatMs(r.Elapsed.TotalMilliseconds)}" + (r.Reason != null ? $"\n{r.Reason}" : "");
             PendingDecisions.Insert(0, d);
-            AddLog(agent, T("pedido", "request", "solicitud"), $"{req.Action} → {r.Level}");
-            Notifications.Notify(NotificationKind.Decision, T($"Decisão pendente · risco {r.Level}", $"Pending decision · {r.Level} risk", $"Decisión pendiente · riesgo {r.Level}"), $"{agent}: {req.Action}");
+            AddLog(agent, T("pedido", "request", "solicitud"), $"{action} → {r.Level}");
+            Notifications.Notify(NotificationKind.Decision, T($"Decisão pendente · risco {r.Level}", $"Pending decision · {r.Level} risk", $"Decisión pendiente · riesgo {r.Level}"), $"{agent}: {action}");
         });
         var allowed = await response.Task;
         return new GateResponse(allowed, allowed

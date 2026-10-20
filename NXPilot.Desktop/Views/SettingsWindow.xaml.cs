@@ -8,6 +8,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using NXPilot.Desktop.Services;
 using NXPilot.Updates;
 using static NXPilot.NxText;
 
@@ -29,7 +30,46 @@ public partial class SettingsWindow : Window
         var v = UpdateService.CurrentVersion;
         CurrentVersionText.Text = T($"Instalada: NXPilot {v.ToString(3)}.{v.Revision:00}", $"Installed: NXPilot {v.ToString(3)}.{v.Revision:00}", $"Instalada: NXPilot {v.ToString(3)}.{v.Revision:00}");
         Loaded += async (_, _) => await LoadVersionsAsync();
+        Action refresh = () => Dispatcher.BeginInvoke(RefreshMcp);
+        McpHost.Changed += refresh;
+        Closed += (_, _) => McpHost.Changed -= refresh;
+        RefreshMcp();
     }
+
+    // ------------------------------------------------------------ MCP NXPilot
+
+    private void OnMcpToggleClick(object sender, RoutedEventArgs e)
+    {
+        if (McpHost.Running) McpHost.Stop(); else McpHost.Start();
+    }
+
+    /// <summary>Estado, quantas ferramentas o agente vê e a lista por extensão (configurada ou não).</summary>
+    private void RefreshMcp()
+    {
+        var on = McpHost.Running;
+        McpDot.Fill = on ? Brushes.SeaGreen : Brushes.Gray;
+        McpButton.Content = on ? T("Parar", "Stop", "Detener") : T("Iniciar", "Start", "Iniciar");
+
+        // Sem tarefa: Power BI depende do worktree (PBIP), então conta como "disponível quando houver".
+        var probe = new NXPilot.Mcp.ToolContext { Worktree = Path.GetTempPath(), Approve = (_, _, _) => Task.FromResult(false) };
+        var available = McpHost.Catalog.AvailableTools(probe).Select(t => t.Name).ToHashSet();
+        bool Ready(NXPilot.Mcp.NxTool t) => available.Contains(t.Name) || (t.Extension == "Power BI" && PowerBiReady(t));
+        var count = McpHost.Catalog.Tools.Count(Ready);
+        var last = McpHost.LastCall is { } call ? T($" · última chamada {call}", $" · last call {call}", $" · última llamada {call}") : "";
+        McpStatusText.Text = on
+            ? T($"Ligado · {count} ferramentas para o agente{last}", $"Running · {count} tools for the agent{last}", $"Activo · {count} herramientas para el agente{last}")
+            : T("Parado — as tarefas sobem sem o MCP NXPilot.", "Stopped — tasks start without the MCP NXPilot.", "Detenido — las tareas se inician sin el MCP NXPilot.");
+
+        McpToolsText.Text = string.Join("\n", McpHost.Catalog.Tools.GroupBy(t => t.Extension).Select(g =>
+        {
+            var ok = g.Any(Ready);
+            var note = g.Key == "Power BI" ? T(" (quando o worktree tem um projeto PBIP)", " (when the worktree has a PBIP project)", " (cuando el worktree tiene un proyecto PBIP)")
+                : ok ? "" : T(" (não configurado em Extensões)", " (not configured in Extensions)", " (no configurado en Extensiones)");
+            return $"{(ok ? "✓" : "–")} {g.Key}{note}: {string.Join(", ", g.Where(t => !ok || Ready(t)).Select(t => t.Name))}";
+        }));
+    }
+
+    private static bool PowerBiReady(NXPilot.Mcp.NxTool t) => t.Name != "powerbi_capture" || PowerBiDesktop.Locate() != null;
 
     private async Task LoadVersionsAsync()
     {

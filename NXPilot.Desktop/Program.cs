@@ -26,6 +26,11 @@ public static class Program
                 .GetAwaiter().GetResult();
         }
 
+        // Ponte do MCP NXPilot (iniciada pelo agente): stdio ↔ pipe do app, sem WPF.
+        if (args.Length > 0 && args[0] == McpLaunch.Argument)
+            return NXPilot.Mcp.McpPipe.RunBridgeAsync(Console.OpenStandardInput(), Console.OpenStandardOutput(),
+                Environment.GetEnvironmentVariable(NXPilot.Mcp.McpPipe.PipeEnvVar)).GetAwaiter().GetResult();
+
         var app = new App();
         app.InitializeComponent();
         return app.Run();

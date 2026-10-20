@@ -15,11 +15,23 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
-**🔄 Atualizar**
+**🔌 MCP NXPilot — as extensões viram ferramentas do agente**
 
-- No **NXPilot-Setup**, com o app já instalado, o botão agora é **🔄 Atualizar para a última versão** (era "Reinstalar") — você já verificou no app. Sem o app instalado, continua **Instalar**. No app, continua **Verificar atualização**.
-- **Limite do GitHub (erro 403):** sem login, o GitHub aceita 60 consultas por hora somando todos os programas da rede. O Setup agora é verificado e baixado pelo link direto da release (não conta no limite), as consultas repetidas ficam guardadas por 5 minutos e, se o limite estourar, a mensagem diz isso e o horário em que libera, em vez de "HTTP 403".
-- **NXPilot-Setup:** o download do app mostra MB e porcentagem e, no fim, o texto diz **✓ 100% · concluído**.
-- **Barras com porcentagem** no app (`45,2 MB de 93,4 MB (48%)`) e no Setup (o número sobre a barra). Ao terminar, mostram **100%**, para ficar claro que acabou.
+- Em cada tarefa, o Claude Code e o Codex recebem um servidor MCP, o **MCP NXPilot**. Power BI, PowerPoint, Databricks, Git, e-mail, work items, Teams e os apps do Windows que você liberou passam a ser ferramentas que o agente chama direto, sem escrever script para isso.
+- **Cada chamada passa pelo gate**, com o mesmo painel de decisões: o que só lê passa sozinho; gravar fora do worktree é ALTO; escrita no Databricks, push, PR, ler um e-mail e mandar mensagem no Teams pedem a sua aprovação. No plano e na revisão, o MCP só lê.
+- Os tokens e as conexões ficam no NXPilot: o agente nunca os vê. Sem o NXPilot aberto, nenhuma ferramenta executa.
+- Só aparecem as extensões configuradas (Power BI, quando o worktree tem um projeto PBIP).
+- **⚙ Configurar → MCP NXPilot:** ligar e parar, quantas ferramentas o agente vê e a última chamada. O estado fica guardado: parado continua parado ao reabrir o NXPilot.
 
-> Esta versão republica o **NXPilot-Setup**. Quem já tem o NXPilot não precisa rodá-lo: use **Verificar atualização**.
+**📊 PowerPoint sem Python**
+
+- `pptx_build` monta a apresentação a partir de uma lista de slides em JSON: capa, seção, tópicos, duas colunas, tabela, imagem, indicadores e barras, com o tema NX ou o tema de um modelo seu.
+- Também lê (em markdown), troca texto, acrescenta, apaga e reordena slides de um .pptx existente.
+- `pptx_render` mostra os slides como imagem (pelo PowerPoint instalado, sem abrir janela): o agente olha o resultado e corrige o que ficou ruim.
+- Usa o Open XML SDK (licença MIT), que entra na base do Setup.
+
+**📈 Power BI que o agente consegue conferir**
+
+- `powerbi_validate` confere o JSON e o TMDL do projeto; `powerbi_capture` abre o relatório no Power BI Desktop e devolve a imagem ao agente.
+
+> Esta versão republica o **NXPilot-Setup** (biblioteca nova na base). Em **Verificar atualização**, o NXPilot avisa e segue pelo Setup, que instala a base e o app juntos.

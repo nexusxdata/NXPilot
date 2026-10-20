@@ -6,12 +6,15 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using NXPilot.Agents;
 using NXPilot.Ai;
 using NXPilot.Databricks;
 using NXPilot.GitRepos;
 using NXPilot.Integrations;
 using NXPilot.Mail;
+using NXPilot.Mcp;
+using NXPilot.Office;
 using NXPilot.Messaging;
 using NXPilot.Planning;
 using NXPilot.Risk;
@@ -1177,9 +1180,165 @@ public static class CriticalTests
             AssertEqual("2,3", string.Join(",", (await board.MyOpenItemsAsync(rootIssue: 1)).Select(i => i.Id)), "Só os descendentes da #1 (neta incluída).");
             AssertEqual(7, (await board.MyOpenItemsAsync()).Count, "Sem raiz: todos os meus.");
         }),
+
+        // ---------------------------------------------------------------- MCP NXPilot
+        new("MCP NXPilot: a ponte (stdio) lista e chama pelo pipe do app; negado ou sem o app, NADA executa", async () =>
+        {
+            var ran = new List<string>();
+            NxTool Fake(string name, RiskLevel level, bool readOnly) => new()
+            {
+                Name = name, Extension = "Teste", Description = name, ReadOnly = readOnly,
+                Schema = NxTool.ParseSchema("""{"type":"object","properties":{}}"""),
+                Risk = (_, _) => new RiskResult(level, 0.95, "t", null, TimeSpan.Zero),
+                Run = (_, _, _) => { ran.Add(name); return Task.FromResult(ToolResult.Text("feito " + name)); },
+            };
+            var host = new NxToolHost([Fake("ler", RiskLevel.Baixo, true), Fake("apagar", RiskLevel.Alto, false)]);
+            var asked = new List<string>();
+            var ctx = new ToolContext
+            {
+                Worktree = Path.GetTempPath(),
+                Approve = (action, risk, _) => { asked.Add(action); return Task.FromResult(risk.Level == RiskLevel.Baixo); }, // "você" nega o ALTO
+            };
+            var pipe = "NXPilot.Mcp.Test." + Guid.NewGuid().ToString("N")[..8];
+            using var cts = new CancellationTokenSource();
+            _ = McpPipe.ServeAsync(pipe, (req, ct) => host.HandleAsync(req, ctx, ct), cts.Token);
+
+            var input = string.Join("\n",
+                """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"claude-code"}}}""",
+                """{"jsonrpc":"2.0","method":"notifications/initialized"}""",
+                """{"jsonrpc":"2.0","id":2,"method":"tools/list"}""",
+                """{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"ler","arguments":{}}}""",
+                """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"apagar","arguments":{"alvo":"tudo"}}}""",
+                """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"inventada","arguments":{}}}""") + "\n";
+            var answers = await Mcp(input, (r, ct) => McpPipe.RequestAsync(pipe, r, ct));
+            cts.Cancel();
+
+            AssertEqual(5, answers.Count, "Uma resposta por pedido (a notificação não tem resposta).");
+            AssertEqual("2025-06-18", answers[1]["result"]!["protocolVersion"]!.GetValue<string>(), "Versão do protocolo pedida pelo cliente.");
+            AssertEqual("nxpilot", answers[1]["result"]!["serverInfo"]!["name"]!.GetValue<string>(), "Servidor se chama nxpilot (ferramentas mcp__nxpilot__*).");
+            AssertContains("pptx_", answers[1]["result"]!["instructions"]!.GetValue<string>(), "Instruções dizem para usar pptx_* (e não Python).");
+            AssertEqual("ler,apagar", string.Join(",", answers[2]["result"]!["tools"]!.AsArray().Select(x => x!["name"]!.GetValue<string>())), "tools/list vem do app.");
+            AssertFalse(answers[3]["result"]!["isError"]!.GetValue<bool>(), "BAIXO aprovado executa.");
+            AssertTrue(answers[4]["result"]!["isError"]!.GetValue<bool>(), "ALTO negado volta como erro para o agente.");
+            AssertContains("NEGADO", answers[4]["result"]!["content"]![0]!["text"]!.GetValue<string>(), "O agente lê que foi negado (e não repete).");
+            AssertTrue(answers[5]["result"]!["isError"]!.GetValue<bool>(), "Ferramenta que não existe é erro.");
+            AssertEqual("ler", string.Join(",", ran), "Só a aprovada executou.");
+            AssertContains("apagar", string.Join("|", asked), "O ALTO passou pelo painel (Approve).");
+
+            // Sem o app (sem pipe): lista vazia e chamada vira erro — nunca executa por omissão.
+            var offline = await Mcp(string.Join("\n",
+                """{"jsonrpc":"2.0","id":1,"method":"tools/list"}""",
+                """{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"ler","arguments":{}}}""") + "\n",
+                (r, ct) => McpPipe.RequestAsync(null, r, ct));
+            AssertEqual(0, offline[1]["result"]!["tools"]!.AsArray().Count, "Sem o NXPilot: nenhuma ferramenta.");
+            AssertTrue(offline[2]["result"]!["isError"]!.GetValue<bool>(), "Sem o NXPilot: chamada é erro.");
+            AssertEqual(1, ran.Count, "Sem o NXPilot nada executou.");
+        }),
+        new("MCP NXPilot: plano só lê; gravar fora do worktree é ALTO; extensão não configurada não aparece; Claude e Codex recebem o servidor", async () =>
+        {
+            var ran = 0;
+            var tool = new NxTool
+            {
+                Name = "gravar", Extension = "Teste", Description = "", Schema = NxTool.ParseSchema("""{"type":"object"}"""),
+                Run = (_, _, _) => { ran++; return Task.FromResult(ToolResult.Text("ok")); },
+            };
+            var hidden = new NxTool
+            {
+                Name = "oculta", Extension = "Teste", Description = "", Schema = NxTool.ParseSchema("""{"type":"object"}"""), ReadOnly = true,
+                Available = _ => false, Run = (_, _, _) => { ran++; return Task.FromResult(ToolResult.Text("ok")); },
+            };
+            var host = new NxToolHost([tool, hidden]);
+            var approvals = 0;
+            var wt = Path.Combine(Path.GetTempPath(), "nx-mcp-wt");
+            ToolContext Ctx(bool readOnly) => new() { Worktree = wt, ReadOnlyPhase = readOnly, Approve = (_, _, _) => { approvals++; return Task.FromResult(true); } };
+
+            var r = await host.CallAsync("gravar", new(), Ctx(readOnly: true), default);
+            AssertTrue(r.IsError && ran == 0 && approvals == 0, "No plano/revisão, ferramenta que altera é recusada antes de pedir aprovação.");
+            AssertFalse((await host.CallAsync("gravar", new(), Ctx(false), default)).IsError, "Na execução, roda.");
+            AssertEqual(1, ran, "Executou uma vez.");
+            AssertTrue((await host.CallAsync("oculta", new(), Ctx(false), default)).IsError && ran == 1, "Indisponível não executa.");
+            AssertEqual(1, host.AvailableTools(Ctx(false)).Count, "Indisponível não aparece na lista.");
+
+            var c = Ctx(false);
+            AssertEqual(RiskLevel.Baixo, c.PathRisk("saida/a.pptx", write: true).Level, "Gravar dentro do worktree: BAIXO.");
+            AssertEqual(RiskLevel.Alto, c.PathRisk(@"C:\Windows\a.pptx", write: true).Level, "Gravar FORA do worktree: ALTO.");
+            AssertEqual(RiskLevel.Medio, c.PathRisk(@"C:\Windows\a.pptx", write: false).Level, "Ler FORA do worktree: MÉDIO.");
+            AssertEqual(RiskLevel.Alto, c.PathRisk(wt + "-irmao\\a.pptx", write: true).Level, "Pasta com o mesmo prefixo NÃO é o worktree.");
+
+            var launch = new McpLaunch(@"C:\Program Files\NXPilot\NxPilot.exe", "NXPilot.Mcp.42");
+            var cfg = JsonNode.Parse(launch.ClaudeConfigJson())!["mcpServers"]!["nxpilot"]!;
+            AssertEqual("--mcp", cfg["args"]![0]!.GetValue<string>(), "Claude: NxPilot.exe --mcp.");
+            AssertEqual("NXPilot.Mcp.42", cfg["env"]![McpPipe.PipeEnvVar]!.GetValue<string>(), "Claude: o pipe do app vai no ambiente da ponte.");
+            var codex = string.Join(" ", launch.CodexOverrides());
+            AssertContains(@"mcp_servers.nxpilot.command='C:\Program Files\NXPilot\NxPilot.exe'", codex, "Codex: caminho como string literal TOML (barras sem escapar).");
+            AssertContains("NXPILOT_MCP_PIPE=\"NXPilot.Mcp.42\"", codex, "Codex: o pipe no env do servidor.");
+        }),
+        new("PowerPoint (Open XML): 8 layouts sem erro de esquema; ler, trocar texto, apagar, reordenar e usar como modelo", async () =>
+        {
+            if (!OperatingSystem.IsWindows()) return;
+            var wt = Path.Combine(Path.GetTempPath(), "nx-pptx-" + Guid.NewGuid().ToString("N")[..8]);
+            Directory.CreateDirectory(wt);
+            try
+            {
+                // PNG 1x1 para o layout de imagem.
+                File.WriteAllBytes(Path.Combine(wt, "logo.png"), Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="));
+                var slides = JsonNode.Parse("""
+                    [{"layout":"title","title":"Status Sprint 42","subtitle":"19/10/2026"},
+                     {"layout":"section","title":"Entregas"},
+                     {"layout":"bullets","title":"Feito","bullets":["**Login** novo",{"text":"SSO","level":1},"Relatório HH"]},
+                     {"layout":"two_columns","title":"Antes e depois","left_title":"Antes","left":["Planilha"],"right":["DevOps"]},
+                     {"layout":"table","title":"Riscos","columns":["Risco","Impacto"],"rows":[["Atraso API","Alto"],["Ambiente","Médio"]]},
+                     {"layout":"image","title":"Logo","image":"logo.png","caption":"Marca"},
+                     {"layout":"kpis","title":"Indicadores","items":[{"label":"Concluído","value":"78%","trend":"up"},{"label":"Riscos","value":"2","trend":"bad"}]},
+                     {"layout":"bars","title":"HH","unit":"h","items":[{"label":"Backend","value":180},{"label":"QA","value":"37"}]}]
+                    """)!.AsArray();
+
+                // Pela ferramenta do MCP (como o agente chama), com o gate só liberando BAIXO.
+                var host = new NxToolHost(CoreTools.All());
+                var ctx = new ToolContext { Worktree = wt, Approve = (_, risk, _) => Task.FromResult(risk.Level == RiskLevel.Baixo) };
+                var built = await host.CallAsync("pptx_build", new JsonObject { ["output"] = "saida/status.pptx", ["slides"] = slides.DeepClone() }, ctx, default);
+                AssertFalse(built.IsError, "pptx_build: " + built.Content[0].Text);
+                var file = Path.Combine(wt, "saida", "status.pptx");
+                AssertEqual(0, PptxDocument.Validate(file).Count, "Zero erro de esquema Open XML: " + string.Join("; ", PptxDocument.Validate(file)));
+                AssertEqual(8, PptxDocument.SlideCount(file), "8 slides.");
+
+                var outside = Path.Combine(Path.GetTempPath(), "nx-fora-" + Guid.NewGuid().ToString("N")[..8] + ".pptx");
+                var denied = await host.CallAsync("pptx_build", new JsonObject { ["output"] = outside, ["slides"] = slides.DeepClone() }, ctx, default);
+                AssertTrue(denied.IsError && !File.Exists(outside), "Gravar fora do worktree (ALTO) negado: arquivo não é criado.");
+
+                var md = PptxDocument.ReadAsMarkdown(file);
+                AssertContains("## Slide 5", md, "Leitura por slide.");
+                AssertContains("| Atraso API | Alto |", md, "Tabela vira markdown.");
+                AssertContains("Login novo", md, "Negrito (**) vira texto normal na leitura.");
+
+                AssertEqual(1, PptxDocument.ReplaceText(file, "Sprint 42", "Sprint 43"), "Troca de texto.");
+                AssertContains("Sprint 43", PptxDocument.ReadAsMarkdown(file), "Texto trocado gravado.");
+                AssertEqual(6, PptxDocument.DeleteSlides(file, [2, 6]), "Apagar slides 2 e 6.");
+                PptxDocument.Reorder(file, [6, 1, 2, 3, 4, 5]);
+                AssertTrue(PptxDocument.ReadAsMarkdown(file).IndexOf("HH", StringComparison.Ordinal) < PptxDocument.ReadAsMarkdown(file).IndexOf("Sprint 43", StringComparison.Ordinal), "Reordenar: o último virou o primeiro.");
+                AssertEqual(7, PptxDocument.AddSlides(file, JsonNode.Parse("""[{"layout":"bullets","title":"Extra","bullets":["a"]}]""")!.AsArray(), wt, position: 1), "Acrescentar no início.");
+                AssertEqual(0, PptxDocument.Validate(file).Count, "Depois de editar, ainda sem erro de esquema.");
+
+                // Modelo: usa o tema/layout do arquivo e descarta os slides dele.
+                var fromTemplate = Path.Combine(wt, "novo.pptx");
+                PptxDocument.Build(fromTemplate, JsonNode.Parse("""[{"layout":"title","title":"Novo"}]""")!.AsArray(), wt, template: file);
+                AssertEqual(1, PptxDocument.SlideCount(fromTemplate), "Com modelo: só os slides novos.");
+                AssertEqual(0, PptxDocument.Validate(fromTemplate).Count, "Com modelo: sem erro de esquema.");
+            }
+            finally { try { Directory.Delete(wt, true); } catch { } }
+        }),
     };
 
     // ---------------------------------------------------------------- apoio
+
+    /// <summary>Roda a ponte MCP com estas linhas de entrada e devolve as respostas por id.</summary>
+    private static async Task<Dictionary<int, JsonNode>> Mcp(string input, Func<JsonObject, CancellationToken, Task<JsonObject>> forward)
+    {
+        var output = new StringWriter();
+        await McpServer.RunAsync(new StringReader(input), output, forward);
+        return output.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(l => JsonNode.Parse(l)!).ToDictionary(n => n["id"]!.GetValue<int>());
+    }
 
     private sealed class FakeClassifier(RiskLevel level, double confidence) : IRiskClassifier
     {

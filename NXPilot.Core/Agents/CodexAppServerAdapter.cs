@@ -89,6 +89,9 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
         finally { try { p.Kill(entireProcessTree: true); } catch { /* já saiu */ } }
     }
 
+    /// <summary>MCP NXPilot (nulo = parado em Configurar). Vale ao subir o app-server.</summary>
+    public McpLaunch? Mcp { get; set; }
+
     private Process? _process;
     private string? _threadId;
 
@@ -157,6 +160,7 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
             StandardOutputEncoding = Encoding.UTF8,
             StandardInputEncoding = new UTF8Encoding(false),
         };
+        foreach (var a in Mcp?.CodexOverrides() ?? []) psi.ArgumentList.Add(a);
         psi.ArgumentList.Add("app-server");
         _process = Process.Start(psi) ?? throw new InvalidOperationException("codex app-server");
         _ = Task.Run(async () => { while (await _process.StandardError.ReadLineAsync() != null) { } }); // drena o stderr
@@ -304,8 +308,12 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
                     foreach (var (tool, path) in changes)
                         allow &= (await gate(new GateRequest(tool, $"{tool}: {path}", _cwd, _threadId))).Allow;
                     break;
+                // MCP NXPilot: o gate fica DENTRO do servidor (cada ferramenta pede aprovação no painel).
+                case var m when m.Contains("mcp", StringComparison.OrdinalIgnoreCase) && (p?.ToJsonString().Contains("\"" + NXPilot.Mcp.McpServer.ServerName + "\"") ?? false):
+                    allow = true;
+                    break;
                 default:
-                    allow = false; // permissões extras, elicitação de MCP etc.: não concedidas pelo NXPilot
+                    allow = false; // permissões extras, elicitação de outros MCP etc.: não concedidas pelo NXPilot
                     break;
             }
         }

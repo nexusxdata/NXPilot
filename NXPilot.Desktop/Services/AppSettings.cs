@@ -29,6 +29,8 @@ public sealed class AppSettings
     public string? CodexModel { get; set; }
     public string? Reviewer { get; set; }
     public string? Executor { get; set; }
+    /// <summary>MCP NXPilot parado em Configurar: continua parado ao reabrir o app (padrão: ligado).</summary>
+    public bool McpStopped { get; set; }
 
     /// <summary>
     /// Padrão por assunto (chave: pasta do assunto): agente, modelos e revisor que voltam sozinhos
