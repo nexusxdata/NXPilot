@@ -223,8 +223,8 @@
     <sys:String x:Key="Hist_Vazio">Aún no hay tareas. Use + Nueva tarea.</sys:String>
     <sys:String x:Key="Main_Slogan">Inteligencia Artificial automática, no autónoma — usted tiene el control.</sys:String>
     <sys:String x:Key="Task_CapturarPowerBi">📸  Abrir en Power BI y capturar</sys:String>
-    <sys:String x:Key="Main_Extensoes">🧩  Extensiones</sys:String>
-    <sys:String x:Key="Ext_Titulo">Extensiones (vista previa)</sys:String>
+    <sys:String x:Key="Main_Extensoes">🧩  Extensión MCP</sys:String>
+    <sys:String x:Key="Ext_Titulo">Extensión MCP (vista previa)</sys:String>
     <sys:String x:Key="Ext_Subtitulo">Conectores opcionales. Los tokens quedan cifrados (DPAPI) solo para este usuario de Windows, y cada acción que cambia algo fuera del equipo pasa por el DecisionGate. Vista previa: probadas con servidores simulados, aún no con cuentas reales.</sys:String>
     <sys:String x:Key="Ext_Host">Host del workspace (p. ej.: adb-123.azuredatabricks.net)</sys:String>
     <sys:String x:Key="Ext_Warehouse">Warehouse ID o HTTP path (/sql/1.0/warehouses/…)</sys:String>

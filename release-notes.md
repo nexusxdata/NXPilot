@@ -15,6 +15,10 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**🧩 Extensões agora se chama Extensão MCP**
+
+- O botão do menu e a janela passam a se chamar **Extensão MCP** (EN: MCP Extension; ES: Extensión MCP): é ali que se configura o que o agente usa pelo MCP NXPilot.
+
 **🔌 MCP NXPilot — as extensões viram ferramentas do agente**
 
 - Em cada tarefa, o Claude Code e o Codex recebem um servidor MCP, o **MCP NXPilot**. Power BI, PowerPoint, Databricks, Git, e-mail, work items, Teams e os apps do Windows que você liberou passam a ser ferramentas que o agente chama direto, sem escrever script para isso.

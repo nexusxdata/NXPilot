@@ -223,8 +223,8 @@
     <sys:String x:Key="Hist_Vazio">No tasks yet. Use + New task.</sys:String>
     <sys:String x:Key="Main_Slogan">Automatic, not autonomous AI — because you are in control.</sys:String>
     <sys:String x:Key="Task_CapturarPowerBi">📸  Open in Power BI and capture</sys:String>
-    <sys:String x:Key="Main_Extensoes">🧩  Extensions</sys:String>
-    <sys:String x:Key="Ext_Titulo">Extensions (preview)</sys:String>
+    <sys:String x:Key="Main_Extensoes">🧩  MCP Extension</sys:String>
+    <sys:String x:Key="Ext_Titulo">MCP Extension (preview)</sys:String>
     <sys:String x:Key="Ext_Subtitulo">Optional connectors. Tokens are encrypted (DPAPI) for this Windows user only, and every action that changes something outside this machine goes through the DecisionGate. Preview: tested against simulated servers, not yet against real accounts.</sys:String>
     <sys:String x:Key="Ext_Host">Workspace host (e.g. adb-123.azuredatabricks.net)</sys:String>
     <sys:String x:Key="Ext_Warehouse">Warehouse ID or HTTP path (/sql/1.0/warehouses/…)</sys:String>
