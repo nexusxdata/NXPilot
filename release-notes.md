@@ -34,4 +34,6 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 - `powerbi_validate` confere o JSON e o TMDL do projeto; `powerbi_capture` abre o relatório no Power BI Desktop e devolve a imagem ao agente.
 
-> Esta versão republica o **NXPilot-Setup** (biblioteca nova na base). Em **Verificar atualização**, o NXPilot avisa e segue pelo Setup, que instala a base e o app juntos.
+- O README (PT, EN e ES) explica o MCP NXPilot: o agente usa as extensões direto, sem gerar código para tarefa repetitiva — menos tokens, menos tentativa e erro.
+
+> O **NXPilot-Setup** foi republicado na v1.0.0.17 (biblioteca nova na base). Se você ainda está numa versão anterior, **Verificar atualização** avisa e segue pelo Setup, que instala a base e o app juntos.
