@@ -40,7 +40,7 @@ public sealed class WindowsUiPolicy
 }
 
 public sealed class WindowsUiDeniedException(string processName)
-    : Exception($"O aplicativo '{processName}' não está liberado em Extensões → Janelas do Windows. Nada foi lido nem capturado.")
+    : Exception($"O aplicativo '{processName}' não está liberado na Extensão MCP → Janelas do Windows. Nada foi lido nem capturado.")
 {
     public string ProcessName { get; } = processName;
 }

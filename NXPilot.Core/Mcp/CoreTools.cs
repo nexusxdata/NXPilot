@@ -272,7 +272,7 @@ public static class CoreTools
     private static IEnumerable<NxTool> Databricks()
     {
         static bool Configured(ToolContext _) => DatabricksSettings.LoadConnection() != null;
-        static DatabricksConnection Conn() => DatabricksSettings.LoadConnection() ?? throw new InvalidOperationException("Databricks não configurado no NXPilot (Extensões).");
+        static DatabricksConnection Conn() => DatabricksSettings.LoadConnection() ?? throw new InvalidOperationException("Databricks não configurado no NXPilot (Extensão MCP).");
 
         yield return new NxTool
         {
@@ -401,7 +401,7 @@ public static class CoreTools
         {
             var logged = LoggedIn();
             var wanted = Str(a, "provider") is { } p && Enum.TryParse<MailProvider>(p, true, out var parsed) ? parsed : logged.FirstOrDefault();
-            if (!logged.Contains(wanted)) throw new InvalidOperationException(NxText.T($"{wanted} sem login no NXPilot (Extensões → E-mail).", $"{wanted} not signed in in NXPilot (Extensions → E-mail).", $"{wanted} sin inicio de sesión en NXPilot (Extensiones → Correo)."));
+            if (!logged.Contains(wanted)) throw new InvalidOperationException(NxText.T($"{wanted} sem login no NXPilot (Extensão MCP → E-mail).", $"{wanted} not signed in in NXPilot (MCP Extension → E-mail).", $"{wanted} sin inicio de sesión en NXPilot (Extensión MCP → Correo)."));
             return MailService.Create(wanted, MailSettings.Load().Tokens(wanted)!);
         }
 

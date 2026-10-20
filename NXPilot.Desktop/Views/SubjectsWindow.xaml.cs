@@ -69,9 +69,9 @@ public partial class SubjectsWindow : Window
             ? T($"Este assunto está no GitHub: {s.WebUrl}. \"Enviar\" leva os snapshots e os branches das tarefas novas.",
                 $"This subject is on GitHub: {s.WebUrl}. \"Push\" sends the snapshots and the new task branches.",
                 $"Este asunto está en GitHub: {s.WebUrl}. \"Enviar\" lleva los snapshots y las ramas de las tareas nuevas.")
-            : T("Opcional: cria um repositório PRIVADO na sua conta (token de Extensões) e envia todo o histórico do assunto. Precisa da sua aprovação.",
-                "Optional: creates a PRIVATE repository in your account (token from Extensions) and sends the subject's whole history. Requires your approval.",
-                "Opcional: crea un repositorio PRIVADO en su cuenta (token de Extensiones) y envía todo el historial del asunto. Requiere su aprobación.");
+            : T("Opcional: cria um repositório PRIVADO na sua conta (token da Extensão MCP) e envia todo o histórico do assunto. Precisa da sua aprovação.",
+                "Optional: creates a PRIVATE repository in your account (token from MCP Extension) and sends the subject's whole history. Requires your approval.",
+                "Opcional: crea un repositorio PRIVADO en su cuenta (token de Extensión MCP) y envía todo el historial del asunto. Requiere su aprobación.");
     }
 
     private void OnNewNameKeyDown(object sender, KeyEventArgs e)
@@ -141,9 +141,9 @@ public partial class SubjectsWindow : Window
         var token = GitRepoSettings.Load().GitHubToken;
         if (token.Length == 0)
         {
-            StatusText.Text = T("Configure o token do GitHub em Extensões (para criar o repositório, o token fine-grained precisa da permissão Administration: escrita).",
-                                "Set the GitHub token in Extensions (to create the repository, a fine-grained token needs the Administration: write permission).",
-                                "Configure el token de GitHub en Extensiones (para crear el repositorio, el token fine-grained necesita el permiso Administration: escritura).");
+            StatusText.Text = T("Configure o token do GitHub na Extensão MCP (para criar o repositório, o token fine-grained precisa da permissão Administration: escrita).",
+                                "Set the GitHub token in MCP Extension (to create the repository, a fine-grained token needs the Administration: write permission).",
+                                "Configure el token de GitHub en Extensión MCP (para crear el repositorio, el token fine-grained necesita el permiso Administration: escritura).");
             return;
         }
         var repoName = s.RemoteUrl == null ? RepoNameBox.Text.Trim() : null;

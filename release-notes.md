@@ -17,7 +17,7 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 **🧩 Extensões agora se chama Extensão MCP**
 
-- O botão do menu e a janela passam a se chamar **Extensão MCP** (EN: MCP Extension; ES: Extensión MCP): é ali que se configura o que o agente usa pelo MCP NXPilot.
+- O botão do menu e a janela passam a se chamar **Extensão MCP** (EN: MCP Extension; ES: Extensión MCP): é ali que se configura o que o agente usa pelo MCP NXPilot. As mensagens do app e os READMEs também usam o nome novo.
 
 **🔌 MCP NXPilot — as extensões viram ferramentas do agente**
 

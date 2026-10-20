@@ -22,9 +22,9 @@ Also: task history, notifications, Azure DevOps work items (read-only), Power BI
 reading and monitoring app windows (clicks only through an approved process), local AI (LLaMA) or providers
 (GitHub Copilot/Models, Azure OpenAI, Microsoft 365, OpenRouter), user interface in Portuguese, English and Spanish.
 
-### 🧩 Extensions (preview)
+### 🧩 MCP Extension (preview)
 
-Optional connectors, shown in the sidebar under **Extensions**. Each one is a separate package, with no dependencies.
+Optional connectors, shown in the sidebar under **MCP Extension**. Each one is a separate package, with no dependencies.
 Tokens are encrypted (DPAPI) for your Windows user only, and anything that changes something outside the machine goes through the DecisionGate.
 
 | Extension | Package | What it does | Control |

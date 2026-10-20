@@ -22,9 +22,9 @@ Também: histórico de tarefas, notificações, work items do Azure DevOps (some
 editados como código, leitura e monitoramento de janelas de apps (cliques só por processo aprovado), IA local (LLaMA) ou
 provedores (GitHub Copilot/Models, Azure OpenAI, Microsoft 365, OpenRouter), interface em português, inglês e espanhol.
 
-### 🧩 Extensões (prévia)
+### 🧩 Extensão MCP (prévia)
 
-Conectores opcionais, que ficam na barra lateral em **Extensões**. Cada um é um pacote à parte, sem dependências.
+Conectores opcionais, que ficam na barra lateral em **Extensão MCP**. Cada um é um pacote à parte, sem dependências.
 Os tokens ficam cifrados (DPAPI) só no seu usuário do Windows, e o que muda algo fora da máquina passa pelo DecisionGate.
 
 | Extensão | Pacote | O que faz | Controle |

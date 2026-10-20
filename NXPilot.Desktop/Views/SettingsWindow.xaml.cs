@@ -64,7 +64,7 @@ public partial class SettingsWindow : Window
         {
             var ok = g.Any(Ready);
             var note = g.Key == "Power BI" ? T(" (quando o worktree tem um projeto PBIP)", " (when the worktree has a PBIP project)", " (cuando el worktree tiene un proyecto PBIP)")
-                : ok ? "" : T(" (não configurado em Extensões)", " (not configured in Extensions)", " (no configurado en Extensiones)");
+                : ok ? "" : T(" (não configurado na Extensão MCP)", " (not configured in MCP Extension)", " (no configurado en Extensión MCP)");
             return $"{(ok ? "✓" : "–")} {g.Key}{note}: {string.Join(", ", g.Where(t => !ok || Ready(t)).Select(t => t.Name))}";
         }));
     }
