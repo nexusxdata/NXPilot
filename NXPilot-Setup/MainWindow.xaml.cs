@@ -265,7 +265,8 @@ public partial class MainWindow : Window
             var shortcut = DesktopShortcut.Create(InstalledExe, "NXPilot");
             Step1Progress.Value = 100;
             RefreshStep1();
-            Step1StatusText.Text += versionNote + (shortcut != null
+            // O fim fica explícito no texto também (não só na barra): "✓ 100% · …".
+            Step1StatusText.Text = "✓ 100% · " + T("concluído.", "done.", "concluido.") + versionNote + (shortcut != null
                 ? T(" Atalho criado na área de trabalho.", " Desktop shortcut created.", " Acceso directo creado en el escritorio.")
                 : T(" Não deu para criar o atalho na área de trabalho: abra pelo botão Abrir NXPilot ou pela pasta do app.",
                     " Could not create the desktop shortcut: use the Open NXPilot button or the app folder.",
@@ -294,7 +295,13 @@ public partial class MainWindow : Window
                          ?? throw new NXPilot.Updates.UpdateException(T("nenhuma versão publicada.", "no version published.", "ninguna versión publicada."));
             Step1StatusText.Text = T($"Baixando o NXPilot {latest.Tag}…", $"Downloading NXPilot {latest.Tag}…", $"Descargando NXPilot {latest.Tag}…");
             Step1Progress.Value = 5;
-            var package = await updates.DownloadAsync(latest);
+            // Download do app: 5% → 20% conforme os bytes chegam (MB e % no texto).
+            var package = await updates.DownloadAsync(latest, null, default, new Progress<(long Downloaded, long Total)>(b =>
+            {
+                if (b.Total > 0) Step1Progress.Value = 5 + b.Downloaded * 15d / b.Total;
+                Step1StatusText.Text = T($"Baixando o NXPilot {latest.Tag}… ", $"Downloading NXPilot {latest.Tag}… ", $"Descargando NXPilot {latest.Tag}… ")
+                                       + NXPilot.Updates.UpdateService.DescribeProgress(b.Downloaded, b.Total);
+            }));
             Step1Progress.Value = 20;
             return (latest.Tag, package);
         }

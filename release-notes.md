@@ -18,6 +18,7 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 **🔄 Atualizar**
 
 - No **NXPilot-Setup**, com o app já instalado, o botão agora é **🔄 Atualizar para a última versão** (era "Reinstalar") — você já verificou no app. Sem o app instalado, continua **Instalar**. No app, continua **Verificar atualização**.
+- **NXPilot-Setup:** o download do app mostra MB e porcentagem e, no fim, o texto diz **✓ 100% · concluído**.
 - **Barras com porcentagem** no app (`45,2 MB de 93,4 MB (48%)`) e no Setup (o número sobre a barra). Ao terminar, mostram **100%**, para ficar claro que acabou.
 
 > Esta versão republica o **NXPilot-Setup**. Quem já tem o NXPilot não precisa rodá-lo: use **Verificar atualização**.
