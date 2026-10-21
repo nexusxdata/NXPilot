@@ -194,6 +194,11 @@ public partial class HistoryWindow : Window
             : r == null ? "" : worktreeExists ? $"{r.Branch} · {r.Worktree}" : T("O worktree desta tarefa não existe mais.", "This task's worktree no longer exists.", "El worktree de esta tarea ya no existe.");
     }
 
+    private void OnRowDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (GridClicks.OnRow(e)) OnOpenClick(sender, e);
+    }
+
     private void OnOpenClick(object sender, RoutedEventArgs e)
     {
         if (Selected is not { } r || _taskRunning) return;

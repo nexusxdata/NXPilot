@@ -79,6 +79,11 @@ public partial class HooksWindow : Window
     }
 
     /// <summary>Disparo manual: pede o {texto} e cria a tarefa (a janela fecha para você acompanhar).</summary>
+    private void OnRowDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (GridClicks.OnRow(e)) OnFireClick(sender, e);
+    }
+
     private async void OnFireClick(object sender, RoutedEventArgs e)
     {
         if (Selected is not { Armed: true } hook) return;

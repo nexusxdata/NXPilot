@@ -15,6 +15,10 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**🖱 Duplo clique só sobre a linha**
+
+- Na lista de Work items, no Histórico e nas Tarefas modelo, dois cliques na barra de rolagem, no cabeçalho ou no vazio não abrem mais nada (antes criavam a tarefa, abriam o histórico ou disparavam a tarefa modelo).
+
 **🔗 Extensão NXProject — criar work items pelo NXProject (DevOps e GitProject)**
 
 - Os agentes criam itens (ex.: as Tasks de uma Story, uma Story numa Feature) pela ferramenta MCP **`nxproject_create_items`**, que passa pelo **NXProject instalado**: os campos e padrões dele e a regra **Adm_NX** valem. Se não der para conferir a regra, nada é criado; cada criação passa pela sua aprovação (MÉDIO). Só cria — nunca altera nem apaga.

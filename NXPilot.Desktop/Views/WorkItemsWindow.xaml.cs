@@ -532,6 +532,11 @@ public partial class WorkItemsWindow : Window
         if (Grid.SelectedItem is ItemRow { Item: var w }) Process.Start(new ProcessStartInfo(w.Url) { UseShellExecute = true });
     }
 
+    private void OnRowDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (GridClicks.OnRow(e)) OnCreateClick(sender, e);
+    }
+
     private void OnCreateClick(object sender, RoutedEventArgs e)
     {
         if (_marked.Count > 0) SelectedItems.AddRange(_marked.Values);

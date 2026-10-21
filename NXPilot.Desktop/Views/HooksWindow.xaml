@@ -30,7 +30,7 @@
         </StackPanel>
 
         <Grid>
-            <DataGrid x:Name="Grid" SelectionChanged="OnSelectionChanged" MouseDoubleClick="OnFireClick">
+            <DataGrid x:Name="Grid" SelectionChanged="OnSelectionChanged" MouseDoubleClick="OnRowDoubleClick">
                 <DataGrid.Columns>
                     <DataGridTextColumn x:Name="ColTitle" Binding="{Binding Title}" Width="2*"/>
                     <DataGridTextColumn x:Name="ColSubject" Binding="{Binding Subject}" Width="1.4*"/>

@@ -72,7 +72,7 @@
         </StackPanel>
 
         <Grid>
-            <DataGrid x:Name="Grid" SelectionChanged="OnSelectionChanged" MouseDoubleClick="OnOpenClick">
+            <DataGrid x:Name="Grid" SelectionChanged="OnSelectionChanged" MouseDoubleClick="OnRowDoubleClick">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="{DynamicResource Hist_Data}" Binding="{Binding When}" Width="120"/>
                     <DataGridTemplateColumn Header="{DynamicResource Hist_Estado}" Width="140" SortMemberPath="StatusKey">
