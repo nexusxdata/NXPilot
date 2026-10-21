@@ -24,12 +24,40 @@ public partial class SettingsWindow : Window
     private readonly UpdateService _updates = new();
     private static string AppDir => AppContext.BaseDirectory;
 
+    private string PlanRulesAgent => (PlanRulesAgentBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "Claude";
+
+    private void OnPlanRulesAgentChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (PlanRulesBox == null) return; // durante o InitializeComponent
+        PlanRulesBox.Text = AppSettings.Load().PlanRulesFor(PlanRulesAgent);
+    }
+
+    private void OnPlanRulesLostFocus(object sender, RoutedEventArgs e)
+    {
+        var agent = PlanRulesAgent;
+        var text = PlanRulesBox.Text;
+        AppSettings.Update(s => s.SetPlanRules(agent, text));
+    }
+
+    private void OnPlanRulesResetClick(object sender, RoutedEventArgs e)
+    {
+        var agent = PlanRulesAgent;
+        AppSettings.Update(s => s.SetPlanRules(agent, null));
+        PlanRulesBox.Text = AppSettings.Load().PlanRulesFor(agent);
+    }
+
     public SettingsWindow()
     {
         InitializeComponent();
         var v = UpdateService.CurrentVersion;
         CurrentVersionText.Text = T($"Instalada: NXPilot {v.ToString(3)}.{v.Revision:00}", $"Installed: NXPilot {v.ToString(3)}.{v.Revision:00}", $"Instalada: NXPilot {v.ToString(3)}.{v.Revision:00}");
         Loaded += async (_, _) => await LoadVersionsAsync();
+        PlanRulesHeader.Text = T("REGRAS DO PLANO POR AGENTE", "PLANNING RULES PER AGENT", "REGLAS DEL PLAN POR AGENTE");
+        PlanRulesResetButton.Content = T("Restaurar padrão", "Restore default", "Restaurar predeterminado");
+        PlanRulesNote.Text = T("Vai no fim de todo pedido de plano do agente da tarefa. No plano só se lê e propõe: criar, alterar ou enviar algo fica para a execução, depois da sua aprovação. A trava é do NXPilot (no plano, o que grava é recusado); a regra evita o agente tentar. Grava ao sair da caixa.",
+                               "Appended to every planning request of the task's agent. Planning only reads and proposes: creating, changing or sending something waits for execution, after your approval. The lock is NXPilot's (writing is refused while planning); the rule keeps the agent from trying. Saved when you leave the box.",
+                               "Se agrega al final de todo pedido de plan del agente de la tarea. En el plan solo se lee y propone: crear, modificar o enviar algo queda para la ejecución, tras su aprobación. El bloqueo es de NXPilot (en el plan, lo que escribe se rechaza); la regla evita que el agente lo intente. Se guarda al salir del cuadro.");
+        PlanRulesAgentBox.SelectedIndex = 0;
         Action refresh = () => Dispatcher.BeginInvoke(RefreshMcp);
         McpHost.Changed += refresh;
         Closed += (_, _) => McpHost.Changed -= refresh;

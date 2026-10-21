@@ -309,6 +309,8 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
     {
         var p = msg["params"];
         var allow = false;
+        if (Environment.GetEnvironmentVariable("NXPILOT_CODEX_TRACE") is { Length: > 0 } trace)
+            try { File.AppendAllText(trace, $"{DateTime.Now:HH:mm:ss} {method} {p?.ToJsonString()}\n"); } catch { /* só diagnóstico */ }
         try
         {
             switch (method)
@@ -340,13 +342,27 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
         }
         catch { allow = false; }
 
+        // Elicitação do MCP (é como o Codex pede aprovação de ferramenta MCP: mcpServer/elicitation/request)
+        // responde no formato do MCP — {action, content}; com {decision} o Codex entende recusa.
+        // As aprovações de comando/arquivo seguem {decision}.
+        var result = ApprovalResult(method, allow);
         await SendAsync(new JsonObject
         {
             ["jsonrpc"] = "2.0",
             ["id"] = msg["id"]!.DeepClone(),
-            ["result"] = new JsonObject { ["decision"] = allow ? "accept" : "decline" },
+            ["result"] = result,
         });
     }
+
+    /// <summary>
+    /// Resposta a um pedido de aprovação do Codex: elicitação do MCP (mcpServer/elicitation/request,
+    /// como ele pede para usar ferramenta MCP) no formato do MCP — {action, content}; comando e
+    /// arquivo no formato {decision}. Com o formato errado o Codex entende recusa.
+    /// </summary>
+    public static JsonObject ApprovalResult(string method, bool allow) =>
+        method.Contains("elicitation", StringComparison.OrdinalIgnoreCase)
+            ? new JsonObject { ["action"] = allow ? "accept" : "decline", ["content"] = allow ? new JsonObject() : null }
+            : new JsonObject { ["decision"] = allow ? "accept" : "decline" };
 
     /// <summary>fileChange → (ferramenta, caminho) no formato do gate: add = Write, update = Edit, delete = Delete.</summary>
     private static List<(string Tool, string Path)> Changes(JsonNode item)

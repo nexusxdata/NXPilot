@@ -93,6 +93,81 @@ public static class CriticalTests
             await Expect("Bash: python manage.py migrate", RiskLevel.Medio);
             await Expect("Delete: C:\\wt\\a.txt", RiskLevel.Medio);
         }),
+        new("Segredos fora do alcance do agente: conexões/tokens, DPAPI, DLL do NXProject e API do DevOps direto são ALTO; arquivo do worktree não", async () =>
+        {
+            var rules = new RuleRiskClassifier();
+            async Task Expect(string action, RiskLevel level) =>
+                AssertEqual(level, (await rules.ClassifyAsync(action)).Level, $"\"{action}\"");
+            await Expect(@"Read: C:\Users\x\AppData\Local\NXProject.Community\config_nxproject.json", RiskLevel.Alto);
+            await Expect(@"Bash: type %LOCALAPPDATA%\NXPilot\work-items.json", RiskLevel.Alto);
+            await Expect(@"Read: C:\Users\x\AppData\Local\NXPilot\git-repos.json", RiskLevel.Alto);
+            await Expect(@"Read: C:\Users\x\.codex\auth.json", RiskLevel.Alto);
+            await Expect(@"Read: C:\Users\x\.claude\.credentials.json", RiskLevel.Alto);
+            await Expect("PowerShell: Add-Type -AssemblyName System.Security; [Security.Cryptography.ProtectedData]::Unprotect($b,$null,'CurrentUser')", RiskLevel.Alto);
+            await Expect(@"PowerShell: Add-Type -Path C:\Users\x\Apps\NXProject\NXProject.Shared.dll", RiskLevel.Alto);
+            await Expect("Bash: curl -u :$PAT https://dev.azure.com/org/proj/_apis/wit/workitems?ids=1", RiskLevel.Alto);
+            await Expect("PowerShell: Invoke-RestMethod https://tfsams.visualstudio.com/_apis/wit/workitems/1", RiskLevel.Alto);
+            await Expect("Bash: gh api graphql -f query=x", RiskLevel.Alto);
+            await Expect("Bash: az boards work-item create --title x", RiskLevel.Alto);
+            // O que é do worktree (também em AppData\Local\NXPilot) e leituras comuns continuam como antes.
+            await Expect(@"Read: C:\Users\x\AppData\Local\NXPilot\worktrees\S4-1\dados\settings.json", RiskLevel.Baixo);
+            await Expect(@"Read: C:\Users\x\AppData\Local\NXPilot\worktrees\S4-1\work-items-export.json", RiskLevel.Baixo);
+            await Expect("Bash: git status --short", RiskLevel.Baixo);
+            await Expect("Bash: curl https://example.com/data.csv -o data.csv", RiskLevel.Medio);
+        }),
+        new("NXProject (ponte): sem NXProject nada quebra e as ferramentas somem; com ele, contrato conferido, PAT cifrado entendido e a DLL NÃO fica presa", async () =>
+        {
+            if (!OperatingSystem.IsWindows()) return;
+            var before = Environment.GetEnvironmentVariable("NXPILOT_NXPROJECT_DIR");
+            var empty = Path.Combine(Path.GetTempPath(), "nx-sem-nxproject-" + Guid.NewGuid().ToString("N")[..8]);
+            Directory.CreateDirectory(empty);
+            try
+            {
+                // Sem o NXProject (pasta sem a DLL): indisponível, com motivo, sem exceção.
+                Environment.SetEnvironmentVariable("NXPILOT_NXPROJECT_DIR", empty);
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (!File.Exists(Path.Combine(home, "Apps", "NXProject", "NXProject.Shared.dll")))
+                {
+                    var info = NXProjectBridge.Info();
+                    AssertFalse(info.Available, "Sem NXProject: extensão indisponível.");
+                    AssertContains("NXProject", info.Message, "Diz o motivo.");
+                    var r = await NXProjectBridge.StatusAsync(new JsonObject { ["backend"] = "devops" });
+                    AssertTrue(r["ok"]?.GetValue<bool>() == false, "Chamada sem NXProject volta ok=false (não lança).");
+                    var names = new NxToolHost(CoreTools.All()).AvailableTools(new ToolContext { Worktree = empty, Approve = (_, _, _) => Task.FromResult(false) }).Select(t => t.Name).ToList();
+                    AssertFalse(names.Contains("nxproject_create_items"), "Sem NXProject, o agente não vê nxproject_create_items.");
+                }
+
+                // Com o build do NXProject desta máquina (quando existe): contrato, PAT cifrado e arquivo livre.
+                var dev = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\NXProject\NXProject.Shared\bin\Release\net10.0"));
+                if (!File.Exists(Path.Combine(dev, "NXProject.Shared.dll"))) return;
+                Environment.SetEnvironmentVariable("NXPILOT_NXPROJECT_DIR", dev);
+                var ok = NXProjectBridge.Info();
+                AssertTrue(ok.Available, "Com o NXProject: disponível (" + ok.Message + ").");
+                AssertEqual(NXProjectBridge.ExpectedContract, ok.Contract ?? 0, "Contrato conferido.");
+                var conn = NXProjectBridge.DevOpsConnection(new DevOpsConnection("https://dev.azure.com/x", "p", "pat-de-teste-123"));
+                AssertFalse(conn.ToJsonString().Contains("pat-de-teste-123"), "O PAT nunca vai em texto para a API.");
+                conn["items"] = new JsonArray(new JsonObject { ["title"] = "a" });
+                var noParent = await NXProjectBridge.CreateItemsAsync(conn);
+                AssertContains("parentId", noParent["error"]?.ToString() ?? "", "O NXProject decifrou o PAT do NXPilot (a chave do par bate) e recusou por falta de parentId.");
+                using (new FileStream(Path.Combine(dev, "NXProject.Shared.dll"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                { /* abriu com exclusividade: a DLL carregada pela memória não prende o arquivo */ }
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("NXPILOT_NXPROJECT_DIR", before);
+                try { Directory.Delete(empty, true); } catch { }
+            }
+        }),
+        new("Codex: aprovação de ferramenta MCP (elicitação) responde {action}; comando/arquivo respondem {decision}", () =>
+        {
+            var mcp = NXPilot.Agents.CodexAppServerAdapter.ApprovalResult("mcpServer/elicitation/request", true);
+            AssertEqual("accept", mcp["action"]?.ToString() ?? "", "MCP aprovado: action=accept (com {decision} o Codex entendia recusa e nada era gravado).");
+            AssertTrue(mcp["content"] is JsonObject, "MCP aprovado leva content.");
+            AssertEqual("decline", NXPilot.Agents.CodexAppServerAdapter.ApprovalResult("mcpServer/elicitation/request", false)["action"]?.ToString() ?? "", "MCP negado: action=decline.");
+            AssertEqual("accept", NXPilot.Agents.CodexAppServerAdapter.ApprovalResult("item/commandExecution/requestApproval", true)["decision"]?.ToString() ?? "", "Comando: decision=accept.");
+            AssertEqual("decline", NXPilot.Agents.CodexAppServerAdapter.ApprovalResult("item/fileChange/requestApproval", false)["decision"]?.ToString() ?? "", "Arquivo negado: decision=decline.");
+            return Task.CompletedTask;
+        }),
         new("Contexto: escrita fora do worktree é ALTO; plano do Claude é liberado", () =>
         {
             var wt = Path.Combine(Path.GetTempPath(), "nx-wt-1");
@@ -1201,6 +1276,12 @@ public static class CriticalTests
             AssertEqual("1,5", string.Join(",", roots.Select(r => r.Number).Order()), "Raiz: topo com sub-issues (#1) ou nível Projeto (#5); topo sem filhos (#4) não.");
             AssertEqual("2,3", string.Join(",", (await board.MyOpenItemsAsync(rootIssue: 1)).Select(i => i.Id)), "Só os descendentes da #1 (neta incluída).");
             AssertEqual(7, (await board.MyOpenItemsAsync()).Count, "Sem raiz: todos os meus.");
+            // Árvore do GitProject (workitems_tree source=gitproject): a raiz e tudo abaixo dela, de qualquer pessoa.
+            var gtree = await board.TreeAsync(1);
+            AssertEqual(1, gtree[0].Id, "Árvore começa na issue pedida (nível 0).");
+            AssertTrue(gtree.Select(n => n.Id).Contains(2) && gtree.Select(n => n.Id).Contains(3), "Árvore traz filhos e netos da #1.");
+            AssertTrue(gtree.All(n => n.Id == 1 || n.ParentId > 0), "Cada item da árvore sabe o pai.");
+            AssertEqual(0, (await board.TreeAsync(999)).Count, "Issue fora do board: árvore vazia (sem exceção).");
         }),
 
         // ---------------------------------------------------------------- MCP NXPilot

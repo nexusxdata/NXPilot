@@ -260,6 +260,34 @@
                 </StackPanel>
             </TabItem>
 
+            <!-- ============================== NXProject (gravar work items pelo NXProject instalado) ============================== -->
+            <TabItem x:Name="NXProjectTab">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse x:Name="NXProjectDot" Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="NXProject (DevOps · GitProject)"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <StackPanel>
+                    <TextBlock x:Name="NxpInstalled" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold"/>
+                    <Border Background="#EEF4FB" CornerRadius="4" Padding="10,8" Margin="0,8,0,0">
+                        <TextBlock x:Name="NxpHow" TextWrapping="Wrap" FontSize="12" Foreground="#24527A"/>
+                    </Border>
+                    <TextBlock Text="AZURE DEVOPS" Style="{StaticResource SectionHeader}" Margin="0,12,0,2"/>
+                    <TextBlock x:Name="NxpDevOps" TextWrapping="Wrap" FontSize="12"/>
+                    <DockPanel Margin="0,6,0,0">
+                        <Button x:Name="NxpDevOpsCheck" DockPanel.Dock="Left" Style="{StaticResource SubtleButton}" Click="OnNxpCheckDevOpsClick"/>
+                        <TextBlock x:Name="NxpDevOpsResult" TextWrapping="Wrap" FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <TextBlock Text="GITHUB PROJECTS (GITPROJECT)" Style="{StaticResource SectionHeader}" Margin="0,14,0,2"/>
+                    <TextBlock x:Name="NxpGit" TextWrapping="Wrap" FontSize="12"/>
+                    <DockPanel Margin="0,6,0,0">
+                        <Button x:Name="NxpGitCheck" DockPanel.Dock="Left" Style="{StaticResource SubtleButton}" Click="OnNxpCheckGitClick"/>
+                        <TextBlock x:Name="NxpGitResult" TextWrapping="Wrap" FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    </DockPanel>
+                </StackPanel>
+            </TabItem>
+
             <!-- ============================== Power BI Desktop ============================== -->
             <TabItem x:Name="PowerBiTab">
                 <TabItem.Header>

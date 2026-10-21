@@ -75,6 +75,7 @@ public partial class ExtensionsWindow : Window
             "mail" or "email" => MailTab,
             "powerbi" => PowerBiTab,
             "windows" or "janelas" => WindowsTab,
+            "nxproject" => NXProjectTab,
             _ => DatabricksTab,
         };
         BuildExtensionCombo();
@@ -158,6 +159,80 @@ public partial class ExtensionsWindow : Window
             : T("Power BI Desktop não encontrado. Instale pela Microsoft Store ou em powerbi.microsoft.com/desktop.", "Power BI Desktop not found. Install it from the Microsoft Store or powerbi.microsoft.com/desktop.", "Power BI Desktop no encontrado. Instálelo desde Microsoft Store o en powerbi.microsoft.com/desktop.");
         Dot(PowerBiDot, pbi != null);
         Dot(WindowsDot, _windows.AllowedProcesses.Count > 0);
+        RefreshNXProject();
+    }
+
+    // ------------------------------------------------------------ NXProject
+
+    /// <summary>
+    /// Situação do NXProject instalado e das conexões (as mesmas da extensão Work items: a própria
+    /// ou a do NXProject). PAT/token só mascarado — nunca em texto.
+    /// </summary>
+    private void RefreshNXProject()
+    {
+        var info = NXProjectBridge.Info();
+        NxpInstalled.Text = info.Available ? "✔ " + info.Message : "✗ " + info.Message;
+        NxpInstalled.Foreground = info.Available ? Brushes.SeaGreen : Brushes.DarkOrange;
+        NxpHow.Text = T("O NXPilot não grava sozinho no DevOps nem no GitHub: os agentes criam itens (ex.: as Tasks de uma Story) pelo NXProject instalado, com os campos e a regra Adm_NX dele. Se não der para conferir a regra, nada é criado; e cada criação passa pela sua aprovação. A conexão é a da extensão Work items (a do NXProject, ou a sua).",
+                        "NXPilot never writes to DevOps or GitHub on its own: agents create items (e.g. a Story's Tasks) through the installed NXProject, with its fields and Adm_NX rule. If the rule cannot be checked, nothing is created; and each creation goes through your approval. The connection is the Work items extension's (NXProject's, or your own).",
+                        "NXPilot no escribe solo en DevOps ni en GitHub: los agentes crean elementos (p. ej., las Tasks de una Story) vía el NXProject instalado, con sus campos y la regla Adm_NX. Si la regla no se puede verificar, no se crea nada; y cada creación pasa por su aprobación. La conexión es la de la extensión Work items (la de NXProject, o la suya).");
+        var s = WorkItemSettings.Load();
+        string Origin(WorkItemConnectionOrigin o) => o == WorkItemConnectionOrigin.Own ? T("desta extensão", "from this extension", "de esta extensión") : T("do NXProject", "from NXProject", "de NXProject");
+        if (s.DevOps() is { } ado)
+        {
+            var project = s.LastDevOpsProject.Length > 0 ? s.LastDevOpsProject : ado.Connection.Project;
+            NxpDevOps.Text = $"{ado.Connection.OrganizationUrl} · {project}\nPAT {NXProjectBridge.Mask(ado.Connection.Pat)} ({Origin(ado.Origin)})";
+        }
+        else NxpDevOps.Text = T("Não configurado (extensão Work items ou NXProject).", "Not configured (Work items extension or NXProject).", "No configurado (extensión Work items o NXProject).");
+        if (s.GitHub() is { } gh)
+            NxpGit.Text = $"{gh.Connection.Owner} · {T("projeto", "project", "proyecto")} {gh.Connection.Number}\nToken {NXProjectBridge.Mask(gh.Connection.Token)} ({Origin(gh.Origin)})";
+        else NxpGit.Text = T("Não configurado (extensão Work items ou NXProject).", "Not configured (Work items extension or NXProject).", "No configurado (extensión Work items o NXProject).");
+        NxpDevOpsCheck.Content = NxpGitCheck.Content = T("Conferir dono e permissão", "Check owner and permission", "Verificar dueño y permiso");
+        NxpDevOpsCheck.IsEnabled = info.Available && s.DevOps() != null;
+        NxpGitCheck.IsEnabled = info.Available && s.GitHub() != null;
+        Dot(NXProjectDot, info.Available && (s.DevOps() != null || s.GitHub() != null));
+    }
+
+    /// <summary>Pergunta ao NXProject quem é o dono do PAT e se pode gravar no Work Item Project em uso (Adm_NX restrito).</summary>
+    private async void OnNxpCheckDevOpsClick(object sender, RoutedEventArgs e)
+    {
+        var s = WorkItemSettings.Load();
+        if (s.DevOps() is not { } ado) return;
+        var project = s.LastDevOpsProject.Length > 0 ? s.LastDevOpsProject : ado.Connection.Project;
+        var req = NXProjectBridge.DevOpsConnection(ado.Connection with { Project = project });
+        var root = s.LastDevOpsRootId ?? NXProjectConfig.RootWorkItem()?.RootId ?? 0;
+        if (root > 0) req["itemId"] = root;
+        await ShowNxpStatusAsync(req, NxpDevOpsResult, NxpDevOpsCheck);
+    }
+
+    private async void OnNxpCheckGitClick(object sender, RoutedEventArgs e)
+    {
+        if (WorkItemSettings.Load().GitHub() is not { } gh) return;
+        await ShowNxpStatusAsync(NXProjectBridge.GitProjectConnection(gh.Connection), NxpGitResult, NxpGitCheck);
+    }
+
+    private static async Task ShowNxpStatusAsync(System.Text.Json.Nodes.JsonObject req, TextBlock target, Button button)
+    {
+        button.IsEnabled = false;
+        target.Foreground = Brushes.Gray;
+        target.Text = T("Perguntando ao NXProject…", "Asking NXProject…", "Consultando a NXProject…");
+        var r = await NXProjectBridge.StatusAsync(req);
+        button.IsEnabled = true;
+        if (r["ok"]?.GetValue<bool>() != true)
+        {
+            target.Foreground = Brushes.Firebrick;
+            target.Text = "✗ " + r["error"];
+            return;
+        }
+        var can = r["canWrite"] is System.Text.Json.Nodes.JsonValue v ? v.GetValue<bool>() : (bool?)null;
+        target.Foreground = can == false ? Brushes.DarkOrange : Brushes.SeaGreen;
+        target.Text = $"{T("Dono", "Owner", "Dueño")}: {r["user"]} · " + (can switch
+        {
+            true => T("pode gravar", "may write", "puede escribir"),
+            false => T("só leitura", "read-only", "solo lectura"),
+            _ => T("permissão conferida ao gravar", "permission checked when writing", "permiso verificado al escribir"),
+        }) + (r["reason"]?.ToString() is { Length: > 0 } reason ? $" ({reason})" : "")
+          + (r["item"] is System.Text.Json.Nodes.JsonObject item ? $" · {item["type"]} #{item["id"]}" : "");
     }
 
     private static (bool SignedIn, string Text) Session(MailProvider provider)

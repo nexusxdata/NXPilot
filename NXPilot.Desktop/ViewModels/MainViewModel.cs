@@ -228,6 +228,8 @@ public sealed partial class MainViewModel : ObservableObject
         if (task.PowerBi is { } pbi) AddLog("Power BI", "info", T($"Projeto PBIP detectado: {pbi.Name} — o agente edita TMDL/PBIR como código.", $"PBIP project detected: {pbi.Name} — the agent edits TMDL/PBIR as code.", $"Proyecto PBIP detectado: {pbi.Name} — el agente edita TMDL/PBIR como código."));
         var adapter = NewExecutor(task);
         var planPrompt = await Planner.PlanPromptAsync(new PlanRequest(info.Title, info.IntentForAgent, info.Criteria, task.PowerBi?.Guidance(task.Worktree!)));
+        // Regras do plano do agente (Configurar): no plano só se lê e propõe — vale para qualquer tarefa.
+        planPrompt = NXPilot.Planning.PlanRules.Apply(planPrompt, AppSettings.Load().PlanRulesFor(info.Executor == ExecutorKind.Codex));
         var plan = await RunAgentAsync(task, adapter, new AgentRequest(planPrompt, task.Worktree!, AgentMode.Plan,
             Model: info.Executor == ExecutorKind.Codex ? info.CodexModel : info.Model));
         if (task.State != TaskState.Planning) return; // falhou ou foi interrompida

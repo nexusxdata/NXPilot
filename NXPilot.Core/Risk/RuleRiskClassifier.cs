@@ -36,6 +36,16 @@ public sealed class RuleRiskClassifier : IRiskClassifier
         R(RiskLevel.Alto, @"\bsudo\b|\bchmod\s+777\b|\bshutdown\b|\breg\s+delete\b", "privilégio/sistema", "privilege/system", "privilegio/sistema"),
         R(RiskLevel.Alto, @"\.env\b|secrets?\.(json|ya?ml)|id_rsa", "toca segredos", "touches secrets", "toca secretos"),
         R(RiskLevel.Alto, @"\bnpm\s+publish\b|\bdotnet\s+nuget\s+push\b", "publica pacote", "publishes a package", "publica un paquete"),
+        // Conexões e tokens ficam com o NXPilot/NXProject: o agente usa as extensões (com o gate), nunca os segredos direto.
+        // Por NOME de arquivo — os arquivos do worktree (também em AppData\Local\NXPilot) não entram.
+        R(RiskLevel.Alto, @"config_nxproject\.json|NXProject[^\\/\s]*[\\/](ai-settings|config)[^\\/\s]*\.json|NXPilot[\\/](ai-provider|databricks|entra-token|git-repos|mail|teams|whatsapp|work-items|windows-ui|windows-processes|settings)\.json|NXPilot[\\/](mail|tokens?)[\\/]|\.claude[\\/]\.credentials\.json|\.codex[\\/]auth\.json|\.git-credentials|[\\/]gh[\\/]hosts\.yml",
+            "lê/altera conexões e tokens do NXPilot, do NXProject ou dos agentes", "reads/changes NXPilot, NXProject or agent connections and tokens", "lee/modifica conexiones y tokens de NXPilot, NXProject o los agentes"),
+        R(RiskLevel.Alto, @"ProtectedData|CryptUnprotectData|DataProtectionScope|ConvertFrom-SecureString|\bcmdkey\b|\bvaultcmd\b|Get-StoredCredential",
+            "decifra segredos do Windows (DPAPI/cofre)", "decrypts Windows secrets (DPAPI/vault)", "descifra secretos de Windows (DPAPI/almacén)"),
+        R(RiskLevel.Alto, @"NXProject\.(Shared|Community)\.dll|NXPilot\.(Core|Mail|GitRepos|Databricks|WindowsUi)\.dll|\bNxPilot\.exe\b",
+            "carrega o NXProject/NXPilot por fora das extensões", "loads NXProject/NXPilot outside the extensions", "carga NXProject/NXPilot por fuera de las extensiones"),
+        R(RiskLevel.Alto, @"(curl|wget|\biwr\b|\birm\b|Invoke-RestMethod|Invoke-WebRequest|HttpClient|requests\.|fetch\()[^\r\n]*(dev\.azure\.com|visualstudio\.com|api\.github\.com|graph\.microsoft\.com|googleapis\.com|azuredatabricks\.net|webhook\.office\.com)|\baz\s+(boards|devops|repos)\b|\bgh\s+(api|project|issue)\b",
+            "chama a API do DevOps/GitHub/Microsoft/Google direto (fora das extensões)", "calls the DevOps/GitHub/Microsoft/Google API directly (outside the extensions)", "llama a la API de DevOps/GitHub/Microsoft/Google directo (fuera de las extensiones)"),
 
         R(RiskLevel.Medio, @"\b(npm|pnpm|yarn)\s+(install|add|i)\b|\bpip\s+install\b|\bdotnet\s+add\b", "instala dependência", "installs a dependency", "instala una dependencia"),
         R(RiskLevel.Medio, @"git\s+(commit|push|merge|rebase)\b", "altera histórico/remoto", "changes history/remote", "modifica historial/remoto"),

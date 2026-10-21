@@ -28,7 +28,7 @@ namespace NXPilot.Mcp;
 public static class CoreTools
 {
     public static IEnumerable<NxTool> All() =>
-        PowerPoint().Concat(Excel()).Concat(PowerBi()).Concat(Databricks()).Concat(Git()).Concat(Mail()).Concat(WorkItems()).Concat(Teams());
+        PowerPoint().Concat(Excel()).Concat(PowerBi()).Concat(Databricks()).Concat(Git()).Concat(Mail()).Concat(WorkItems()).Concat(NXProject()).Concat(Teams());
 
     // ================================================================ PowerPoint
 
@@ -597,13 +597,14 @@ public static class CoreTools
         yield return new NxTool
         {
             Name = "workitems_tree", Extension = "Work items", ReadOnly = true,
-            Available = _ => WorkItemSettings.Load().DevOps() != null,
-            Description = "Read an Azure DevOps work item (Work Item Project, Epic, Feature, Story, Task…) and everything below it in the hierarchy, in tree order: " +
+            Available = _ => WorkItemSettings.Load() is var wis && (wis.DevOps() != null || wis.GitHub() != null),
+            Description = "Read a work item — Azure DevOps (source devops, default) or a GitHub Projects issue (source gitproject, id = issue number) — and everything below it in the hierarchy, in tree order: " +
                           "level, id, type, title, state, assigned to, remaining/original hours and iteration; the root comes with description and acceptance criteria. " +
                           "Use it for the work item linked to the task (e.g. to list pending tasks). open_only=true drops closed items.",
             Schema = NxTool.ParseSchema("""
                 {"type":"object","required":["id"],"properties":{
-                  "id":{"type":"integer","description":"Work item id"},
+                  "id":{"type":"integer","description":"Work item id (DevOps) or issue number (GitHub Projects)"},
+                  "source":{"type":"string","enum":["devops","gitproject"]},
                   "project":{"type":"string","description":"Azure DevOps team project; default: the one linked to the task / last used"},
                   "open_only":{"type":"boolean","description":"Only items not closed/done/removed (the root always comes)"},
                   "max":{"type":"integer","description":"Default 300"}}}
@@ -611,10 +612,20 @@ public static class CoreTools
             Run = async (a, _, ct) =>
             {
                 var s = WorkItemSettings.Load();
+                var id = Int(a, "id") ?? throw new ArgumentException("id");
+                if (Str(a, "source")?.Contains("git", StringComparison.OrdinalIgnoreCase) ?? s.DevOps() == null)
+                {
+                    var gh = (s.GitHub() ?? throw new InvalidOperationException("GitHub Projects não configurado.")).Connection;
+                    using var board = new GitHubProjectsClient(gh, levelField: NXProjectConfig.GitLevelField());
+                    var issues = await board.TreeAsync(id, Bool(a, "open_only"), Math.Clamp(Int(a, "max") ?? 300, 1, 1000), ct: ct);
+                    var where = $"GitHub Projects {gh.Owner} · #{gh.Number}";
+                    return ToolResult.Text(issues.Count == 0
+                        ? NxText.T($"Issue #{id} não está no board {where}.", $"Issue #{id} is not on board {where}.", $"Issue #{id} no está en el board {where}.")
+                        : WorkItemTreeText(issues, where));
+                }
                 var conn = (s.DevOps() ?? throw new InvalidOperationException("Azure DevOps não configurado.")).Connection;
                 var project = Str(a, "project") is { Length: > 0 } p ? p : s.LastDevOpsProject is { Length: > 0 } last ? last : conn.Project;
                 using var ado = new AzureDevOpsClient(conn with { Project = project });
-                var id = Int(a, "id") ?? throw new ArgumentException("id");
                 var nodes = await ado.TreeAsync(id, Bool(a, "open_only"), Math.Clamp(Int(a, "max") ?? 300, 1, 1000), ct);
                 return ToolResult.Text(nodes.Count == 0
                     ? NxText.T($"Work item #{id} não encontrado no projeto {project} (ou sem acesso).", $"Work item #{id} not found in project {project} (or no access).", $"Work item #{id} no encontrado en el proyecto {project} (o sin acceso).")
@@ -637,6 +648,86 @@ public static class CoreTools
         sb.Append("\nBy state: ").Append(string.Join(", ", nodes.Skip(1).GroupBy(n => n.State).Select(g => $"{g.Key} {g.Count()}")));
         sb.Append(" · By type: ").Append(string.Join(", ", nodes.Skip(1).GroupBy(n => n.Type).Select(g => $"{g.Key} {g.Count()}")));
         return sb.ToString();
+    }
+
+    // ================================================================ NXProject (gravação no DevOps/GitProject pelo NXProject instalado)
+
+    /// <summary>Conexão da extensão Work items (a do NXProject ou a própria) no formato da NxAgentApi, com o PAT/token cifrado.</summary>
+    private static JsonObject NXProjectConnection(JsonObject a)
+    {
+        var s = WorkItemSettings.Load();
+        var git = Str(a, "source")?.Contains("git", StringComparison.OrdinalIgnoreCase) ?? s.DevOps() == null;
+        if (git)
+            return NXProjectBridge.GitProjectConnection((s.GitHub() ?? throw new InvalidOperationException(NxText.T("GitHub Projects não configurado (Extensão MCP → Work items, ou no NXProject).", "GitHub Projects not configured (MCP Extension → Work items, or in NXProject).", "GitHub Projects no configurado (Extensión MCP → Work items, o en NXProject)."))).Connection);
+        var conn = (s.DevOps() ?? throw new InvalidOperationException(NxText.T("Azure DevOps não configurado (Extensão MCP → Work items, ou no NXProject).", "Azure DevOps not configured (MCP Extension → Work items, or in NXProject).", "Azure DevOps no configurado (Extensión MCP → Work items, o en NXProject)."))).Connection;
+        var project = Str(a, "project") is { Length: > 0 } p ? p : s.LastDevOpsProject is { Length: > 0 } last ? last : conn.Project;
+        return NXProjectBridge.DevOpsConnection(conn with { Project = project });
+    }
+
+    private static bool NXProjectReady() =>
+        NXProjectBridge.Info().Available && WorkItemSettings.Load() is var s && (s.DevOps() != null || s.GitHub() != null);
+
+    private static IEnumerable<NxTool> NXProject()
+    {
+        yield return new NxTool
+        {
+            Name = "nxproject_status", Extension = "NXProject", ReadOnly = true, Available = _ => NXProjectReady(),
+            Description = "Who owns the DevOps PAT / GitHub token used by NXProject and whether they may write (restricted Adm_NX rule) under a work item. Call it before nxproject_create_items.",
+            Schema = NxTool.ParseSchema("""
+                {"type":"object","properties":{
+                  "source":{"type":"string","enum":["devops","gitproject"]},
+                  "project":{"type":"string","description":"Azure DevOps team project (default: the one in use)"},
+                  "item_id":{"type":"integer","description":"Work item under which you plan to create items"}}}
+                """),
+            Run = async (a, _, ct) =>
+            {
+                var req = NXProjectConnection(a);
+                if (Int(a, "item_id") is { } id) req["itemId"] = id;
+                var r = await NXProjectBridge.StatusAsync(req, ct);
+                if (r["ok"]?.GetValue<bool>() != true) return ToolResult.Error("NXProject: " + r["error"]);
+                var can = r["canWrite"] is JsonValue v ? (v.GetValue<bool>() ? "YES" : "NO") : "(give item_id to check)";
+                return ToolResult.Text($"NXProject · {r["backend"]} · user: {r["user"]}\nCan write: {can}{(r["rule"]?.ToString() is { Length: > 0 } rule ? $" · rule: {rule}" : "")}{(r["reason"]?.ToString() is { Length: > 0 } reason ? $" · {reason}" : "")}" +
+                                       (r["item"] is JsonObject item ? $"\nItem: {item["type"]} #{item["id"]} · {item["title"]} (Work Item Project #{item["rootId"]})" : ""));
+            },
+        };
+        yield return new NxTool
+        {
+            Name = "nxproject_create_items", Extension = "NXProject", Available = _ => NXProjectReady(),
+            Description = "Create child work items (e.g. the Tasks of a User Story) in Azure DevOps / GitHub Projects THROUGH NXProject: its field conventions and the Adm_NX rule apply " +
+                          "(not allowed or not verifiable = nothing is created). Only creates — never edits or deletes. The user approves each call. " +
+                          "Never call the DevOps/GitHub API directly for this. items: [{kind (\"Task\" default, \"User Story\", \"Feature\", \"Epic\"), title, description?, assignedTo?, hours?, start? (yyyy-mm-dd)}] (max 50).",
+            Schema = NxTool.ParseSchema("""
+                {"type":"object","required":["parent_id","items"],"properties":{
+                  "source":{"type":"string","enum":["devops","gitproject"]},
+                  "project":{"type":"string","description":"Azure DevOps team project (default: the one in use)"},
+                  "parent_id":{"type":"integer","description":"Parent work item id (or GitHub issue number)"},
+                  "items":{"type":"array","items":{"type":"object"}}}}
+                """),
+            Risk = (a, _) =>
+            {
+                var items = a["items"] as JsonArray ?? new JsonArray();
+                var titles = string.Join("; ", items.OfType<JsonObject>().Take(8).Select(i => i["title"]?.ToString() ?? "?"));
+                return NxTool.Medium(NxText.T(
+                    $"cria {items.Count} item(ns) em #{Int(a, "parent_id")} no {(Str(a, "source") ?? "devops")} pelo NXProject: {titles}{(items.Count > 8 ? "…" : "")}",
+                    $"creates {items.Count} item(s) under #{Int(a, "parent_id")} in {(Str(a, "source") ?? "devops")} through NXProject: {titles}{(items.Count > 8 ? "…" : "")}",
+                    $"crea {items.Count} elemento(s) en #{Int(a, "parent_id")} en {(Str(a, "source") ?? "devops")} vía NXProject: {titles}{(items.Count > 8 ? "…" : "")}"));
+            },
+            Run = async (a, _, ct) =>
+            {
+                var req = NXProjectConnection(a);
+                req["parentId"] = Int(a, "parent_id") ?? 0;
+                req["items"] = Arr(a, "items").DeepClone();
+                var r = await NXProjectBridge.CreateItemsAsync(req, ct);
+                if (r["ok"]?.GetValue<bool>() != true) return ToolResult.Error("NXProject: " + r["error"]);
+                if (r["allowed"]?.GetValue<bool>() != true)
+                    return ToolResult.Error(NxText.T($"NXProject recusou (Adm_NX): {r["reason"]}. Nada foi criado.", $"NXProject refused (Adm_NX): {r["reason"]}. Nothing was created.", $"NXProject rechazó (Adm_NX): {r["reason"]}. No se creó nada."));
+                var created = (r["created"] as JsonArray ?? new JsonArray()).OfType<JsonObject>().ToList();
+                var failed = (r["failed"] as JsonArray ?? new JsonArray()).OfType<JsonObject>().ToList();
+                var text = $"Created {created.Count} item(s) under #{Int(a, "parent_id")}:\n" + string.Join("\n", created.Select(c => $"- #{c["id"]} [{c["kind"]}] {c["title"]}{(c["message"]?.ToString() is { Length: > 0 } m ? $" ({m})" : "")}"));
+                if (failed.Count > 0) text += $"\nNot created ({failed.Count}):\n" + string.Join("\n", failed.Select(f => $"- {f["title"]}: {f["message"]}"));
+                return created.Count == 0 ? ToolResult.Error(text) : ToolResult.Text(text);
+            },
+        };
     }
 
     // ================================================================ Teams

@@ -15,6 +15,26 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**🔗 Extensão NXProject — criar work items pelo NXProject (DevOps e GitProject)**
+
+- Os agentes criam itens (ex.: as Tasks de uma Story, uma Story numa Feature) pela ferramenta MCP **`nxproject_create_items`**, que passa pelo **NXProject instalado**: os campos e padrões dele e a regra **Adm_NX** valem. Se não der para conferir a regra, nada é criado; cada criação passa pela sua aprovação (MÉDIO). Só cria — nunca altera nem apaga.
+- **`nxproject_status`**: dono do PAT/token e se pode gravar ali. **`workitems_tree`** agora lê também o **GitHub Projects** (`source: gitproject`).
+- Aba **NXProject** na Extensão MCP: conexão do DevOps e do GitProject, PAT mascarado, botão **Conferir dono e permissão**.
+- O NXPilot carrega o NXProject instalado pela memória: ele atualiza com o NXPilot aberto, e sem NXProject (ou antigo) nada quebra — a extensão só pede para atualizar. Requer o **NXProject 1.2.0.25** ou mais novo.
+
+**🧭 Regras do plano por agente (Configurar)**
+
+- Um texto para Claude Code, Codex e NXAgentic que vai no fim de todo pedido de plano: no plano só se lê e propõe; criar, alterar ou enviar algo fica para a execução, depois da sua aprovação. Editável, com **Restaurar padrão**.
+
+**🔒 Segredos fora do alcance do agente**
+
+- Viram **ALTO** no gate: ler as conexões e tokens do NXPilot, do NXProject e dos agentes, decifrar segredos do Windows (DPAPI), carregar as DLLs do NXProject/NXPilot por fora e chamar a API do DevOps/GitHub direto.
+
+**🛠 Correções**
+
+- **Codex** agora consegue usar as ferramentas do MCP NXPilot que gravam (a aprovação era respondida no formato errado e o Codex entendia recusa).
+- Work items citados: item de referência (ex.: story encerrada) é lido inteiro; tarefa de criar work items entrega os itens, não código.
+
 **📎 Work items citados na tarefa, como anexos — vários de uma vez**
 
 - Na lista de Work items, marque ☐ **um ou mais itens de qualquer nível** (Project, EPIC, EPIC_GROUP, Feature, Story, Task). As marcas continuam ao trocar o Work Item Project, o projeto ou o estado — dá para juntar a Story nova e a encerrada de referência. **"Criar tarefa com N itens"**.

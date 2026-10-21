@@ -174,6 +174,50 @@ public sealed class GitHubProjectsClient(GitHubProjectConnection connection, Htt
     }
 
     /// <summary>
+    /// A issue e as sub-issues abaixo dela no board, na ordem da árvore (nível 0 = a escolhida),
+    /// com tipo (tipo da issue ou nível), estado, status do board e responsáveis — o par do
+    /// TreeAsync do DevOps. <paramref name="openOnly"/> tira as fechadas, mas mantém os pais delas.
+    /// </summary>
+    public async Task<IReadOnlyList<WorkItemNode>> TreeAsync(int rootNumber, bool openOnly = false, int max = 300, int maxPages = 5, CancellationToken ct = default)
+    {
+        var (_, items) = await LoadBoardAsync(maxPages, ct);
+        var byNumber = items.Where(i => i.IsIssue).GroupBy(i => i.Number).ToDictionary(g => g.Key, g => g.First());
+        if (!byNumber.ContainsKey(rootNumber)) return Array.Empty<WorkItemNode>();
+        var children = items.Where(i => i.IsIssue && i.Parent > 0).GroupBy(i => i.Parent).ToDictionary(g => g.Key, g => g.Select(i => i.Number).ToList());
+
+        var order = new List<(int Number, int Parent, int Depth)>();
+        void Walk(int n, int parent, int depth)
+        {
+            if (order.Count >= 2000 || order.Any(o => o.Number == n)) return;
+            order.Add((n, parent, depth));
+            foreach (var c in children.GetValueOrDefault(n) ?? []) Walk(c, n, depth + 1);
+        }
+        Walk(rootNumber, 0, 0);
+
+        HashSet<int>? keep = null;
+        if (openOnly)
+        {
+            var parentOf = order.ToDictionary(o => o.Number, o => o.Parent);
+            keep = new HashSet<int> { rootNumber };
+            foreach (var o in order.Where(o => byNumber[o.Number].Open))
+                for (var cur = o.Number; cur != 0 && keep.Add(cur); cur = parentOf.GetValueOrDefault(cur)) { }
+        }
+
+        var result = new List<WorkItemNode>();
+        foreach (var (n, parent, depth) in order)
+        {
+            if (keep != null && !keep.Contains(n)) continue;
+            var i = byNumber[n];
+            var (description, criteria) = SplitCriteria(i.Body);
+            var state = i.Open ? i.Status ?? NxText.T("Aberta", "Open", "Abierta") : NxText.T("Fechada", "Closed", "Cerrada") + (i.Status is { } s ? $" ({s})" : "");
+            result.Add(new WorkItemNode(n, parent, depth, i.IssueType ?? i.Level ?? "Issue", i.Title, state, string.Join(", ", i.Assignees),
+                null, null, "", description, criteria, i.Url));
+            if (result.Count >= max) break;
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Itens abertos atribuídos a mim (issues abertas e rascunhos), na ordem do board. Com
     /// <paramref name="rootIssue"/>, só os que descendem dela na árvore de sub-issues.
     /// </summary>

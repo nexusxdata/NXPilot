@@ -77,12 +77,22 @@ if (args.Length > 1 && args[0] is "--mail-login" or "--mail" && OperatingSystem.
     return await MailTestAsync(args[0] == "--mail-login", args[1], args.Length > 2 ? args[2] : null);
 
 // Teste de ponta a ponta com o Claude Code real: NXPilot.Bench.exe --agent-test [modelo]
+// --plan-sim <claude|codex> <projeto> <intenção> <id> [id…]: o plano como o app pede, com os work items citados
+// (tipo/título lidos do DevOps), o agente real, o MCP real e o gate de regras. Diagnóstico.
+if (args.Length > 4 && args[0] == "--plan-sim" && OperatingSystem.IsWindows())
+    return await PlanSimAsync(args[1], args[2], args[3], args.Skip(4).Select(int.Parse).ToList());
+
+// --exec-sim <claude|codex> <prompt>: o agente em modo EXECUÇÃO (fora do plano), com o MCP real; o gate libera
+// MÉDIO como se o usuário aprovasse no painel (ALTO continua negado). Para testes autorizados de gravação.
+if (args.Length > 2 && args[0] == "--exec-sim" && OperatingSystem.IsWindows())
+    return await PlanSimAsync(args[1], "", "", new List<int>(), execPrompt: args[2]);
+
 // --codex-plan-sim <id> <projeto> <título> <intenção>: o plano da tarefa como o app pede (planejador Basic), com o Codex real e o MCP real.
 if (args.Length > 4 && args[0] == "--codex-plan-sim" && OperatingSystem.IsWindows())
 {
     var citations = new List<NXPilot.Planning.Citation> { NXPilot.Planning.TaskCitations.ForWorkItem([], "User Story", int.Parse(args[1]), args[3], args[2], $"https://dev/{args[1]}") };
     var intent = args[4] + "\n\n" + citations[0].Marker + NXPilot.Planning.TaskCitations.Legend(citations) + "\n\n" +
-        "Os work items citados ([story01], [task01], [epic01]…) vêm do Azure DevOps, não do repositório: leia cada um — e o que está abaixo dele — com a ferramenta MCP workitems_tree (id e project na legenda acima; open_only=true para só o pendente) antes de planejar.";
+        "Os work items citados ([story01], [task01], [epic01]…) vêm do Azure DevOps, não do repositório: leia cada um — e o que está abaixo dele — com a ferramenta MCP workitems_tree (id e project na legenda acima) antes de planejar. Item de referência (ex.: uma story encerrada usada como modelo): leia TUDO, sem open_only — as tasks fechadas dele são o modelo. open_only=true só para ver o que falta no item a trabalhar. Se a tarefa for criar ou organizar work items (ex.: criar as tasks de uma story com base em outra), o entregável são os itens no DevOps/GitHub, não código: o plano é uma fase que cria os itens com a ferramenta MCP nxproject_create_items (com \"files\": []) — confira antes com nxproject_status se o usuário pode gravar ali. No plano, proponha a lista (tipo, título, horas, responsável). O repositório pode estar vazio.";
     var planPrompt = NXPilot.Agents.TaskPlanning.PlanPrompt(args[3], intent, "(não informados)");
     Console.WriteLine("---- prompt do plano ----\n" + planPrompt + "\n-------------------------");
     return await CodexMcpTestAsync(int.Parse(args[1]), args[2], planPrompt);
@@ -232,6 +242,83 @@ static async Task WhatsAppContractAsync(List<string> failures)
 
 // Repositório descartável → worktree → plano (modo plan) → execução (--resume) → diff.
 // O gate deste teste usa só as regras: ALTO é negado, o resto é liberado e registrado.
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+static async Task<int> PlanSimAsync(string agent, string project, string intentText, List<int> ids, string? execPrompt = null)
+{
+    var execute = execPrompt != null;
+    var settings = NXPilot.Integrations.WorkItemSettings.Load();
+    var conn = (settings.DevOps() ?? throw new InvalidOperationException("Azure DevOps não configurado.")).Connection with { Project = project };
+    var citations = new List<NXPilot.Planning.Citation>();
+    using (var ado = new NXPilot.Integrations.AzureDevOpsClient(conn))
+        foreach (var id in ids)
+        {
+            var n = (await ado.TreeAsync(id, max: 1)).First();
+            citations.Add(NXPilot.Planning.TaskCitations.ForWorkItem(citations, n.Type, n.Id, n.Title, project, n.Url));
+        }
+    var title = string.Join(" · ", ids.Select(i => $"#{i}"));
+    var intent = intentText + NXPilot.Planning.TaskCitations.Legend(citations) + "\n\n" +
+        "Os work items citados ([story01], [task01], [epic01]…) vêm do Azure DevOps, não do repositório: leia cada um — e o que está abaixo dele — com a ferramenta MCP workitems_tree (id e project na legenda acima) antes de planejar. Item de referência (ex.: uma story encerrada usada como modelo): leia TUDO, sem open_only — as tasks fechadas dele são o modelo. open_only=true só para ver o que falta no item a trabalhar. Se a tarefa for criar ou organizar work items (ex.: criar as tasks de uma story com base em outra), o entregável são os itens no DevOps/GitHub, não código: o plano é uma fase que cria os itens com a ferramenta MCP nxproject_create_items (com \"files\": []) — confira antes com nxproject_status se o usuário pode gravar ali. No plano, proponha a lista (tipo, título, horas, responsável). O repositório pode estar vazio.";
+    var planPrompt = execute ? execPrompt! : NXPilot.Planning.PlanRules.Apply(NXPilot.Agents.TaskPlanning.PlanPrompt(title, intent, "(não informados)"),
+        NXPilot.Planning.PlanRules.Default(agent.StartsWith("codex", StringComparison.OrdinalIgnoreCase)));
+    Console.WriteLine("---- prompt do plano ----\n" + planPrompt + "\n-------------------------");
+
+    var wt = Path.Combine(Path.GetTempPath(), "nx-plan-sim-" + DateTime.Now.ToString("HHmmss"));
+    Directory.CreateDirectory(wt);
+    File.WriteAllText(Path.Combine(wt, "README.md"), "# Frotec\n");
+    var bridge = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\NXPilot.Desktop\bin\Release\net10.0-windows\NxPilot.exe"));
+    var log = new List<string>();
+    var mcpPipe = "NXPilot.Mcp.sim." + Environment.ProcessId;
+    var host = new NXPilot.Mcp.NxToolHost(NXPilot.Mcp.CoreTools.All());
+    var ctx = new NXPilot.Mcp.ToolContext
+    {
+        Worktree = wt, ReadOnlyPhase = !execute,
+        Approve = (action, risk, _) => { lock (log) log.Add($"  [mcp gate] {action} → {risk.Level} → {(risk.Level != RiskLevel.Alto ? "APROVADO" : "NEGADO")}"); return Task.FromResult(risk.Level != RiskLevel.Alto); },
+    };
+    using var cts = new CancellationTokenSource();
+    _ = NXPilot.Mcp.McpPipe.ServeAsync(mcpPipe, async (req, ct) =>
+    {
+        lock (log) log.Add($"  [mcp] {req["method"]} {req["params"]?["name"]}");
+        return await host.HandleAsync(req, ctx, ct);
+    }, cts.Token);
+    var rules = new RuleRiskClassifier();
+    async Task<NXPilot.Agents.GateResponse> Gate(NXPilot.Agents.GateRequest req)
+    {
+        var r = await rules.ClassifyAsync(req.Action);
+        var allow = r.Level != RiskLevel.Alto;
+        lock (log) log.Add($"  [gate] {req.Action} → {r.Level} → {(allow ? "LIBERADO" : "NEGADO")}");
+        return new NXPilot.Agents.GateResponse(allow, r.Level.ToString());
+    }
+    var launch = new NXPilot.Agents.McpLaunch(bridge, mcpPipe);
+    NXPilot.Agents.IAgentAdapter adapter;
+    string? model = null;
+    if (agent.StartsWith("codex", StringComparison.OrdinalIgnoreCase))
+    {
+        adapter = new NXPilot.Agents.CodexAppServerAdapter(Gate) { Mcp = launch };
+        model = Environment.GetEnvironmentVariable("NX_CODEX_MODEL") ?? "gpt-5.6-terra";
+    }
+    else
+    {
+        var gatePipe = "NXPilot.Gate.sim." + Environment.ProcessId;
+        _ = NXPilot.Agents.GatePipe.ServeAsync(gatePipe, Gate, cts.Token);
+        adapter = new NXPilot.Agents.ClaudeCodeAdapter($"\"{Environment.ProcessPath}\" --hook", gatePipe) { Mcp = launch };
+    }
+    Console.WriteLine($"{adapter.Name}: {adapter.ExecutablePath ?? "NÃO ENCONTRADO"} · worktree {wt}\n");
+    var answer = "";
+    await foreach (var ev in adapter.RunAsync(new NXPilot.Agents.AgentRequest(planPrompt, wt, execute ? NXPilot.Agents.AgentMode.Execute : NXPilot.Agents.AgentMode.Plan, Model: model)))
+    {
+        if (ev.Kind is NXPilot.Agents.AgentEventKind.Text or NXPilot.Agents.AgentEventKind.Result && ev.Text.Length > 0) answer = ev.Text;
+        Console.WriteLine($"  {ev.Kind,-10} {ev.Text.Replace('\n', ' ')[..Math.Min(ev.Text.Length, 200)]}");
+        lock (log) { log.ForEach(Console.WriteLine); log.Clear(); }
+    }
+    lock (log) log.ForEach(Console.WriteLine);
+    (adapter as IDisposable)?.Dispose();
+    cts.Cancel();
+    Console.WriteLine("\n==== RESPOSTA FINAL ====\n" + answer);
+    Console.WriteLine("\n==== LEITURA DO NXPILOT ====\nbloqueado: " + (NXPilot.Agents.TaskPlanning.PlanBlockedReason(answer) ?? "não") +
+        "\nfases: " + string.Join(" | ", NXPilot.Agents.TaskPlanning.ParsePhases(answer).Select(f => $"{f.Number}. {f.Title}")));
+    return 0;
+}
+
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 static async Task<int> CodexMcpTestAsync(int workItemId, string? project, string? fullPrompt = null)
 {

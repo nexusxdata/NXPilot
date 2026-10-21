@@ -32,6 +32,33 @@ public sealed class AppSettings
     /// <summary>MCP NXPilot parado em Configurar: continua parado ao reabrir o app (padrão: ligado).</summary>
     public bool McpStopped { get; set; }
 
+    /// <summary>Regras do plano (fim de todo pedido de plano) por agente; nulo = padrão de <see cref="NXPilot.Planning.PlanRules"/>.</summary>
+    public string? PlanRulesClaude { get; set; }
+    public string? PlanRulesCodex { get; set; }
+    public string? PlanRulesNXAgentic { get; set; }
+
+    public string PlanRulesFor(bool codex) => PlanRulesFor(codex ? "Codex" : "Claude");
+
+    /// <summary>Regra gravada do agente ("Claude", "Codex", "NXAgentic") ou o padrão dele.</summary>
+    public string PlanRulesFor(string agent) => agent switch
+    {
+        "Codex" => PlanRulesCodex,
+        "NXAgentic" => PlanRulesNXAgentic,
+        _ => PlanRulesClaude,
+    } ?? NXPilot.Planning.PlanRules.Default(agent == "Codex");
+
+    /// <summary>Grava a regra do agente; o padrão (ou vazio) volta a ser "usar o padrão".</summary>
+    public void SetPlanRules(string agent, string? text)
+    {
+        var value = string.IsNullOrWhiteSpace(text) || text.Trim() == NXPilot.Planning.PlanRules.Default(agent == "Codex").Trim() ? null : text.Trim();
+        switch (agent)
+        {
+            case "Codex": PlanRulesCodex = value; break;
+            case "NXAgentic": PlanRulesNXAgentic = value; break;
+            default: PlanRulesClaude = value; break;
+        }
+    }
+
     /// <summary>
     /// Padrão por assunto (chave: pasta do assunto): agente, modelos e revisor que voltam sozinhos
     /// ao escolher o assunto na Nova tarefa. Assunto sem padrão segue a última escolha.
