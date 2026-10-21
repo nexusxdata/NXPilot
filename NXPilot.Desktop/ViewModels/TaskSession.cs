@@ -145,6 +145,9 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     /// <summary>Decisões do gate desta tarefa (nível e resultado) — Histórico: coluna e filtro de riscos.</summary>
     public List<RiskEntry> Risks { get; } = new();
 
+    /// <summary>Quanto a execução deve levar (pelo histórico), mostrado antes de aprovar o plano; nulo sem histórico suficiente.</summary>
+    public string? EstimateText { get; set; }
+
     public bool CanApprove => State == TaskState.AwaitingApproval;
     public bool CanDiscard => State == TaskState.AwaitingApproval;
     public bool IsRunning => State is TaskState.Preparing or TaskState.Planning or TaskState.Executing or TaskState.Verifying;
@@ -187,7 +190,8 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
         TaskState.Planning => T($"{ExecutorName} está planejando (somente leitura)…", $"{ExecutorName} is planning (read-only)…", $"{ExecutorName} está planificando (solo lectura)…"),
         TaskState.AwaitingApproval when Info.AsTemplate => T($"Plano do hook pronto ({Phases.Count} fase(s)) — aprove para a execução de teste (os riscos que você aprovar nela ficam pré-aprovados)", $"Hook plan ready ({Phases.Count} phase(s)) — approve for the test run (the risks you approve in it become pre-approved)", $"Plan del hook listo ({Phases.Count} fase(s)) — apruebe para la ejecución de prueba (los riesgos que apruebe quedan preaprobados)"),
         TaskState.Done when Info.AsTemplate => T("Execução de teste concluída — confira e clique em ⚡ Armar hook (modo escuta)", "Test run done — check it and click ⚡ Arm hook (listening mode)", "Ejecución de prueba concluida — revísela y haga clic en ⚡ Armar hook (modo escucha)"),
-        TaskState.AwaitingApproval => T($"Plano pronto ({Phases.Count} fase(s)) — aguardando a sua aprovação", $"Plan ready ({Phases.Count} phase(s)) — waiting for your approval", $"Plan listo ({Phases.Count} fase(s)) — esperando su aprobación"),
+        TaskState.AwaitingApproval => T($"Plano pronto ({Phases.Count} fase(s)) — aguardando a sua aprovação", $"Plan ready ({Phases.Count} phase(s)) — waiting for your approval", $"Plan listo ({Phases.Count} fase(s)) — esperando su aprobación")
+            + (EstimateText is { } est ? " · " + est : ""),
         TaskState.Executing when FixingFindings => T("Analisando e corrigindo os achados da verificação — ações passam pelo gate", "Analyzing and fixing the verification findings — actions go through the gate", "Analizando y corrigiendo los hallazgos de la verificación — las acciones pasan por el gate"),
         TaskState.Executing => T($"Executando a fase {PhaseStatus.IndexOf("Rodando") + 1} de {Phases.Count} — ações passam pelo gate", $"Running phase {PhaseStatus.IndexOf("Rodando") + 1} of {Phases.Count} — actions go through the gate", $"Ejecutando la fase {PhaseStatus.IndexOf("Rodando") + 1} de {Phases.Count} — las acciones pasan por el gate"),
         TaskState.Verifying => T("Verificação cruzada: outro agente revisa o diff (somente leitura)…", "Cross-verification: another agent reviews the diff (read-only)…", "Verificación cruzada: otro agente revisa el diff (solo lectura)…"),

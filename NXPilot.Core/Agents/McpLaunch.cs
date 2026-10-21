@@ -46,5 +46,7 @@ public sealed record McpLaunch(string Executable, string PipeName)
         "-c", $"mcp_servers.{McpServer.ServerName}.command='{Executable}'",
         "-c", $"mcp_servers.{McpServer.ServerName}.args=[\"{Argument}\"]",
         "-c", $"mcp_servers.{McpServer.ServerName}.env={{{McpPipe.PipeEnvVar}=\"{PipeName}\"}}",
+        // Ferramenta que espera a pessoa (aprovar, escolher figuras) passa do limite padrão de 60 s do Codex.
+        "-c", $"mcp_servers.{McpServer.ServerName}.tool_timeout_sec=1800",
     ];
 }

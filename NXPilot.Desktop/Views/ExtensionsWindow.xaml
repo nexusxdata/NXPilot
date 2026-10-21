@@ -293,6 +293,32 @@
             </TabItem>
 
             <!-- ============================== Power BI Desktop ============================== -->
+            <!-- ============================== PowerPoint (figuras para slides) ============================== -->
+            <TabItem x:Name="PowerPointTab">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse x:Name="PptDot" Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="PowerPoint"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <StackPanel>
+                    <Border Background="#EEF4FB" CornerRadius="4" Padding="10,8">
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#24527A" Text="{DynamicResource Ext_PptComo}"/>
+                    </Border>
+                    <TextBlock Text="{DynamicResource Ext_PptPasta}" FontWeight="SemiBold" Margin="0,14,0,4"/>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="{DynamicResource Ext_PptEscolherPasta}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnPptFolderClick"/>
+                        <TextBox x:Name="PptFolderBox" Padding="4,3"/>
+                    </DockPanel>
+                    <TextBlock Text="{DynamicResource Ext_PptPastaDica}" TextWrapping="Wrap" FontSize="11" Foreground="DimGray" Margin="0,2,0,0"/>
+                    <TextBlock Text="{DynamicResource Ext_PptFontes}" FontWeight="SemiBold" Margin="0,14,0,4"/>
+                    <CheckBox x:Name="PptOpenverseBox" Content="{DynamicResource Ext_PptOpenverse}" Margin="0,2"/>
+                    <CheckBox x:Name="PptWikimediaBox" Content="{DynamicResource Ext_PptWikimedia}" Margin="0,2"/>
+                    <CheckBox x:Name="PptNasaBox" Content="{DynamicResource Ext_PptNasa}" Margin="0,2"/>
+                    <CheckBox x:Name="PptNcBox" Content="{DynamicResource Ext_PptNc}" Margin="0,8,0,2"/>
+                </StackPanel>
+            </TabItem>
+
             <TabItem x:Name="PowerBiTab">
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">

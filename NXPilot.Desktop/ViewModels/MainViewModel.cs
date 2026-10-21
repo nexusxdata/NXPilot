@@ -270,7 +270,7 @@ public sealed partial class MainViewModel : ObservableObject
         // Regras do plano do agente (Configurar): no plano só se lê e propõe — vale para qualquer tarefa.
         planPrompt = NXPilot.Planning.PlanRules.Apply(planPrompt, AppSettings.Load().PlanRulesFor(info.Executor == ExecutorKind.Codex));
         var plan = await RunAgentAsync(task, adapter, new AgentRequest(planPrompt, task.Worktree!, AgentMode.Plan,
-            Model: info.Executor == ExecutorKind.Codex ? info.CodexModel : info.Model));
+            Model: info.Executor == ExecutorKind.Codex ? (info.CodexModel is { Length: > 0 } cm ? cm : NXPilot.Agents.CodexAppServerAdapter.TestedModels[0]) : info.Model));
         if (task.State != TaskState.Planning) return; // falhou ou foi interrompida
 
         // Sem plano executável (bloqueado, sem fases): não vai para "aprovar e executar".
@@ -287,12 +287,19 @@ public sealed partial class MainViewModel : ObservableObject
         task.Phases = outcome.Phases.ToList();
         task.PhaseStatus = task.Phases.Select(_ => "Pendente").ToList();
         task.PlanText = outcome.HumanPlan;
+        // Expectativa antes de aprovar: quanto a execução deve levar, pelo histórico do mesmo agente.
+        task.EstimateText = TaskEstimate.For(task.Phases.Count, task.Info.Executor, task.Info.Reviewer != ReviewerKind.None) is { } est
+            ? T($"estimativa: {TaskEstimate.Format(est.Total)} (pelas suas {est.Samples} tarefas concluídas, com as aprovações no caminho)",
+                $"estimate: {TaskEstimate.Format(est.Total)} (from your {est.Samples} finished tasks, including approvals along the way)",
+                $"estimación: {TaskEstimate.Format(est.Total)} (por sus {est.Samples} tareas concluidas, con las aprobaciones en el camino)")
+            : null;
         task.State = TaskState.AwaitingApproval;
         RenderPhases(task);
         Artifacts.Add(new ArtifactItem("🗺", T($"Plano do agente · {task.Phases.Count} fase(s)", $"Agent plan · {task.Phases.Count} phase(s)", $"Plan del agente · {task.Phases.Count} fase(s)"), T("aguardando aprovação", "awaiting approval", "esperando aprobación")));
         SetAgent(ExecutorName, "Aguardando", T("plano pronto — aguardando você", "plan ready — waiting for you", "plan listo — esperando por usted"));
         ResolveApprovalNotice(task); // um plano novo substitui o aviso do anterior
-        _approvalNotices[task.Id] = Notifications.Notify(NotificationKind.Task, T("Plano pronto para aprovar", "Plan ready for approval", "Plan listo para aprobar"), T($"{task.Title} · {task.Phases.Count} fase(s)", $"{task.Title} · {task.Phases.Count} phase(s)", $"{task.Title} · {task.Phases.Count} fase(s)"));
+        _approvalNotices[task.Id] = Notifications.Notify(NotificationKind.Task, T("Plano pronto para aprovar", "Plan ready for approval", "Plan listo para aprobar"), T($"{task.Title} · {task.Phases.Count} fase(s)", $"{task.Title} · {task.Phases.Count} phase(s)", $"{task.Title} · {task.Phases.Count} fase(s)")
+            + (task.EstimateText is { } estimate ? " · " + estimate : ""));
         Persist();
     }
 
@@ -324,7 +331,7 @@ public sealed partial class MainViewModel : ObservableObject
         AddLog(T("Você", "You", "Usted"), T("aprovado", "approved", "aprobado"), T($"Plano aprovado: {task.Title}", $"Plan approved: {task.Title}", $"Plan aprobado: {task.Title}"));
         ReplacePlanArtifact(T("aprovado por você", "approved by you", "aprobado por usted"));
         _followRunningPhase = true;
-        ShowPhaseTerminal = true;
+        ShowPhaseTerminal = false; // detalhe só ao clicar em Detalhar
         PlanApproved?.Invoke();
         await ExecutePhasesAsync(task, note);
     }
@@ -566,7 +573,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         var executor = _executor ?? NewExecutor(task);
         var summary = await RunAgentAsync(task, executor, new AgentRequest(TaskPlanning.FixFindingsPrompt(verification), task.Worktree!, AgentMode.Execute, task.SessionId,
-            task.Info.Executor == ExecutorKind.Codex ? task.Info.CodexModel : task.Info.Model));
+            task.Info.Executor == ExecutorKind.Codex ? CodexModelFor(task) : task.Info.Model));
         task.FixingFindings = false;
         if (task.State != TaskState.Executing) { task.RunningPhase = null; RenderPhases(task); Persist(); return; } // falhou ou foi interrompida
 
@@ -598,7 +605,7 @@ public sealed partial class MainViewModel : ObservableObject
             var phasePrompt = await Planner.PhasePromptAsync(phase, task.Phases.Count);
             if (resumeNote != null) { phasePrompt = resumeNote + "\n\n" + phasePrompt; resumeNote = null; } // só na primeira fase retomada
             var summary = await RunAgentAsync(task, executor, new AgentRequest(phasePrompt, task.Worktree!, AgentMode.Execute, task.SessionId,
-                task.Info.Executor == ExecutorKind.Codex ? task.Info.CodexModel : task.Info.Model));
+                task.Info.Executor == ExecutorKind.Codex ? CodexModelFor(task) : task.Info.Model));
             if (task.State != TaskState.Executing) { task.RunningPhase = null; RenderPhases(task); return; }
 
             var committed = await GitWorktree.CommitAllAsync(task.Worktree!, $"NXPilot · {T("Fase", "Phase", "Fase")} {phase.Number}: {phase.Title}");
@@ -677,7 +684,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         // Os dois revisores rodam SOMENTE LEITURA numa sessão nova (Codex: sandbox read-only; Claude: modo plan).
         IAgentAdapter reviewer = choice.Reviewer == AgentKind.Codex
-            ? new CodexAdapter(ReviewerCodexModel(task)) { OutputSchema = TaskPlanning.VerificationSchema, Mcp = McpHost.Launch }
+            ? new CodexAdapter(CodexModelFor(task)) { OutputSchema = TaskPlanning.VerificationSchema, Mcp = McpHost.Launch }
             : NewClaude();
         if (choice.SameAsExecutor)
             AddLog("Gate", "info", T($"Só o {reviewer.Name} está instalado — ele revisa numa sessão nova, somente leitura (com os dois agentes a revisão é cruzada).",
@@ -686,7 +693,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         SetAgent(reviewer.Name, "Revisando", T("verificação cruzada (somente leitura)", "cross-verification (read-only)", "verificación cruzada (solo lectura)"));
         var answer = await RunAgentAsync(task, reviewer, new AgentRequest(prompt, task.Worktree!, AgentMode.Plan,
-            Model: reviewer is CodexAdapter ? ReviewerCodexModel(task) : task.Info.Model), failTask: false);
+            Model: reviewer is CodexAdapter ? CodexModelFor(task) : task.Info.Model), failTask: false);
 
         var result = TaskPlanning.ParseVerification(answer, reviewer.Name);
         if (task.PowerBi != null && NXPilot.Integrations.PowerBiProject.ValidateChangedFiles(task.Worktree!, diff) is { Count: > 0 } pbiFindings)
@@ -896,11 +903,16 @@ public sealed partial class MainViewModel : ObservableObject
     /// O que a tarefa fez fora do repositório pelo MCP NXPilot e você liberou (aprovado ou por regra):
     /// SQL que grava no Databricks, work items criados, mensagens… O diff não mostra; o revisor precisa saber.
     /// </summary>
-    private static List<string> ExternalActions(TaskSession task) => task.Risks
+    private static string ChoiceKind => T("escolha", "choice", "elección");
+
+    private static List<string> ExternalActions(TaskSession task) => task.Log
+        .Where(l => l.Kind is "escolha" or "choice" or "elección") // o que a pessoa escolheu nas janelas do NXPilot (ex.: figuras)
+        .Select(l => $"{l.Time:HH:mm} {T("(escolha da pessoa) ", "(user's choice) ", "(elección de la persona) ")}{l.Message}")
+        .Concat(task.Risks
         .Where(r => r.Action.StartsWith("Databricks SQL", StringComparison.Ordinal) || r.Action.Contains("MCP nxpilot", StringComparison.Ordinal))
         .Where(r => r.Outcome is "approved" or "rule"                                   // o que mudou algo (você liberou)
                     || (r.Outcome == "auto" && r.Action.Contains("databricks_sql", StringComparison.Ordinal))) // consultas: evidência
-        .Select(r => $"{r.Time:HH:mm} {(r.Outcome == "auto" ? T("(consulta) ", "(query) ", "(consulta) ") : "")}{(r.Action.Length > 400 ? r.Action[..400] + "…" : r.Action)}")
+        .Select(r => $"{r.Time:HH:mm} {(r.Outcome == "auto" ? T("(consulta) ", "(query) ", "(consulta) ") : "")}{(r.Action.Length > 400 ? r.Action[..400] + "…" : r.Action)}"))
         .Distinct().TakeLast(40).ToList();
 
     /// <summary>Rodadas de correção anteriores para o revisor: achados enviados e a resposta do executor.</summary>
@@ -909,10 +921,10 @@ public sealed partial class MainViewModel : ObservableObject
         $"\n  {T("Executor", "Executor", "Ejecutor")} ({(r.Committed ? T("alterou arquivos", "changed files", "cambió archivos") : T("sem alterações", "no changes", "sin cambios"))}): {Trim(r.Summary, 1500)}"));
 
     /// <summary>
-    /// Modelo do Codex revisor: o da tarefa; sem ele, o testado com o NXPilot — o padrão do config.toml
-    /// pode ser um modelo que a conta ChatGPT recusa, e aí não há revisão nenhuma.
+    /// Modelo do Codex (executor e revisor): o da tarefa; sem ele (tarefa por evento, clone antigo), o testado com o NXPilot —
+    /// o padrão do config.toml pode ser um modelo que a conta ChatGPT recusa, e aí a tarefa nem começa.
     /// </summary>
-    private static string ReviewerCodexModel(TaskSession task) =>
+    private static string CodexModelFor(TaskSession task) =>
         task.Info.CodexModel is { Length: > 0 } m ? m : NXPilot.Agents.CodexAppServerAdapter.TestedModels[0];
 
     /// <summary>Revisor efetivo: o outro agente se instalado; senão o mesmo, em sessão nova (ver ReviewerChoice).</summary>
@@ -953,7 +965,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         (_executor as IDisposable)?.Dispose();
         _executor = task.Info.Executor == ExecutorKind.Codex
-            ? new CodexAppServerAdapter(OnGateRequestAsync, task.Info.CodexModel) { Mcp = McpHost.Launch }
+            ? new CodexAppServerAdapter(OnGateRequestAsync, CodexModelFor(task)) { Mcp = McpHost.Launch }
             : NewClaude();
         return _executor;
     }
@@ -1002,6 +1014,7 @@ public sealed partial class MainViewModel : ObservableObject
                 CitedPaths = NXPilot.Planning.TaskCitations.SplitLegend(task.Info.Intent).Citations
                     .Select(c => c.FullPath).Where(p => Path.IsPathRooted(p)).ToList(),
                 Approve = async (action, risk, _) => (await DecideAsync(ExecutorName, action, risk, wt)).Allow,
+                UserChoice = text => _ = OnUi(() => AddLog(T("Você", "You", "Usted"), ChoiceKind, text)),
             }
             : null);
 

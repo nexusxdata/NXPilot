@@ -123,6 +123,14 @@ if (args.Length > 3 && args[0] == "--db-comments" && OperatingSystem.IsWindows()
     return 0;
 }
 
+// --img-search <termo>: figuras para slides (Openverse + Wikimedia, sem chave), como pptx_image_search. Diagnóstico.
+if (args.Length > 1 && args[0] == "--img-search")
+{
+    var hits = await NXPilot.Integrations.ImageSearch.SearchAsync(string.Join(" ", args.Skip(1)), 6, new NXPilot.Integrations.PowerPointSettings());
+    foreach (var h in hits) Console.WriteLine($"{h.Source} | {h.Title} | {h.Author} | {h.License} | {h.Width}x{h.Height}" + "\n   thumb: " + h.ThumbUrl);
+    return 0;
+}
+
 // --exec-sim <claude|codex> <prompt>: o agente em modo EXECUÇÃO (fora do plano), com o MCP real; o gate libera
 // MÉDIO como se o usuário aprovasse no painel (ALTO continua negado). Para testes autorizados de gravação.
 if (args.Length > 2 && args[0] == "--exec-sim" && OperatingSystem.IsWindows())

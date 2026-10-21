@@ -28,7 +28,7 @@ namespace NXPilot.Mcp;
 public static class CoreTools
 {
     public static IEnumerable<NxTool> All() =>
-        PowerPoint().Concat(Excel()).Concat(PowerBi()).Concat(Databricks()).Concat(Git()).Concat(Mail()).Concat(WorkItems()).Concat(NXProject()).Concat(Teams());
+        PowerPoint().Append(ImageSearchTool()).Concat(Excel()).Concat(PowerBi()).Concat(Databricks()).Concat(Git()).Concat(Mail()).Concat(WorkItems()).Concat(NXProject()).Concat(Teams());
 
     // ================================================================ PowerPoint
 
@@ -36,7 +36,7 @@ public static class CoreTools
         "Each slide is an object with \"layout\" and its fields: " +
         "title {title, subtitle?, footer?}; section {title, subtitle?}; bullets {title, bullets: [\"text\" | {text, level 0-3}]}; " +
         "two_columns {title, left_title?, left: [...], right_title?, right: [...]}; table {title, columns: [..], rows: [[..]]}; " +
-        "image {title, image: path to PNG/JPEG in the worktree, caption?}; kpis {title, items: [{label, value, detail?, trend?: up|down|good|bad}] (max 6)}; " +
+        "image {title, image: path to PNG/JPEG in the worktree, caption?, bullets?: the points the picture illustrates — picture left, text right; use them in lessons}; kpis {title, items: [{label, value, detail?, trend?: up|down|good|bad}] (max 6)}; " +
         "bars {title, unit?, items: [{label, value number}] (horizontal bar chart, max 12)}. Any slide accepts footer. Use **bold** inside texts. " +
         "Keep slides short (max ~6 bullets); split long content into more slides.";
 
@@ -351,6 +351,21 @@ public static class CoreTools
         {
             var path = c.Resolve(Str(a, "path") ?? throw new ArgumentException("path"));
             return Task.FromResult(ToolResult.Text(PowerBiStyle.Describe(path, Str(a, "page"))));
+        },
+    };
+
+    /// <summary>Busca de figuras (só leitura): para o plano saber o que existe; quem insere é pptx_pick_images (a pessoa escolhe).</summary>
+    public static NxTool ImageSearchTool() => new()
+    {
+        Name = "pptx_image_search", Extension = "PowerPoint", ReadOnly = true,
+        Description = "List pictures available for a topic (images folder, Openverse, Wikimedia Commons — only licenses allowed for classroom use): title, author, license, source. " +
+                      "Read-only, for planning. To put pictures into slides use pptx_pick_images: the user sees the thumbnails and chooses.",
+        Schema = NxTool.ParseSchema("""{"type":"object","required":["query"],"properties":{"query":{"type":"string"},"count":{"type":"integer","description":"Default 8"}}}"""),
+        Run = async (a, _, ct) =>
+        {
+            var hits = await ImageSearch.SearchAsync(Req(a, "query"), Math.Clamp(Int(a, "count") ?? 8, 1, 20), PowerPointSettings.Load(), ct);
+            return ToolResult.Text(hits.Count == 0 ? NxText.T("Nada encontrado — tente palavras mais simples.", "Nothing found — try simpler words.", "Nada encontrado — pruebe palabras más simples.")
+                : string.Join("\n", hits.Select(h => $"- {h.Title} · {h.Author} · {h.License} · {h.Source}" + (h.Width > 0 ? $" · {h.Width}x{h.Height}" : ""))));
         },
     };
 

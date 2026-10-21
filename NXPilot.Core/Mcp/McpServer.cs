@@ -25,6 +25,8 @@ public static class McpServer
     public const string Instructions =
         "NXPilot tools for this task (Power BI, PowerPoint, Excel, NXProject, Databricks, Git, e-mail, work items, Teams, Windows apps — only the ones the user configured are listed). " +
         "Paths are relative to the task worktree. " +
+        "Pictures for slides: use pptx_pick_images — the user sees the options and chooses; only free-licensed images (images folder, Openverse, Wikimedia Commons), each with its credit on the slide and on a final credits slide; never download pictures from other sites. " +
+        "A picture supports the content, it does not replace it: a slide with a picture also carries the topics it explains (image layout with bullets), and content slides come from the topics the user asked for. " +
         "For PowerPoint ALWAYS use the pptx_* tools: do not write python-pptx/Node scripts and do not install packages for it; after building, call pptx_render to look at the slides and fix what looks bad. " +
         "For Excel use the xlsx_* tools to inspect (xlsx_info, then xlsx_read with a range) and for small or medium edits; a script is fine only for bulk transformations of thousands of rows. " +
         "To CREATE work items (e.g. the Tasks of a User Story) use nxproject_create_items (it goes through NXProject: its fields and the Adm_NX rule, and the user approves) — never the DevOps/GitHub API directly; check nxproject_status first. " +

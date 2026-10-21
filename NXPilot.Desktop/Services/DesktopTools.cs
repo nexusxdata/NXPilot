@@ -178,6 +178,52 @@ public static class DesktopTools
             },
         };
 
+        yield return new NxTool
+        {
+            Name = "pptx_pick_images", Extension = "PowerPoint",
+            Description = "Find pictures for a slide and let the USER choose: opens a window with thumbnails (images folder, Openverse, Wikimedia Commons — only licenses allowed for classroom use) " +
+                          "and waits; only the ticked pictures are downloaded, resized for slides and saved in the worktree (imagens/). Returns each file path, alt text and the credit line. " +
+                          "Use the path in pptx_build (layout image, caption = credit) and add a final slide \"Créditos das imagens\" with every credit line. Never download pictures from other sites.",
+            Schema = NxTool.ParseSchema("""
+                {"type":"object","required":["query"],"properties":{
+                  "query":{"type":"string","description":"What the picture should show, in simple words. Prefer ENGLISH (the open collections are much larger in English: 'solar system diagram', 'human heart illustration'); the user can still refine it in the window"},
+                  "purpose":{"type":"string","description":"Which slide / what for (shown to the user in the window title)"},
+                  "count":{"type":"integer","description":"How many options to show, default 12"}}}
+                """),
+            Risk = (_, _) => NxTool.Low(NxText.T("a pessoa escolhe as figuras; salva no worktree", "the user picks the pictures; saves in the worktree", "la persona elige las imágenes; guarda en el worktree")),
+            Run = async (a, c, ct) =>
+            {
+                var query = Str(a, "query") ?? throw new ArgumentException("query");
+                var picked = await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    var win = new Views.ImagePickerWindow(query, Str(a, "purpose") ?? "", Math.Clamp(Int(a, "count") ?? 12, 4, 30))
+                        { Owner = System.Windows.Application.Current.MainWindow };
+                    return win.ShowDialog() == true ? win.Selected : null;
+                });
+                if (picked == null) return ToolResult.Error(NxText.T("A pessoa fechou a janela sem escolher. Pergunte se quer outra busca ou seguir sem figura.",
+                    "The user closed the window without choosing. Ask whether to search again or go on without a picture.",
+                    "La persona cerró la ventana sin elegir. Pregunte si quiere otra búsqueda o seguir sin imagen."));
+                if (picked.Count == 0) return ToolResult.Text(NxText.T("Nenhuma figura serviu: siga sem imagem neste slide (ou proponha outras palavras).",
+                    "No picture fit: go on without an image on this slide (or suggest other words).", "Ninguna imagen sirvió: siga sin imagen en esta diapositiva (o proponga otras palabras)."));
+                var folder = Path.Combine(c.Worktree, "imagens");
+                var lines = new List<string>();
+                foreach (var hit in picked)
+                {
+                    try
+                    {
+                        var file = await SlideImages.SaveAsync(hit, folder, ct);
+                        SlideImages.AppendCredit(folder, Path.GetFileName(file), hit);
+                        lines.Add($"- {Path.GetRelativePath(c.Worktree, file).Replace('\\', '/')} | alt: {hit.AltText} | {NxText.T("crédito", "credit", "crédito")}: {hit.Credit}");
+                    }
+                    catch (Exception ex) { lines.Add($"- {hit.Title}: {NxText.T("não baixou", "not downloaded", "no se descargó")} ({ex.Message})"); }
+                }
+                c.UserChoice?.Invoke(NxText.T("Figuras escolhidas na janela de imagens", "Pictures chosen in the image window", "Imágenes elegidas en la ventana de imágenes")
+                    + $" ({query}): " + string.Join("; ", picked.Select(h => h.Title)));
+                return ToolResult.Text(NxText.T("Figuras escolhidas pela pessoa (já no worktree, otimizadas para slide):\n", "Pictures chosen by the user (in the worktree, optimized for slides):\n", "Imágenes elegidas por la persona (en el worktree, optimizadas para diapositiva):\n")
+                    + string.Join("\n", lines) + "\n" + NxText.T("Créditos também em imagens/CREDITOS.md.", "Credits also in imagens/CREDITOS.md.", "Créditos también en imagens/CREDITOS.md."));
+            },
+        };
+
         static bool AnyAllowed(ToolContext _) => WindowsUiSettings.Load().AllowedProcesses.Count > 0;
         yield return new NxTool
         {

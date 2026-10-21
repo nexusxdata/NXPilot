@@ -335,6 +335,20 @@ public partial class MainWindow : Window
         await Task.Delay(800);
 
         // --window about|license|history|risks|workitems|newtask: captura o Sobre, a Licença (modo primeira execução), o Histórico, os riscos de todas as tarefas, os Work items ou a Nova tarefa.
+        // --window imgpicker: escolher figuras (PowerPoint) com a busca de NXPILOT_SHOT_QUERY; marca as 2 primeiras.
+        if (ArgValue(args, "--window") == "imgpicker")
+        {
+            var picker = new Views.ImagePickerWindow(Environment.GetEnvironmentVariable("NXPILOT_SHOT_QUERY") ?? "sistema solar", "Slide 3 · Planetas", 12) { Owner = this };
+            picker.Show();
+            await Task.Delay(9000); // busca + miniaturas
+            picker.TickFirstForShot(2);
+            await Task.Delay(800);
+            SaveVisual((FrameworkElement)picker.Content, picker, shot);
+            picker.Close();
+            if (args.Contains("--exit")) Close();
+            return;
+        }
+
         // --window dbquery: Databricks → Amostra de dados, executando a consulta de NXPILOT_SHOT_SQL (só leitura).
         if (ArgValue(args, "--window") == "dbquery" && NXPilot.Integrations.DatabricksSettings.LoadConnection() is { } dbConn)
         {
@@ -469,6 +483,17 @@ public partial class MainWindow : Window
                 NxText.T("Os dois arquivos existem; contar.ps1 imprime 1; nada mais muda.", "Both files exist; contar.ps1 prints 1; nothing else changes.", "Los dos archivos existen; contar.ps1 imprime 1; nada más cambia."),
                 "haiku", ReviewerKind.Codex, Environment.GetEnvironmentVariable("NXPILOT_CODEX_MODEL"), executor);
         if (Environment.GetEnvironmentVariable("NXPILOT_DEMO_AUTOFIX") == "1") info = info with { AutoFixFindings = true }; // correção automática dos achados
+        if (Environment.GetEnvironmentVariable("NXPILOT_DEMO_PPTX") == "1") // aula com figuras (extensão PowerPoint)
+            info = info with
+            {
+                Title = "Aula: Sistema Solar",
+                Intent = "Monte a apresentação aula-sistema-solar.pptx para alunos do 6º ano, com 3 slides: (1) capa \"O Sistema Solar\"; " +
+                         "(2) slide \"Os planetas\" com uma figura do Sistema Solar escolhida pela professora (use a ferramenta pptx_pick_images), a legenda com o crédito " +
+                         "e os tópicos: o Sol é uma estrela; 8 planetas em órbita (rochosos e gasosos); a Terra é o 3º planeta; Plutão é planeta-anão; " +
+                         "(3) slide \"Créditos das imagens\". Depois confira com pptx_render.",
+                Criteria = "aula-sistema-solar.pptx com 3 slides; a figura foi escolhida pela professora e tem crédito; slide final de créditos.",
+                Model = null,
+            };
         await Vm.StartTaskAsync(info);
         await Task.Delay(500);
         SaveVisual((FrameworkElement)Content, this, Name("-plano"));

@@ -263,6 +263,15 @@
     <sys:String x:Key="Ext_TestarEmail">Read the 5 most recent</sys:String>
     <sys:String x:Key="Ext_Cancelar">Cancel</sys:String>
     <sys:String x:Key="Ext_Salvar">Save</sys:String>
+    <sys:String x:Key="Ext_PptComo">For slides, the agent searches pictures and YOU choose in a window with thumbnails: only images licensed for classroom use, each with its credit (author, license and source) on the slide and on a final credits slide. Works with no key or sign-up.</sys:String>
+    <sys:String x:Key="Ext_PptPasta">Images folder</sys:String>
+    <sys:String x:Key="Ext_PptEscolherPasta">Choose…</sys:String>
+    <sys:String x:Key="Ext_PptPastaDica">Optional. Searched first, offline: logo, event photos, your own pictures. The file name is what the search matches (e.g. "solar-system.png").</sys:String>
+    <sys:String x:Key="Ext_PptFontes">Internet sources (no key)</sys:String>
+    <sys:String x:Key="Ext_PptOpenverse">Openverse — open collections (Creative Commons), with an adult-content filter</sys:String>
+    <sys:String x:Key="Ext_PptWikimedia">Wikimedia Commons — science, history, geography, art, maps and flags</sys:String>
+    <sys:String x:Key="Ext_PptNasa">NASA — fallback: used when a source does not answer or few pictures come back (public domain; science and astronomy)</sys:String>
+    <sys:String x:Key="Ext_PptNc">Include "non-commercial" licenses (CC BY-NC) — fine for class; turn off for material that is sold</sys:String>
     <sys:String x:Key="Ext_PowerBiComo">The agent edits the Power BI project (.pbip) as code — model in TMDL, report in PBIR — and NXPilot validates the files. To check the result, NXPilot opens the project in Power BI Desktop and captures the screen. It never clicks.</sys:String>
     <sys:String x:Key="Ext_PowerBiTestar">Open a .pbip and capture…</sys:String>
     <sys:String x:Key="Ext_PowerBiWorkspace">Workspace for new reports</sys:String>

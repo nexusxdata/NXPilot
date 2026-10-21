@@ -390,7 +390,8 @@ public static class PptxDocument
                     break;
                 case "image":
                     Header(title);
-                    Image(Str(s, "image") ?? throw new ArgumentException($"Slide {number}: layout image precisa de \"image\"."), Str(s, "caption"));
+                    Image(Str(s, "image") ?? throw new ArgumentException($"Slide {number}: layout image precisa de \"image\"."), Str(s, "caption"),
+                        s["bullets"] as JsonArray ?? s["items"] as JsonArray);
                     Footer(number, total, s);
                     break;
                 case "kpis":
@@ -504,7 +505,7 @@ public static class PptxDocument
             return row;
         }
 
-        private void Image(string relative, string? caption)
+        private void Image(string relative, string? caption, JsonArray? bullets = null)
         {
             var path = Path.GetFullPath(Path.Combine(imageBaseDir, relative));
             if (!File.Exists(path)) throw new FileNotFoundException($"Imagem não encontrada: {relative}");
@@ -513,9 +514,12 @@ public static class PptxDocument
             var img = part.AddImagePart(type);
             using (var ms = new MemoryStream(bytes)) img.FeedData(ms);
 
-            // Cabe na área útil mantendo a proporção, centralizada.
-            long boxX = Margin, boxY = In * 3 / 2, boxW = SlideW - 2 * Margin, boxH = SlideH - In * 2 - (caption != null ? In / 2 : 0);
-            var scale = Math.Min((double)boxW / pw, (double)boxH / ph);
+            // Com tópicos: figura à esquerda (55%) e a explicação à direita. Cabe na área mantendo a proporção,
+            // centralizada, sem esticar além de 1,5x o tamanho real (imagem pequena esticada fica borrada).
+            var withText = bullets is { Count: > 0 };
+            long boxX = Margin, boxY = In * 3 / 2, boxW = withText ? (SlideW - 2 * Margin) * 55 / 100 : SlideW - 2 * Margin, boxH = SlideH - In * 2 - (caption != null ? In / 2 : 0);
+            if (withText) Bullets("Tópicos", boxX + boxW + In / 3, boxY, SlideW - Margin - (boxX + boxW + In / 3), SlideH - In * 2, bullets);
+            var scale = Math.Min(Math.Min((double)boxW / pw, (double)boxH / ph), 1.5 * In / 96.0);
             long w = (long)(pw * scale), h = (long)(ph * scale);
             _tree.Append(new P.Picture(
                 new P.NonVisualPictureProperties(

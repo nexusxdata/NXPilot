@@ -177,7 +177,7 @@ public static class TaskPlanning
             "approved = true só se não houver achado critical. Escreva summary e message em português.\n" +
             "Responda SOMENTE com JSON: {\"approved\":bool,\"summary\":\"...\",\"findings\":[{\"severity\":\"critical|major|minor\",\"file\":\"...\",\"line\":número ou null,\"message\":\"...\"}]}\n\n" +
             $"TAREFA: {title}\n\nCRITÉRIOS DE ACEITE:\n{criteria}\n\nPLANO APROVADO:\n{Trim(plan, 6000)}\n\n" +
-            $"AÇÕES FORA DO REPOSITÓRIO (executadas pelo MCP NXPilot, aprovadas pelo usuário):\n{actions ?? "(nenhuma)"}\n\nDIFF:\n{Trim(diff, 30000)}{rounds}",
+            $"AÇÕES FORA DO REPOSITÓRIO (executadas pelo MCP NXPilot, aprovadas ou escolhidas pelo usuário nas janelas do NXPilot):\n{actions ?? "(nenhuma)"}\n\nDIFF:\n{Trim(diff, 30000)}{rounds}",
             "You are the REVIEWER of a change made by another coding agent. Do not change anything.\n" +
             "Compare the diff with the approved plan and the acceptance criteria. Point out bugs, risks, off-plan changes and unmet criteria.\n" +
             "The diff only shows the repository FILES. What the task did in external systems (Databricks, DevOps, Power BI, e-mail…) is in ACTIONS OUTSIDE THE REPOSITORY: treat what is listed there as done. " +
@@ -187,7 +187,7 @@ public static class TaskPlanning
             "approved = true only if there is no critical finding. Write summary and message in English.\n" +
             "Reply ONLY with JSON: {\"approved\":bool,\"summary\":\"...\",\"findings\":[{\"severity\":\"critical|major|minor\",\"file\":\"...\",\"line\":number or null,\"message\":\"...\"}]}\n\n" +
             $"TASK: {title}\n\nACCEPTANCE CRITERIA:\n{criteria}\n\nAPPROVED PLAN:\n{Trim(plan, 6000)}\n\n" +
-            $"ACTIONS OUTSIDE THE REPOSITORY (run through the NXPilot MCP, approved by the user):\n{actions ?? "(none)"}\n\nDIFF:\n{Trim(diff, 30000)}{rounds}",
+            $"ACTIONS OUTSIDE THE REPOSITORY (run through the NXPilot MCP, approved or chosen by the user in NXPilot windows):\n{actions ?? "(none)"}\n\nDIFF:\n{Trim(diff, 30000)}{rounds}",
             "Usted es el REVISOR de un cambio hecho por otro agente de código. No altere nada.\n" +
             "Compare el diff con el plan aprobado y con los criterios de aceptación. Señale errores, riesgos, cambios fuera del plan y criterios no cumplidos.\n" +
             "El diff solo muestra los ARCHIVOS del repositorio. Lo que la tarea hizo en sistemas externos (Databricks, DevOps, Power BI, e-mail…) está en ACCIONES FUERA DEL REPOSITORIO: considere hecho lo que figura allí. " +
@@ -197,7 +197,7 @@ public static class TaskPlanning
             "approved = true solo si no hay ningún hallazgo critical. Escriba summary y message en español.\n" +
             "Responda SOLO con JSON: {\"approved\":bool,\"summary\":\"...\",\"findings\":[{\"severity\":\"critical|major|minor\",\"file\":\"...\",\"line\":número o null,\"message\":\"...\"}]}\n\n" +
             $"TAREA: {title}\n\nCRITERIOS DE ACEPTACIÓN:\n{criteria}\n\nPLAN APROBADO:\n{Trim(plan, 6000)}\n\n" +
-            $"ACCIONES FUERA DEL REPOSITORIO (ejecutadas por el MCP de NXPilot, aprobadas por el usuario):\n{actions ?? "(ninguna)"}\n\nDIFF:\n{Trim(diff, 30000)}{rounds}");
+            $"ACCIONES FUERA DEL REPOSITORIO (ejecutadas por el MCP de NXPilot, aprobadas o elegidas por el usuario en las ventanas de NXPilot):\n{actions ?? "(ninguna)"}\n\nDIFF:\n{Trim(diff, 30000)}{rounds}");
     }
 
     public static VerificationResult ParseVerification(string text, string reviewer)

@@ -75,6 +75,7 @@ public partial class ExtensionsWindow : Window
             "teams" => TeamsTab,
             "mail" or "email" => MailTab,
             "powerbi" => PowerBiTab,
+            "powerpoint" or "pptx" => PowerPointTab,
             "windows" or "janelas" => WindowsTab,
             "nxproject" => NXProjectTab,
             _ => DatabricksTab,
@@ -159,6 +160,13 @@ public partial class ExtensionsWindow : Window
             ? T($"Power BI Desktop encontrado: {pbi}", $"Power BI Desktop found: {pbi}", $"Power BI Desktop encontrado: {pbi}")
             : T("Power BI Desktop não encontrado. Instale pela Microsoft Store ou em powerbi.microsoft.com/desktop.", "Power BI Desktop not found. Install it from the Microsoft Store or powerbi.microsoft.com/desktop.", "Power BI Desktop no encontrado. Instálelo desde Microsoft Store o en powerbi.microsoft.com/desktop.");
         Dot(PowerBiDot, pbi != null);
+        var ppt = NXPilot.Integrations.PowerPointSettings.Load();
+        PptFolderBox.Text = ppt.ImagesFolder;
+        PptOpenverseBox.IsChecked = ppt.UseOpenverse;
+        PptWikimediaBox.IsChecked = ppt.UseWikimedia;
+        PptNasaBox.IsChecked = ppt.UseNasaFallback;
+        PptNcBox.IsChecked = ppt.AllowNonCommercial;
+        Dot(PptDot, true); // funciona sem configurar (sem chave); a pasta é opcional
         var powerBi = NXPilot.Integrations.PowerBiSettings.Load();
         PowerBiWorkspaceName.Text = powerBi.NewWorkspaceName;
         PowerBiWorkspaceId.Text = powerBi.NewWorkspaceId;
@@ -266,6 +274,14 @@ public partial class ExtensionsWindow : Window
         WriteSchemas = DbWriteSchemasBox.Text.Trim(),
         Token = DbTokenBox.Password.Length > 0 ? DbTokenBox.Password : _db.Token,
     };
+
+    /// <summary>Pasta de imagens: procurada primeiro, sem internet (logo, fotos de eventos, figuras próprias).</summary>
+    private void OnPptFolderClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = T("Pasta de imagens", "Images folder", "Carpeta de imágenes") };
+        if (System.IO.Directory.Exists(PptFolderBox.Text)) dialog.InitialDirectory = PptFolderBox.Text;
+        if (dialog.ShowDialog(this) == true) PptFolderBox.Text = dialog.FolderName;
+    }
 
     private GitRepoSettings CollectGit() => new()
     {
@@ -610,6 +626,12 @@ public partial class ExtensionsWindow : Window
             CollectTeams().Save();
             CollectWindows().Save();
             new NXPilot.Integrations.PowerBiSettings { NewWorkspaceName = PowerBiWorkspaceName.Text.Trim(), NewWorkspaceId = PowerBiWorkspaceId.Text.Trim() }.Save();
+            new NXPilot.Integrations.PowerPointSettings
+            {
+                ImagesFolder = PptFolderBox.Text.Trim(), UseOpenverse = PptOpenverseBox.IsChecked == true,
+                UseWikimedia = PptWikimediaBox.IsChecked == true, AllowNonCommercial = PptNcBox.IsChecked == true,
+                UseNasaFallback = PptNasaBox.IsChecked == true,
+            }.Save();
             DialogResult = true;
         }
         catch (Exception ex) { Status(SaveStatus, T("Não salvou: ", "Not saved: ", "No se guardó: ") + ex.Message, Brushes.Firebrick); }

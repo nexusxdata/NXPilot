@@ -263,6 +263,15 @@
     <sys:String x:Key="Ext_TestarEmail">Leer los 5 más recientes</sys:String>
     <sys:String x:Key="Ext_Cancelar">Cancelar</sys:String>
     <sys:String x:Key="Ext_Salvar">Guardar</sys:String>
+    <sys:String x:Key="Ext_PptComo">Para las diapositivas, el agente busca imágenes y USTED elige en una ventana con miniaturas: solo imágenes con licencia para uso en clase, cada una con su crédito (autor, licencia y fuente) en la diapositiva y en una diapositiva final de créditos. Funciona sin clave ni registro.</sys:String>
+    <sys:String x:Key="Ext_PptPasta">Carpeta de imágenes</sys:String>
+    <sys:String x:Key="Ext_PptEscolherPasta">Elegir…</sys:String>
+    <sys:String x:Key="Ext_PptPastaDica">Opcional. Se busca primero y sin internet: logo, fotos de eventos, imágenes propias. El nombre del archivo es lo que encuentra la búsqueda (p. ej., "sistema-solar.png").</sys:String>
+    <sys:String x:Key="Ext_PptFontes">Fuentes en internet (sin clave)</sys:String>
+    <sys:String x:Key="Ext_PptOpenverse">Openverse — acervos abiertos (Creative Commons), con filtro de contenido adulto</sys:String>
+    <sys:String x:Key="Ext_PptWikimedia">Wikimedia Commons — ciencias, historia, geografía, arte, mapas y banderas</sys:String>
+    <sys:String x:Key="Ext_PptNasa">NASA — reserva: entra cuando una fuente no responde o vienen pocas imágenes (dominio público; ciencias y astronomía)</sys:String>
+    <sys:String x:Key="Ext_PptNc">Incluir licencias "no comercial" (CC BY-NC) — sirven para clase; desactívelo para material que se vende</sys:String>
     <sys:String x:Key="Ext_PowerBiComo">El agente edita el proyecto de Power BI (.pbip) como código — modelo en TMDL e informe en PBIR — y NXPilot valida los archivos. Para revisarlo, NXPilot abre el proyecto en Power BI Desktop y captura la pantalla. No hace clic en nada.</sys:String>
     <sys:String x:Key="Ext_PowerBiTestar">Abrir un .pbip y capturar…</sys:String>
     <sys:String x:Key="Ext_PowerBiWorkspace">Workspace de nuevos PBI</sys:String>

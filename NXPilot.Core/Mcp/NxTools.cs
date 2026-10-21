@@ -56,6 +56,9 @@ public sealed class ToolContext
     public bool PowerBiToolsAvailable => PowerBi != null || PowerBiInstalled;
     public Action<string>? Log { get; init; }
 
+    /// <summary>Registra uma escolha feita pela pessoa numa janela do NXPilot (ex.: as figuras) — vai ao log e é evidência para o revisor.</summary>
+    public Action<string>? UserChoice { get; init; }
+
     /// <summary>Caminho relativo ao worktree (ou absoluto), normalizado.</summary>
     public string Resolve(string path) => Path.GetFullPath(Path.IsPathRooted(path) ? path : Path.Combine(Worktree, path));
 
