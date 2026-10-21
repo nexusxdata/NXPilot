@@ -62,6 +62,12 @@ public sealed record LogEntry(DateTime Time, string Source, string Kind, string 
     public string TimeText => Time.ToString("HH:mm:ss");
 }
 
+/// <summary>
+/// Uma decisão do gate na tarefa (vai para o Histórico): nível do risco e o que aconteceu —
+/// "auto" (BAIXO passou sozinho), "rule" (regra da tarefa), "approved"/"denied" (você), "log" (tarefa antiga, lida do Log).
+/// </summary>
+public sealed record RiskEntry(DateTime Time, string Agent, string Action, NXPilot.Risk.RiskLevel Level, string Outcome, string? Reason = null);
+
 /// <summary>Ação pedida por um agente, aguardando o DecisionGate (classificação + usuário).</summary>
 public sealed partial class DecisionItem(string agent, string action, string context) : ObservableObject
 {

@@ -20,7 +20,17 @@ namespace NXPilot.Desktop.Views;
 public partial class HistoryWindow : Window
 {
     private sealed record Row(TaskRecord Record, string When, string Title, string State, string Findings, string Cost, string Repo,
-        string StatusKey, string Status, System.Windows.Media.Brush StatusBrush);
+        string StatusKey, string Status, System.Windows.Media.Brush StatusBrush, IReadOnlyList<RiskEntry> Risks)
+    {
+        private string Count(NXPilot.Risk.RiskLevel level, string glyph) => Risks.Count(r => r.Level == level) is > 0 and var n ? $"{glyph}{n}" : "";
+        public string HighText => Count(NXPilot.Risk.RiskLevel.Alto, "▲");
+        public string MediumText => Count(NXPilot.Risk.RiskLevel.Medio, "●");
+        public string LowText => Count(NXPilot.Risk.RiskLevel.Baixo, "▼");
+        public string NoRiskText => Risks.Count == 0 ? "—" : "";
+        public string RiskTip => RisksWindow.Summary(Risks.ToList());
+        /// <summary>Ordenar a coluna: mais ALTO primeiro, depois MÉDIO.</summary>
+        public int RiskOrder => Risks.Count(r => r.Level == NXPilot.Risk.RiskLevel.Alto) * 1_000_000 + Risks.Count(r => r.Level == NXPilot.Risk.RiskLevel.Medio) * 1000 + Risks.Count;
+    }
 
     /// <summary>
     /// Estado curto da tarefa (coluna e filtro): em andamento, aguardando, concluída, aviso
@@ -66,6 +76,11 @@ public partial class HistoryWindow : Window
         foreach (var st in Statuses)
             StatusBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = $"{st.Icon}  {st.Label()}", Tag = st.Key });
         StatusBox.SelectedIndex = 0;
+        RiskBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = T("Qualquer risco", "Any risk", "Cualquier riesgo"), Tag = "all" });
+        foreach (var lv in new[] { NXPilot.Risk.RiskLevel.Alto, NXPilot.Risk.RiskLevel.Medio, NXPilot.Risk.RiskLevel.Baixo })
+            RiskBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = T("Com ", "With ", "Con ") + RisksWindow.LevelName(lv), Tag = lv.ToString(), Foreground = RisksWindow.LevelColor(lv) });
+        RiskBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = T("Sem decisões do gate", "No gate decisions", "Sin decisiones del gate"), Tag = "none" });
+        RiskBox.SelectedIndex = 0;
         Reload();
     }
 
@@ -73,7 +88,8 @@ public partial class HistoryWindow : Window
     {
         var rows = TaskStore.LoadAll().Select(r =>
         {
-            var label = TaskSession.FromRecord(r).StateLabel;
+            var session = TaskSession.FromRecord(r);
+            var label = session.StateLabel;
             var findings = r.Verification is { } v
                 ? T($"{v.Findings.Count(f => f.Severity == "Critico")} crít. · {v.Findings.Count} total", $"{v.Findings.Count(f => f.Severity == "Critico")} crit. · {v.Findings.Count} total", $"{v.Findings.Count(f => f.Severity == "Critico")} crít. · {v.Findings.Count} total")
                 : "—";
@@ -81,7 +97,7 @@ public partial class HistoryWindow : Window
             var brush = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(st.Color));
             return new Row(r, r.CreatedAt.ToString("dd/MM HH:mm"), (r.Info.AsTemplate ? "⚡ " : "") + r.Info.Title, label, findings,
                 r.Tokens is { Total: > 0 } t ? NXPilot.Agents.TokenUsage.Format(t.Total) : "—", r.Info.Subject is { } subject ? "◆ " + subject : r.Info.RepoPath,
-                st.Key, $"{st.Icon}  {st.Label()}", brush);
+                st.Key, $"{st.Icon}  {st.Label()}", brush, session.Risks.ToList());
         }).ToList();
         _allRows = rows;
         ApplyFilter();
@@ -91,7 +107,7 @@ public partial class HistoryWindow : Window
 
     private void OnSearchChanged(object sender, RoutedEventArgs e)
     {
-        if (!IsInitialized || SearchBox == null || PeriodBox == null || ToDate == null || TypeBox == null || StatusBox == null) return; // SelectionChanged dispara durante o InitializeComponent
+        if (!IsInitialized || SearchBox == null || PeriodBox == null || ToDate == null || TypeBox == null || StatusBox == null || RiskBox == null) return; // SelectionChanged dispara durante o InitializeComponent
         CustomPeriodPanel.Visibility = PeriodTag == "custom" ? Visibility.Visible : Visibility.Collapsed;
         SearchHint.Visibility = SearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         ApplyFilter();
@@ -109,9 +125,16 @@ public partial class HistoryWindow : Window
         var (from, to) = PeriodRange();
         var type = (TypeBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
         var status = (StatusBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
+        var risk = (RiskBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
         var inPeriod = _allRows.Where(r => (from == null || r.Record.CreatedAt >= from) && (to == null || r.Record.CreatedAt < to))
             .Where(r => type switch { "hooks" => r.Record.Info.AsTemplate, "tasks" => !r.Record.Info.AsTemplate, _ => true })
             .Where(r => status == "all" || r.StatusKey == status)
+            .Where(r => risk switch
+            {
+                "all" => true,
+                "none" => r.Risks.Count == 0,
+                _ => r.Risks.Any(x => x.Level.ToString() == risk),
+            })
             .ToList();
         var rows = term.Length == 0 ? inPeriod : inPeriod.Where(r => field switch
         {
@@ -125,7 +148,7 @@ public partial class HistoryWindow : Window
         Grid.ItemsSource = rows;
         EmptyText.Text = _allRows.Count == 0
             ? T("Nenhuma tarefa ainda. Use + Nova tarefa.", "No tasks yet. Use + New task.", "Aún no hay tareas. Use + Nueva tarea.")
-            : T("Nenhuma tarefa encontrada com essa busca, período ou estado.", "No task matches this search, period or state.", "Ninguna tarea coincide con esta búsqueda, período o estado.");
+            : T("Nenhuma tarefa encontrada com essa busca, período, estado ou risco.", "No task matches this search, period, state or risk.", "Ninguna tarea coincide con esta búsqueda, período, estado o riesgo.");
         EmptyText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (rows.Count > 0) Grid.SelectedItem = rows.FirstOrDefault(r => r.Record == selected) ?? rows[0];
         OnSelectionChanged(this, null!);
@@ -162,6 +185,8 @@ public partial class HistoryWindow : Window
         OpenButton.IsEnabled = r != null && !_taskRunning;
         WorktreeButton.IsEnabled = worktreeExists;
         TimelineButton.IsEnabled = r != null;
+        RisksButton.IsEnabled = r != null;
+        AllRisksButton.IsEnabled = Grid.Items.Count > 0;
         CloneButton.IsEnabled = r != null && !_taskRunning;
         RemoveButton.IsEnabled = r != null && !_taskRunning;
         StatusText.Text = _taskRunning
@@ -184,6 +209,22 @@ public partial class HistoryWindow : Window
     }
 
     /// <summary>Cada pedido, decisão, fase e commit da tarefa, numa tela (vale para tarefa local ou git).</summary>
+    /// <summary>Riscos da tarefa selecionada (já no nível escolhido no filtro, se houver).</summary>
+    private void OnRisksClick(object sender, RoutedEventArgs e)
+    {
+        if (Grid.SelectedItem is Row row) new RisksWindow([(row.Record.Info.Title, row.Risks)], FilterLevel) { Owner = this }.ShowDialog();
+    }
+
+    /// <summary>Riscos de todas as tarefas que estão na lista (com os filtros aplicados).</summary>
+    private void OnAllRisksClick(object sender, RoutedEventArgs e)
+    {
+        var rows = (Grid.ItemsSource as IEnumerable<Row>)?.ToList() ?? new();
+        if (rows.Count > 0) new RisksWindow(rows.Select(r => (r.Record.Info.Title, r.Risks)).ToList(), FilterLevel) { Owner = this }.ShowDialog();
+    }
+
+    private NXPilot.Risk.RiskLevel? FilterLevel =>
+        Enum.TryParse<NXPilot.Risk.RiskLevel>((RiskBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string, out var lv) ? lv : null;
+
     private void OnTimelineClick(object sender, RoutedEventArgs e)
     {
         if (Selected is { } r) new TimelineWindow(r) { Owner = this }.ShowDialog();

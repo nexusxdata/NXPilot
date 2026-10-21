@@ -15,6 +15,12 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**⚠ Riscos de cada tarefa no Histórico**
+
+- Cada decisão do gate fica guardada na tarefa: nível (▲ Alto, ● Médio, ▼ Baixo), ação, agente e o que aconteceu (passou sozinho, regra da tarefa, aprovado ou negado por você). Tarefas antigas têm os riscos recuperados do Log.
+- Histórico: coluna **Riscos** com a contagem colorida e filtro por nível (com Alto, com Médio, com Baixo, sem decisões).
+- **⚠ Riscos da tarefa** e **⚠ Riscos da lista** abrem a lista de decisões, com filtro por nível e por resultado.
+
 **📗 Excel no MCP NXPilot (sem Python)**
 
 - `xlsx_info` e `xlsx_read`: resumo do arquivo e leitura em tabela com limite de linhas — datas aparecem como data e fórmulas ficam à vista. O agente lê o cabeçalho e uma amostra, em vez de gerar script para isso.

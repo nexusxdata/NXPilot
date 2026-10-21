@@ -36,7 +36,7 @@ public sealed record TaskRecord(
     string? Worktree, string? Branch, string? BaseCommit, string? SessionId,
     string PlanText, List<PlannedPhase> Phases, List<string> PhaseStatus,
     VerificationResult? Verification, decimal CostUsd, List<LogEntry> Log, TokenUsage? Tokens = null,
-    List<string>? PreApprovals = null);
+    List<string>? PreApprovals = null, List<RiskEntry>? Risks = null);
 
 /// <summary>
 /// Uma tarefa real: intenção → plano em fases (agente em modo plan) → sua aprovação → fases
@@ -111,6 +111,9 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     /// <summary>Log desta tarefa — vai para o Histórico (trilha de auditoria por tarefa).</summary>
     public List<LogEntry> Log { get; } = new();
 
+    /// <summary>Decisões do gate desta tarefa (nível e resultado) — Histórico: coluna e filtro de riscos.</summary>
+    public List<RiskEntry> Risks { get; } = new();
+
     public bool CanApprove => State == TaskState.AwaitingApproval;
     public bool CanDiscard => State == TaskState.AwaitingApproval;
     public bool IsRunning => State is TaskState.Preparing or TaskState.Planning or TaskState.Executing or TaskState.Verifying;
@@ -171,7 +174,36 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     }
 
     public TaskRecord ToRecord() => new(Id, Info, State, CreatedAt, DateTime.Now, Worktree, Branch, BaseCommit, SessionId,
-        PlanText, Phases, PhaseStatus, Verification, CostUsd, Log.ToList(), Tokens, PreApprovals.Count > 0 ? PreApprovals.ToList() : null);
+        PlanText, Phases, PhaseStatus, Verification, CostUsd, Log.ToList(), Tokens, PreApprovals.Count > 0 ? PreApprovals.ToList() : null, Risks.ToList());
+
+    /// <summary>
+    /// Tarefa gravada antes do registro de riscos: recupera do Log ("auto-aprovado … (Baixo, 85%)",
+    /// "pedido … → Medio", "aprovado/negado … (risco Alto)").
+    /// </summary>
+    public static List<RiskEntry> RisksFromLog(IEnumerable<LogEntry> log)
+    {
+        var list = new List<RiskEntry>();
+        var level = new System.Text.RegularExpressions.Regex(@"\((?:risco |risk |riesgo )?(Baixo|Medio|Alto)[,)· ]|→ (Baixo|Medio|Alto)\s*$");
+        foreach (var e in log)
+        {
+            var outcome = e.Kind switch
+            {
+                "auto-aprovado" or "auto-approved" or "auto-aprobado" => "auto",
+                "aprovado por regra" or "approved by rule" or "aprobado por regla" => "rule",
+                "aprovado" or "approved" or "aprobado" => "approved",
+                "negado" or "denied" or "denegado" => "denied",
+                _ => null,
+            };
+            if (outcome == null || level.Match(e.Message) is not { Success: true } m) continue;
+            var lv = Enum.Parse<NXPilot.Risk.RiskLevel>(m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value);
+            var colon = e.Message.IndexOf(": ", StringComparison.Ordinal);
+            var agent = colon > 0 && colon < 40 ? e.Message[..colon] : e.Source;
+            var action = colon > 0 && colon < 40 ? e.Message[(colon + 2)..] : e.Message;
+            action = System.Text.RegularExpressions.Regex.Replace(action, @"\s*\((?:risco |risk |riesgo )?(Baixo|Medio|Alto)[^)]*\)\s*$", "");
+            list.Add(new RiskEntry(e.Time, agent, action, lv, outcome));
+        }
+        return list;
+    }
 
     public static TaskSession FromRecord(TaskRecord r)
     {
@@ -185,6 +217,7 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
             State = r.State is TaskState.Preparing or TaskState.Planning or TaskState.Executing or TaskState.Verifying ? TaskState.Stopped : r.State,
         };
         s.Log.AddRange(r.Log);
+        s.Risks.AddRange(r.Risks ?? RisksFromLog(r.Log));
         foreach (var a in r.PreApprovals ?? new()) s.PreApprovals.Add(a);
         if (s.State == TaskState.Failed) s.LastError = r.Log.LastOrDefault(l => l.Kind is "erro" or "error")?.Message;
         return s;

@@ -203,6 +203,11 @@
     <sys:String x:Key="Hist_Tarefa">Tarea</sys:String>
     <sys:String x:Key="Hist_Estado">Estado</sys:String>
     <sys:String x:Key="Hist_Detalhe">Detalle</sys:String>
+    <sys:String x:Key="Hist_Riscos">Riesgos</sys:String>
+    <sys:String x:Key="Hist_VerRiscos">⚠  Riesgos de la tarea</sys:String>
+    <sys:String x:Key="Hist_VerRiscosDica">Decisiones del gate de esta tarea: nivel (Alto, Medio, Bajo) y lo que pasó con cada acción.</sys:String>
+    <sys:String x:Key="Hist_RiscosDaLista">⚠  Riesgos de la lista</sys:String>
+    <sys:String x:Key="Hist_RiscosDaListaDica">Riesgos de todas las tareas que están ahora en la lista (con los filtros aplicados).</sys:String>
     <sys:String x:Key="Hist_Achados">Hallazgos</sys:String>
     <sys:String x:Key="Hist_Custo">Tokens</sys:String>
     <sys:String x:Key="Hist_Repositorio">Repositorio</sys:String>

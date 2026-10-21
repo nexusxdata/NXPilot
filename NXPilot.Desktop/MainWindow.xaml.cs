@@ -308,13 +308,14 @@ public partial class MainWindow : Window
         }
         await Task.Delay(800);
 
-        // --window about|license|history|workitems|newtask: captura o Sobre, a Licença (modo primeira execução), o Histórico, os Work items ou a Nova tarefa.
-        if (ArgValue(args, "--window") is "about" or "license" or "history" or "workitems" or "newtask" or "hooks")
+        // --window about|license|history|risks|workitems|newtask: captura o Sobre, a Licença (modo primeira execução), o Histórico, os riscos de todas as tarefas, os Work items ou a Nova tarefa.
+        if (ArgValue(args, "--window") is "about" or "license" or "history" or "risks" or "workitems" or "newtask" or "hooks")
         {
             Window win = ArgValue(args, "--window") switch
             {
                 "about" => new Views.AboutWindow { Owner = this },
                 "history" => new Views.HistoryWindow(taskRunning: false) { Owner = this },
+                "risks" => new Views.RisksWindow(Services.TaskStore.LoadAll().Select(r => (r.Info.Title, (IReadOnlyList<RiskEntry>)ViewModels.TaskSession.FromRecord(r).Risks)).ToList()) { Owner = this },
                 "workitems" => new Views.WorkItemsWindow { Owner = this },
                 "newtask" => new Views.NewTaskWindow { Owner = this },
                 "hooks" => new Views.HooksWindow(Vm) { Owner = this },

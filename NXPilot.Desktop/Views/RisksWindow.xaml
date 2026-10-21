@@ -1,0 +1,47 @@
+<Window x:Class="NXPilot.Desktop.Views.RisksWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="1100" Height="600" MinWidth="700" MinHeight="360"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{StaticResource BackgroundBrush}" FontFamily="Segoe UI" FontSize="13">
+    <DockPanel Margin="20,16">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <TextBlock x:Name="TitleText" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"/>
+            <TextBlock x:Name="SummaryText" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,10"/>
+            <!-- Nível e resultado: ALTO, MÉDIO, BAIXO; passou sozinho, por regra, aprovado ou negado por você. -->
+            <WrapPanel>
+                <ComboBox x:Name="LevelBox" Width="190" Padding="8,5" Margin="0,0,8,0" SelectionChanged="OnFilterChanged"/>
+                <ComboBox x:Name="OutcomeBox" Width="230" Padding="8,5" SelectionChanged="OnFilterChanged"/>
+            </WrapPanel>
+        </StackPanel>
+        <Button DockPanel.Dock="Bottom" HorizontalAlignment="Right" Margin="0,10,0,0" x:Name="CloseButton"
+                Style="{StaticResource SubtleButton}" IsCancel="True" Click="OnCloseClick"/>
+        <Grid>
+            <DataGrid x:Name="Grid" IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn x:Name="WhenColumn" Binding="{Binding When}" Width="110"/>
+                    <DataGridTemplateColumn x:Name="LevelColumn" Width="90" SortMemberPath="LevelOrder">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding LevelText}" Foreground="{Binding LevelBrush}" FontWeight="SemiBold"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn x:Name="OutcomeColumn" Binding="{Binding Outcome}" Width="150"/>
+                    <DataGridTextColumn x:Name="ActionColumn" Binding="{Binding Action}" Width="3*">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                <Setter Property="ToolTip" Value="{Binding Detail}"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn x:Name="AgentColumn" Binding="{Binding Agent}" Width="110"/>
+                    <DataGridTextColumn x:Name="TaskColumn" Binding="{Binding Task}" Width="1.3*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock x:Name="EmptyText" Style="{StaticResource Muted}" FontSize="14" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="560"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+        </Grid>
+    </DockPanel>
+</Window>

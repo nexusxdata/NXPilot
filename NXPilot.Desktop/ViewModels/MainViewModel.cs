@@ -863,6 +863,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 AutoApprovedCount++;
                 AddLog("Gate", T("auto-aprovado", "auto-approved", "auto-aprobado"), $"{agent}: {action} ({r.Level}, {r.Confidence:P0})");
+                RecordRisk(agent, action, r, "auto");
             });
             return new GateResponse(true, $"{r.Level}: {r.Reason}");
         }
@@ -874,6 +875,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 AutoApprovedCount++;
                 AddLog("Gate", T("aprovado por regra", "approved by rule", "aprobado por regla"), $"{agent}: {action} ({r.Level} · {rule})");
+                RecordRisk(agent, action, r, "rule");
             });
             return new GateResponse(true, $"{r.Level}: {rule}");
         }
@@ -890,9 +892,18 @@ public sealed partial class MainViewModel : ObservableObject
             Notifications.Notify(NotificationKind.Decision, T($"Decisão pendente · risco {r.Level}", $"Pending decision · {r.Level} risk", $"Decisión pendiente · riesgo {r.Level}"), $"{agent}: {action}");
         });
         var allowed = await response.Task;
+        await OnUi(() => RecordRisk(agent, action, r, allowed ? "approved" : "denied"));
         return new GateResponse(allowed, allowed
             ? T("aprovado pelo usuário no NXPilot", "approved by the user in NXPilot", "aprobado por el usuario en NXPilot")
             : T("NEGADO pelo usuário no NXPilot — não execute esta ação; ajuste o plano ou pergunte.", "DENIED by the user in NXPilot — do not run this action; adjust the plan or ask.", "DENEGADO por el usuario en NXPilot — no ejecute esta acción; ajuste el plan o pregunte."));
+    }
+
+    /// <summary>Decisão do gate na tarefa atual (Histórico: coluna e filtro de riscos). As suas decisões gravam na hora; as automáticas, com a tarefa.</summary>
+    private void RecordRisk(string agent, string action, RiskResult r, string outcome)
+    {
+        if (CurrentTask is not { } task) return;
+        task.Risks.Add(new RiskEntry(DateTime.Now, agent, action, r.Level, outcome, r.Reason));
+        if (outcome is "approved" or "denied") Persist();
     }
 
     private void Fail(TaskSession task, string message)
