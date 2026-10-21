@@ -4,13 +4,23 @@
         Title="{DynamicResource Ext_Titulo}" Width="680" SizeToContent="Height"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
         Background="{StaticResource BackgroundBrush}" FontFamily="Segoe UI" FontSize="13">
-    <!-- Uma aba por extensão (pacotes NXPilot.Databricks / NXPilot.GitRepos / NXPilot.Mail; Work items no NXPilot.Core). -->
+    <!-- Uma "aba" por extensão, escolhida pela combo (pacotes NXPilot.Databricks / NXPilot.GitRepos / NXPilot.Mail; Work items no NXPilot.Core). -->
     <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="22,18">
         <TextBlock Text="{DynamicResource Ext_Titulo}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"/>
         <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,12" TextWrapping="Wrap" Text="{DynamicResource Ext_Subtitulo}"/>
 
-        <TabControl x:Name="Tabs" Padding="14,12">
+        <!-- Uma combo no lugar da faixa de abas: cabe qualquer número de extensões. Cada item repete a bolinha de status e o nome da aba. -->
+        <DockPanel Margin="0,0,0,8">
+            <TextBlock Text="{DynamicResource Ext_Extensao}" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,10,0"/>
+            <ComboBox x:Name="ExtensionBox" Padding="8,5" SelectionChanged="OnExtensionChanged"/>
+        </DockPanel>
+        <TabControl x:Name="Tabs" Padding="14,12" SelectionChanged="OnTabChanged">
+            <TabControl.ItemContainerStyle>
+                <Style TargetType="TabItem">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </Style>
+            </TabControl.ItemContainerStyle>
             <!-- ============================== Databricks ============================== -->
             <TabItem x:Name="DatabricksTab">
                 <TabItem.Header>

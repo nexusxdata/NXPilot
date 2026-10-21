@@ -77,7 +77,53 @@ public partial class ExtensionsWindow : Window
             "windows" or "janelas" => WindowsTab,
             _ => DatabricksTab,
         };
+        BuildExtensionCombo();
         Refresh();
+    }
+
+    // ------------------------------------------------------------ escolha da extensão
+
+    /// <summary>
+    /// Combo com as extensões (ordem alfabética), cada item ligado à bolinha e ao nome da aba dela —
+    /// o status atualiza junto e o nome acompanha o idioma.
+    /// </summary>
+    private void BuildExtensionCombo()
+    {
+        var items = new List<ComboBoxItem>();
+        foreach (var tab in Tabs.Items.OfType<TabItem>())
+        {
+            var header = tab.Header as StackPanel;
+            var dot = header?.Children.OfType<System.Windows.Shapes.Ellipse>().FirstOrDefault();
+            var name = header?.Children.OfType<TextBlock>().FirstOrDefault();
+            var panel = new StackPanel { Orientation = Orientation.Horizontal };
+            var copyDot = new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+            if (dot != null) copyDot.SetBinding(System.Windows.Shapes.Shape.FillProperty, new System.Windows.Data.Binding(nameof(System.Windows.Shapes.Shape.Fill)) { Source = dot });
+            var copyName = new TextBlock();
+            if (name != null) copyName.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding(nameof(TextBlock.Text)) { Source = name });
+            panel.Children.Add(copyDot);
+            panel.Children.Add(copyName);
+            items.Add(new ComboBoxItem { Content = panel, Tag = tab });
+        }
+        foreach (var item in items.OrderBy(i => ((i.Tag as TabItem)?.Header as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault()?.Text, StringComparer.CurrentCultureIgnoreCase))
+            ExtensionBox.Items.Add(item);
+        SyncCombo();
+    }
+
+    private void OnExtensionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if ((ExtensionBox.SelectedItem as ComboBoxItem)?.Tag is TabItem tab && !ReferenceEquals(Tabs.SelectedItem, tab)) Tabs.SelectedItem = tab;
+    }
+
+    /// <summary>Aba trocada pelo código (ex.: abrir já em Work items): a combo acompanha. Ignora as combos de dentro das abas.</summary>
+    private void OnTabChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, Tabs)) SyncCombo();
+    }
+
+    private void SyncCombo()
+    {
+        if (ExtensionBox == null) return; // durante o InitializeComponent
+        ExtensionBox.SelectedItem = ExtensionBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => ReferenceEquals(i.Tag, Tabs.SelectedItem));
     }
 
     // ------------------------------------------------------------ estado

@@ -15,6 +15,10 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**🧩 Extensão MCP: escolha por lista**
+
+- A janela Extensão MCP troca a faixa de abas por uma lista **Extensão**: cabem quantas extensões vierem, cada uma com a bolinha de status, e escolher mostra a configuração dela.
+
 **⚠ Riscos de cada tarefa no Histórico**
 
 - Cada decisão do gate fica guardada na tarefa: nível (▲ Alto, ● Médio, ▼ Baixo), ação, agente e o que aconteceu (passou sozinho, regra da tarefa, aprovado ou negado por você). Tarefas antigas têm os riscos recuperados do Log.
