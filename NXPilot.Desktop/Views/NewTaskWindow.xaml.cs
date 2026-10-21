@@ -24,11 +24,21 @@ public partial class NewTaskWindow : Window
     public NewTaskInfo? Result { get; private set; }
 
     /// <summary>Pré-preenchida a partir de um work item do Azure DevOps ou do GitHub Projects (título, descrição, critérios).</summary>
-    public NewTaskWindow(NXPilot.Integrations.WorkItem item) : this()
+    public NewTaskWindow(NXPilot.Integrations.WorkItem item, NXPilot.Integrations.WorkItemLink? link = null) : this()
     {
         TitleBox.Text = item.Id > 0 ? $"#{item.Id} · {item.Title}" : item.Title; // rascunho do GitHub não tem número
         IntentBox.Text = item.Description.Length > 0 ? item.Description : item.Title;
         CriteriaBox.Text = item.AcceptanceCriteria;
+        SetWorkItem(link);
+    }
+
+    /// <summary>Work item vinculado (vai para o prompt e para o Histórico); nulo = tarefa sem vínculo.</summary>
+    private NXPilot.Integrations.WorkItemLink? _workItem;
+
+    private void SetWorkItem(NXPilot.Integrations.WorkItemLink? link)
+    {
+        _workItem = link;
+        if (link != null) Title = T($"Nova tarefa · vinculada a {link.Label}", $"New task · linked to {link.Label}", $"Nueva tarea · vinculada a {link.Label}");
     }
 
     /// <summary>
@@ -52,6 +62,7 @@ public partial class NewTaskWindow : Window
         Select(ModelBox, clone.Model ?? "");
         if (clone.CodexModel is { Length: > 0 } codexModel) CodexModelBox.Text = codexModel;
         Title = T("Nova tarefa (clonada do Histórico)", "New task (cloned from History)", "Nueva tarea (clonada del Historial)");
+        _workItem = clone.WorkItem; // o vínculo com o work item vem junto
     }
 
     /// <summary>
@@ -607,7 +618,7 @@ public partial class NewTaskWindow : Window
         Result = new NewTaskInfo(subject?.Dir ?? repo, TitleBox.Text.Trim(), IntentBox.Text.Trim() + NXPilot.Planning.TaskCitations.Legend(_citations),
             CriteriaBox.Text.Trim().Length > 0 ? CriteriaBox.Text.Trim() : T("(não informados)", "(not provided)", "(no informado)"),
             model.Length > 0 ? model : null, reviewer, codexModel.Length > 0 ? codexModel : null, executor, versioning,
-            subject?.Name, subject?.Path, AsTemplate: IsHookMode);
+            subject?.Name, subject?.Path, AsTemplate: IsHookMode, WorkItem: _workItem);
         DialogResult = true;
     }
 }

@@ -203,7 +203,24 @@ public partial class ExtensionsWindow : Window
         GmailClientSecret = GmailSecretBox.Password.Length > 0 ? GmailSecretBox.Password : _mail.GmailClientSecret,
     };
 
-    private WorkItemSettings CollectWorkItems() => new()
+    /// <summary>
+    /// Conexões desta tela; as escolhas da tela de Work items (origem, projeto, raiz, "Mostrar")
+    /// vêm do arquivo NA HORA de salvar — a tela de Work items pode tê-las mudado depois que esta abriu.
+    /// </summary>
+    private WorkItemSettings CollectWorkItems()
+    {
+        var latest = WorkItemSettings.Load();
+        var s = CollectWorkItemConnections();
+        s.LastSource = latest.LastSource;
+        s.LastDevOpsProject = latest.LastDevOpsProject;
+        s.LastGitHubProjectNumber = latest.LastGitHubProjectNumber;
+        s.LastDevOpsRootId = latest.LastDevOpsRootId;
+        s.LastGitHubRootIssue = latest.LastGitHubRootIssue;
+        s.LastDevOpsScope = latest.LastDevOpsScope;
+        return s;
+    }
+
+    private WorkItemSettings CollectWorkItemConnections() => new()
     {
         DevOpsOrganizationUrl = WiAdoOrgBox.Text.Trim(),
         DevOpsProject = WiAdoProjectBox.Text.Trim(),

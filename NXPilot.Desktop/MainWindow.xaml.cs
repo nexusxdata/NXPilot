@@ -106,7 +106,7 @@ public partial class MainWindow : Window
     /// <summary>Falhou antes do plano: abre a tarefa para editar (pode trocar o agente) e tenta de novo.</summary>
     private async void OnEditAndRetryClick(object sender, RoutedEventArgs e)
     {
-        if (Vm.CurrentTask is not { CanRetry: true } task) return;
+        if (Vm.CurrentTask is not { CanEdit: true } task) return;
         var dialog = new Views.NewTaskWindow(task.Info, editing: true) { Owner = this };
         if (dialog.ShowDialog() != true || dialog.Result is not { } info) return;
         await Vm.EditAndRetryAsync(info);
@@ -120,7 +120,7 @@ public partial class MainWindow : Window
     {
         var list = new Views.WorkItemsWindow { Owner = this };
         list.ShowDialog();
-        if (list.Selected is { } item) await StartNewTaskAsync(new Views.NewTaskWindow(item) { Owner = this });
+        if (list.Selected is { } item) await StartNewTaskAsync(new Views.NewTaskWindow(item, list.SelectedLink) { Owner = this });
     }
 
     /// <summary>Nova tarefa: assistente → plano do Claude Code na aba Plano (nada é escrito antes de aprovar).</summary>

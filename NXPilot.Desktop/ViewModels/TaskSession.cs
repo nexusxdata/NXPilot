@@ -28,7 +28,17 @@ public enum ExecutorKind { Claude, Codex }
 public sealed record NewTaskInfo(string RepoPath, string Title, string Intent, string Criteria, string? Model,
     ReviewerKind Reviewer = ReviewerKind.Codex, string? CodexModel = null, ExecutorKind Executor = ExecutorKind.Claude,
     VersioningMode Versioning = VersioningMode.Git, string? Subject = null, string? SubjectFolder = null,
-    bool AsTemplate = false, string? TemplateId = null);
+    bool AsTemplate = false, string? TemplateId = null, NXPilot.Integrations.WorkItemLink? WorkItem = null)
+{
+    /// <summary>
+    /// Intenção para o prompt: com work item vinculado, diz ao agente qual é e como ler o item e a
+    /// hierarquia dele (workitems_tree) — os dados vêm do DevOps, não do repositório.
+    /// </summary>
+    public string IntentForAgent => WorkItem is not { } w ? Intent : Intent + "\n\n" + NXPilot.NxText.T(
+        $"WORK ITEM VINCULADO: {w.Label} ({w.Source}, projeto {w.Project}) — {w.Url}\nOs dados dele (e de tudo abaixo na hierarquia: Epic, Feature, Story, Task) vêm do Azure DevOps, não do repositório: leia com a ferramenta MCP workitems_tree (id {w.Id}, project \"{w.Project}\"; open_only=true para só o que está pendente) antes de planejar.",
+        $"LINKED WORK ITEM: {w.Label} ({w.Source}, project {w.Project}) — {w.Url}\nIts data (and everything below it: Epic, Feature, Story, Task) comes from Azure DevOps, not from the repository: read it with the MCP tool workitems_tree (id {w.Id}, project \"{w.Project}\"; open_only=true for pending items only) before planning.",
+        $"WORK ITEM VINCULADO: {w.Label} ({w.Source}, proyecto {w.Project}) — {w.Url}\nSus datos (y todo lo que está debajo: Epic, Feature, Story, Task) vienen de Azure DevOps, no del repositorio: léalos con la herramienta MCP workitems_tree (id {w.Id}, project \"{w.Project}\"; open_only=true para solo lo pendiente) antes de planificar.");
+}
 
 /// <summary>Registro salvo no Histórico (%LOCALAPPDATA%\NXPilot\tasks\&lt;id&gt;.json).</summary>
 public sealed record TaskRecord(
@@ -59,7 +69,7 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     }
     public DateTime CreatedAt { get; init; } = DateTime.Now;
 
-    [ObservableProperty] [NotifyPropertyChangedFor(nameof(StateLabel), nameof(CanApprove), nameof(IsRunning), nameof(CanDiscard), nameof(IsFinished), nameof(CanApplyToFolder), nameof(CanResume), nameof(CanRetry), nameof(HasError), nameof(CanFixFindings), nameof(CanArm))]
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(StateLabel), nameof(CanApprove), nameof(IsRunning), nameof(CanDiscard), nameof(IsFinished), nameof(CanApplyToFolder), nameof(CanResume), nameof(CanRetry), nameof(CanEdit), nameof(HasError), nameof(CanFixFindings), nameof(CanArm))]
     private TaskState _state = TaskState.Preparing;
 
     [ObservableProperty] private string? _worktree;
@@ -122,6 +132,9 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
 
     /// <summary>Falhou ou foi interrompida antes de ter plano (worktree, agente, leitura do plano): refaz e pede o plano de novo.</summary>
     public bool CanRetry => State is TaskState.Stopped or TaskState.Failed && Phases.Count == 0;
+
+    /// <summary>Editar e refazer o plano: quando dá para tentar de novo, ou com o plano pronto esperando você (o plano é descartado).</summary>
+    public bool CanEdit => CanRetry || State == TaskState.AwaitingApproval;
 
     /// <summary>Concluída, mas a verificação não aprovou: dá para devolver os achados ao executor.</summary>
     public bool CanFixFindings => State == TaskState.Done && Verification is { Approved: false, Findings.Count: > 0 } && Worktree is { } wt && System.IO.Directory.Exists(wt);

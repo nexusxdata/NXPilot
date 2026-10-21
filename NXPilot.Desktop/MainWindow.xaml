@@ -231,7 +231,7 @@
                                             Visibility="{Binding CurrentTask.CanRetry, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
                                     <Button Content="{DynamicResource Task_EditarETentar}" Click="OnEditAndRetryClick" Style="{StaticResource SubtleButton}" Margin="0,0,8,6"
                                             ToolTip="{DynamicResource Task_EditarETentarDica}"
-                                            Visibility="{Binding CurrentTask.CanRetry, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
+                                            Visibility="{Binding CurrentTask.CanEdit, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>
                                     <Button Content="{DynamicResource Task_Retomar}" Command="{Binding ResumeTaskCommand}" Margin="0,0,8,6"
                                             Style="{StaticResource PrimaryButton}" Background="{StaticResource AccentBrush}" BorderBrush="{StaticResource AccentBrush}"
                                             Visibility="{Binding CurrentTask.CanResume, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"/>

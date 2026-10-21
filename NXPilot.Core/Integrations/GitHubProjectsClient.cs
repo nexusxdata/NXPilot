@@ -199,7 +199,7 @@ public sealed class GitHubProjectsClient(GitHubProjectConnection connection, Htt
             {
                 var (description, criteria) = SplitCriteria(i.Body);
                 return new WorkItem(i.Number, i.IsIssue ? i.IssueType ?? i.Level ?? "Issue" : NxText.T("Rascunho", "Draft", "Borrador"), i.Title,
-                    i.Status ?? (i.IsIssue ? NxText.T("Aberta", "Open", "Abierta") : ""), description, criteria, i.Url);
+                    i.Status ?? (i.IsIssue ? NxText.T("Aberta", "Open", "Abierta") : ""), description, criteria, i.Url, string.Join(", ", i.Assignees));
             }).ToList();
     }
 

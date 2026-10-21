@@ -139,6 +139,9 @@ public sealed class WorkItemSettings
     /// <summary>Último work item Project escolhido (0 = todos; nulo = ainda não escolheu: começa na raiz do NXProject).</summary>
     public int? LastDevOpsRootId { get; set; }
 
+    /// <summary>Lista de Work items do DevOps: "mine" (minhas abertas) ou "tree" (hierarquia do Work Item Project).</summary>
+    public string LastDevOpsScope { get; set; } = "mine";
+
     /// <summary>Última issue Project escolhida no GitHub (0 = todas; nulo = começa na raiz do NXProject).</summary>
     public int? LastGitHubRootIssue { get; set; }
 

@@ -594,6 +594,49 @@ public static class CoreTools
                     $"#{w.Id} [{w.Type}] {w.Title} — {w.State}\n{w.Url}" + (w.AcceptanceCriteria.Length > 0 ? $"\nCritérios: {Trim(w.AcceptanceCriteria, 600)}" : ""))));
             },
         };
+        yield return new NxTool
+        {
+            Name = "workitems_tree", Extension = "Work items", ReadOnly = true,
+            Available = _ => WorkItemSettings.Load().DevOps() != null,
+            Description = "Read an Azure DevOps work item (Work Item Project, Epic, Feature, Story, Task…) and everything below it in the hierarchy, in tree order: " +
+                          "level, id, type, title, state, assigned to, remaining/original hours and iteration; the root comes with description and acceptance criteria. " +
+                          "Use it for the work item linked to the task (e.g. to list pending tasks). open_only=true drops closed items.",
+            Schema = NxTool.ParseSchema("""
+                {"type":"object","required":["id"],"properties":{
+                  "id":{"type":"integer","description":"Work item id"},
+                  "project":{"type":"string","description":"Azure DevOps team project; default: the one linked to the task / last used"},
+                  "open_only":{"type":"boolean","description":"Only items not closed/done/removed (the root always comes)"},
+                  "max":{"type":"integer","description":"Default 300"}}}
+                """),
+            Run = async (a, _, ct) =>
+            {
+                var s = WorkItemSettings.Load();
+                var conn = (s.DevOps() ?? throw new InvalidOperationException("Azure DevOps não configurado.")).Connection;
+                var project = Str(a, "project") is { Length: > 0 } p ? p : s.LastDevOpsProject is { Length: > 0 } last ? last : conn.Project;
+                using var ado = new AzureDevOpsClient(conn with { Project = project });
+                var id = Int(a, "id") ?? throw new ArgumentException("id");
+                var nodes = await ado.TreeAsync(id, Bool(a, "open_only"), Math.Clamp(Int(a, "max") ?? 300, 1, 1000), ct);
+                return ToolResult.Text(nodes.Count == 0
+                    ? NxText.T($"Work item #{id} não encontrado no projeto {project} (ou sem acesso).", $"Work item #{id} not found in project {project} (or no access).", $"Work item #{id} no encontrado en el proyecto {project} (o sin acceso).")
+                    : WorkItemTreeText(nodes, project));
+            },
+        };
+    }
+
+    /// <summary>Raiz com descrição/critérios; depois uma tabela na ordem da árvore (título recuado pelo nível) e o total por estado.</summary>
+    internal static string WorkItemTreeText(IReadOnlyList<WorkItemNode> nodes, string project)
+    {
+        var root = nodes[0];
+        var sb = new StringBuilder($"# {root.Type} #{root.Id} · {root.Title}\nProject: {project} · State: {root.State} · {root.Url}\n");
+        if (root.Description.Length > 0) sb.Append("\nDescription:\n").Append(Trim(root.Description, 2000)).Append('\n');
+        if (root.AcceptanceCriteria.Length > 0) sb.Append("\nAcceptance criteria:\n").Append(Trim(root.AcceptanceCriteria, 1500)).Append('\n');
+        sb.Append("\n| Level | Id | Type | Title | State | Assigned to | Remaining h | Original h | Iteration |\n|---|---|---|---|---|---|---|---|---|\n");
+        static string H(double? h) => h is { } v ? v.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : "";
+        foreach (var n in nodes)
+            sb.Append($"| {n.Depth} | {n.Id} | {n.Type} | {new string('·', n.Depth * 2)}{n.Title.Replace("|", "\\|")} | {n.State} | {n.AssignedTo} | {H(n.RemainingWork)} | {H(n.OriginalEstimate)} | {n.Iteration} |\n");
+        sb.Append("\nBy state: ").Append(string.Join(", ", nodes.Skip(1).GroupBy(n => n.State).Select(g => $"{g.Key} {g.Count()}")));
+        sb.Append(" · By type: ").Append(string.Join(", ", nodes.Skip(1).GroupBy(n => n.Type).Select(g => $"{g.Key} {g.Count()}")));
+        return sb.ToString();
     }
 
     // ================================================================ Teams

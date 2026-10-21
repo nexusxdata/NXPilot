@@ -13,7 +13,24 @@ using System.Text.RegularExpressions;
 
 namespace NXPilot.Integrations;
 
-public sealed record WorkItem(int Id, string Type, string Title, string State, string Description, string AcceptanceCriteria, string Url);
+/// <param name="AssignedTo">Responsável (nome de exibição; no GitHub, os logins); vazio = sem responsável.</param>
+public sealed record WorkItem(int Id, string Type, string Title, string State, string Description, string AcceptanceCriteria, string Url, string AssignedTo = "");
+
+/// <summary>Um item da hierarquia (TreeAsync): nível 0 = o item escolhido.</summary>
+public sealed record WorkItemNode(int Id, int ParentId, int Depth, string Type, string Title, string State, string AssignedTo,
+    double? RemainingWork, double? OriginalEstimate, string Iteration, string Description, string AcceptanceCriteria, string Url)
+{
+    public WorkItem ToWorkItem() => new(Id, Type, Title, State, Description, AcceptanceCriteria, Url, AssignedTo);
+}
+
+/// <summary>
+/// Work item vinculado à tarefa (origem, projeto, id): vai para o prompt do agente, que lê o item
+/// e a hierarquia dele pelo MCP (workitems_tree) — e fica no Histórico.
+/// </summary>
+public sealed record WorkItemLink(string Source, string Project, int Id, string Type, string Title, string Url)
+{
+    public string Label => $"{Type} #{Id} · {Title}";
+}
 
 /// <summary>Conexão Azure DevOps/TFS: organização, projeto e PAT (decifrado só em memória).</summary>
 public sealed record DevOpsConnection(string OrganizationUrl, string Project, string Pat)
@@ -71,7 +88,7 @@ public sealed class AzureDevOpsClient(DevOpsConnection connection) : IDisposable
         if (ids.Count == 0) return Array.Empty<WorkItem>();
         var project = Uri.EscapeDataString(connection.Project);
 
-        const string fields = "System.Id,System.WorkItemType,System.Title,System.State,System.Description,Microsoft.VSTS.Common.AcceptanceCriteria";
+        const string fields = "System.Id,System.WorkItemType,System.Title,System.State,System.AssignedTo,System.Description,Microsoft.VSTS.Common.AcceptanceCriteria";
         using var itemsResp = await _http.GetAsync($"{connection.OrganizationUrl}/_apis/wit/workitems?ids={string.Join(',', ids)}&fields={fields}&api-version=7.1", ct);
         await EnsureOk(itemsResp, ct);
         using var doc = JsonDocument.Parse(await itemsResp.Content.ReadAsStringAsync(ct));
@@ -83,7 +100,7 @@ public sealed class AzureDevOpsClient(DevOpsConnection connection) : IDisposable
             var id = w.GetProperty("id").GetInt32();
             byId[id] = new WorkItem(id, F("System.WorkItemType"), F("System.Title"), F("System.State"),
                 PlainText(F("System.Description")), PlainText(F("Microsoft.VSTS.Common.AcceptanceCriteria")),
-                $"{connection.OrganizationUrl}/{project}/_workitems/edit/{id}");
+                $"{connection.OrganizationUrl}/{project}/_workitems/edit/{id}", AssignedName(f));
         }
         return ids.Where(byId.ContainsKey).Select(i => byId[i]).ToList(); // mantém a ordem do WIQL
     }
@@ -120,6 +137,93 @@ public sealed class AzureDevOpsClient(DevOpsConnection connection) : IDisposable
         ids.Remove(rootId);
         return ids;
     }
+
+    /// <summary>
+    /// O work item e a hierarquia abaixo dele (Epic → Feature → Story → Task…), na ordem da árvore,
+    /// com nível, tipo, estado, responsável e horas. <paramref name="openOnly"/> tira os fechados
+    /// (o item raiz sempre vem). Até <paramref name="max"/> itens.
+    /// </summary>
+    public async Task<IReadOnlyList<WorkItemNode>> TreeAsync(int rootId, bool openOnly = false, int max = 300, CancellationToken ct = default)
+    {
+        var wiql = $"SELECT [System.Id] FROM WorkItemLinks WHERE [Source].[System.Id] = {rootId} " +
+                   "AND [System.Links.LinkType] = 'System.LinkTypes.Hierarchy-Forward' MODE (Recursive)";
+        using var resp = await _http.PostAsync($"{connection.OrganizationUrl}/{Uri.EscapeDataString(connection.Project)}/_apis/wit/wiql?api-version=7.1",
+            new StringContent(JsonSerializer.Serialize(new { query = wiql }), Encoding.UTF8, "application/json"), ct);
+        await EnsureOk(resp, ct);
+        using var links = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        var children = new Dictionary<int, List<int>>();
+        if (links.RootElement.TryGetProperty("workItemRelations", out var relations))
+            foreach (var r in relations.EnumerateArray())
+                if (r.TryGetProperty("source", out var s) && s.ValueKind == JsonValueKind.Object && r.TryGetProperty("target", out var t) && t.ValueKind == JsonValueKind.Object)
+                {
+                    var parent = s.GetProperty("id").GetInt32();
+                    if (!children.TryGetValue(parent, out var list)) children[parent] = list = new();
+                    list.Add(t.GetProperty("id").GetInt32());
+                }
+
+        // Ordem da árvore (pai antes dos filhos), com o nível de cada um.
+        var order = new List<(int Id, int Parent, int Depth)>();
+        void Walk(int id, int parent, int depth)
+        {
+            if (order.Count >= 2000 || order.Any(o => o.Id == id)) return;
+            order.Add((id, parent, depth));
+            foreach (var c in children.GetValueOrDefault(id) ?? []) Walk(c, id, depth + 1);
+        }
+        Walk(rootId, 0, 0);
+
+        const string fields = "System.Id,System.WorkItemType,System.Title,System.State,System.AssignedTo,System.IterationPath," +
+                              "Microsoft.VSTS.Scheduling.RemainingWork,Microsoft.VSTS.Scheduling.OriginalEstimate,System.Description,Microsoft.VSTS.Common.AcceptanceCriteria";
+        var byId = new Dictionary<int, JsonElement>();
+        var docs = new List<JsonDocument>();
+        try
+        {
+            foreach (var chunk in order.Select(o => o.Id).Chunk(200))
+            {
+                using var r = await _http.GetAsync($"{connection.OrganizationUrl}/_apis/wit/workitems?ids={string.Join(',', chunk)}&fields={fields}&errorPolicy=omit&api-version=7.1", ct);
+                await EnsureOk(r, ct);
+                var doc = JsonDocument.Parse(await r.Content.ReadAsStringAsync(ct));
+                docs.Add(doc);
+                foreach (var w in doc.RootElement.GetProperty("value").EnumerateArray())
+                    if (w.ValueKind == JsonValueKind.Object) byId[w.GetProperty("id").GetInt32()] = w.GetProperty("fields");
+            }
+            var project = Uri.EscapeDataString(connection.Project);
+            string StateOf(int id) => byId.TryGetValue(id, out var f) && f.TryGetProperty("System.State", out var v) ? v.GetString() ?? "" : "";
+
+            // Só pendentes: fica o que está aberto e os pais dele (mesmo fechados), para a Task não aparecer solta.
+            HashSet<int>? keep = null;
+            if (openOnly)
+            {
+                var parentOf = order.ToDictionary(o => o.Id, o => o.Parent);
+                keep = new HashSet<int> { rootId };
+                foreach (var (id, _, _) in order.Where(o => byId.ContainsKey(o.Id) && !IsClosed(StateOf(o.Id))))
+                    for (var cur = id; cur != 0 && keep.Add(cur); cur = parentOf.GetValueOrDefault(cur)) { }
+            }
+
+            var result = new List<WorkItemNode>();
+            foreach (var (id, parent, depth) in order)
+            {
+                if (!byId.TryGetValue(id, out var f)) continue;
+                string F(string name) => f.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+                double? N(string name) => f.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+                var state = F("System.State");
+                if (keep != null && !keep.Contains(id)) continue;
+                var assigned = f.TryGetProperty("System.AssignedTo", out var a) && a.ValueKind == JsonValueKind.Object && a.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : "";
+                result.Add(new WorkItemNode(id, parent, depth, F("System.WorkItemType"), F("System.Title"), state, assigned,
+                    N("Microsoft.VSTS.Scheduling.RemainingWork"), N("Microsoft.VSTS.Scheduling.OriginalEstimate"), F("System.IterationPath"),
+                    PlainText(F("System.Description")), PlainText(F("Microsoft.VSTS.Common.AcceptanceCriteria")),
+                    $"{connection.OrganizationUrl}/{project}/_workitems/edit/{id}"));
+                if (result.Count >= max) break;
+            }
+            return result;
+        }
+        finally { foreach (var d in docs) d.Dispose(); }
+    }
+
+    private static string AssignedName(JsonElement fields) =>
+        fields.TryGetProperty("System.AssignedTo", out var a) && a.ValueKind == JsonValueKind.Object && a.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : "";
+
+    public static bool IsClosed(string state) =>
+        state is "Closed" or "Done" or "Removed" or "Resolved" or "Concluído" or "Fechado" or "Removido";
 
     private async Task<List<int>> WiqlIdsAsync(string wiql, int top, CancellationToken ct)
     {

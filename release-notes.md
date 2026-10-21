@@ -15,6 +15,17 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**🌳 Work items: árvore do Work Item Project e tarefa vinculada**
+
+- Na lista de Work items (Azure DevOps), **Mostrar**: "Só as minhas · abertas" ou **"Todas as abertas · hierarquia do Work Item Project"** — uma árvore Project → EPIC/EPIC_GROUP → Feature → Story → Task, com ▶/▼ (ou setas → ←), Expandir tudo/Recolher e a quantidade de itens abaixo de cada um. Pais já fechados ficam na árvore quando têm filhos pendentes.
+- Nova coluna **Responsável**.
+- Qualquer nível vira tarefa, e o **vínculo** vai junto: o agente é avisado de que os dados vêm do DevOps e lê o item e tudo abaixo dele com a nova ferramenta MCP **`workitems_tree`** (tipo, estado, responsável, horas, iteração).
+- A tela guarda origem, projeto, Work Item Project e o "Mostrar"; salvar na Extensão MCP não apaga mais essas escolhas.
+
+**✎ Editar e refazer o plano**
+
+- O botão aparece também com o plano pronto aguardando aprovação: o plano é descartado e um novo é pedido com o que você mudou (inclusive o agente).
+
 **🧩 Extensão MCP: escolha por lista**
 
 - A janela Extensão MCP troca a faixa de abas por uma lista **Extensão**: cabem quantas extensões vierem, cada uma com a bolinha de status, e escolher mostra a configuração dela.

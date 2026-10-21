@@ -353,8 +353,8 @@
     <!-- Tentar novamente (plano) e Clonar (Histórico) -->
     <sys:String x:Key="Task_TentarNovamente">↻  Intentar de nuevo</sys:String>
     <sys:String x:Key="Task_TentarNovamenteDica">Pide el plan de nuevo al agente, en la misma tarea (rehace el worktree si no llegó a crearse).</sys:String>
-    <sys:String x:Key="Task_EditarETentar">✎  Editar e intentar de nuevo</sys:String>
-    <sys:String x:Key="Task_EditarETentarDica">Abre la tarea para editar (texto, agente, modelos, revisor) y pide el plan de nuevo con sus cambios. La carpeta y el modo siguen siendo los mismos.</sys:String>
+    <sys:String x:Key="Task_EditarETentar">✎  Editar y rehacer el plan</sys:String>
+    <sys:String x:Key="Task_EditarETentarDica">Abre la tarea para editar (texto, criterios, agente, modelos, revisor) y pide un plan nuevo con sus cambios. Si el plan ya está listo, se descarta. La carpeta y el modo siguen siendo los mismos.</sys:String>
     <sys:String x:Key="Task_SalvarETentar">↻  Guardar e intentar de nuevo</sys:String>
     <sys:String x:Key="Hist_Clonar">Clonar y ejecutar de nuevo</sys:String>
     <sys:String x:Key="Hist_ClonarDica">Abre Nueva tarea ya rellenada con los datos de esta (título, intención, criterios, agente, modelo y carpeta). Crea una tarea nueva; la original queda como está.</sys:String>
