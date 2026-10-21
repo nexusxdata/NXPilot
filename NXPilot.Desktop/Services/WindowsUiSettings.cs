@@ -19,8 +19,7 @@ public sealed class WindowsUiSettings
 
     public WindowsUiPolicy Policy => new(AllowedProcesses);
 
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXPilot", "windows-ui.json");
+    private static string FilePath => NXPilot.Integrations.ExtensionSettings.File("windows-ui.json");
 
     public static WindowsUiSettings Load()
     {

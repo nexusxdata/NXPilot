@@ -45,13 +45,24 @@ public sealed partial class NotificationCenter : ObservableObject
     /// <summary>Disparado a cada aviso novo — a janela usa para piscar na barra de tarefas.</summary>
     public event Action<NotificationItem>? Raised;
 
-    public void Notify(NotificationKind kind, string title, string body)
+    public NotificationItem Notify(NotificationKind kind, string title, string body)
     {
         var item = new NotificationItem(kind, title, body);
         Items.Insert(0, item);
         while (Items.Count > 200) Items.RemoveAt(Items.Count - 1);
         UnreadCount = Items.Count(i => !i.IsRead);
         Raised?.Invoke(item);
+        return item;
+    }
+
+    /// <summary>
+    /// Aviso que já foi resolvido (a decisão foi aprovada ou negada, o disparo foi aprovado ou
+    /// descartado): sai da lista — você já leu e agiu.
+    /// </summary>
+    public void Resolve(NotificationItem? item)
+    {
+        if (item == null || !Items.Remove(item)) return;
+        UnreadCount = Items.Count(i => !i.IsRead);
     }
 
     public void MarkAllRead()

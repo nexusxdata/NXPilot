@@ -34,6 +34,9 @@
     <sys:String x:Key="Main_Fases">Fases</sys:String>
     <sys:String x:Key="Main_Fase" xml:space="preserve">Fase </sys:String>
     <sys:String x:Key="Main_PlanoPorArquivoFase" xml:space="preserve">Plano por arquivo · Fase </sys:String>
+    <sys:String x:Key="Main_TerminalDaFase" xml:space="preserve">Terminal da fase </sys:String>
+    <sys:String x:Key="Main_LogDaFase" xml:space="preserve">Log da fase </sys:String>
+    <sys:String x:Key="Main_Detalhar">Detalhar</sys:String>
     <sys:String x:Key="Main_Diff">Diff</sys:String>
     <sys:String x:Key="Main_Terminal">Terminal</sys:String>
     <sys:String x:Key="Main_LogDeEventos">Log de eventos (</sys:String>
@@ -193,6 +196,7 @@
     <sys:String x:Key="Task_AplicarNaPasta">⇩  Aplicar na pasta original</sys:String>
     <sys:String x:Key="Task_CriteriosLabel">Critérios de aceite</sys:String>
     <sys:String x:Key="NewTask_Revisor">Revisor (verificação cruzada)</sys:String>
+    <sys:String x:Key="NewTask_AutoFix">Analisar e corrigir os achados da verificação automaticamente (até 2 rodadas, sem pedir a cada vez — cada ação continua passando pelo gate)</sys:String>
     <sys:String x:Key="NewTask_RevisorCodex">Codex — somente leitura (recomendado)</sys:String>
     <sys:String x:Key="NewTask_RevisorClaude">Claude — numa sessão nova</sys:String>
     <sys:String x:Key="NewTask_RevisorNenhum">Sem verificação</sys:String>
@@ -202,6 +206,7 @@
     <sys:String x:Key="Hist_Data">Data</sys:String>
     <sys:String x:Key="Hist_Tarefa">Tarefa</sys:String>
     <sys:String x:Key="Hist_Estado">Estado</sys:String>
+    <sys:String x:Key="Hist_Assunto">Assunto</sys:String>
     <sys:String x:Key="Hist_Detalhe">Detalhe</sys:String>
     <sys:String x:Key="Hist_Riscos">Riscos</sys:String>
     <sys:String x:Key="Hist_VerRiscos">⚠  Riscos da tarefa</sys:String>
@@ -237,6 +242,8 @@
     <sys:String x:Key="Ext_Warehouse">Warehouse ID ou HTTP path (/sql/1.0/warehouses/…)</sys:String>
     <sys:String x:Key="Ext_Catalogo">Catálogo padrão (opcional)</sys:String>
     <sys:String x:Key="Ext_Schema">Schema padrão (opcional)</sys:String>
+    <sys:String x:Key="Ext_DbSchemasGravacao">Schemas de gravação (onde o agente pode criar e alterar objetos)</sys:String>
+    <sys:String x:Key="Ext_DbSchemasGravacaoDica">Schema completo ou com curinga, separados por vírgula — ex.: sandbox_*, dev.sandbox_*. Escrever fora deles é bloqueado (protege a produção). Nome sem schema usa o catálogo/schema padrão acima. Vazio = toda escrita pede a sua aprovação.</sys:String>
     <sys:String x:Key="Ext_TokenDatabricks">Token (PAT) do Databricks</sys:String>
     <sys:String x:Key="Ext_DatabricksGate">SELECT, SHOW e DESCRIBE passam sozinhos. INSERT, UPDATE, DELETE, MERGE, DDL e GRANT pedem a sua aprovação.</sys:String>
     <sys:String x:Key="Ext_TestarDatabricks">Testar conexão</sys:String>
@@ -258,6 +265,10 @@
     <sys:String x:Key="Ext_Salvar">Salvar</sys:String>
     <sys:String x:Key="Ext_PowerBiComo">O agente edita o projeto Power BI (.pbip) como código — modelo em TMDL e relatório em PBIR — e o NXPilot valida os arquivos. Para conferir, o NXPilot abre o projeto no Power BI Desktop e captura a tela. Não clica em nada.</sys:String>
     <sys:String x:Key="Ext_PowerBiTestar">Abrir um .pbip e capturar…</sys:String>
+    <sys:String x:Key="Ext_PowerBiWorkspace">Workspace de novos PBI</sys:String>
+    <sys:String x:Key="Ext_PowerBiWorkspaceNome">Nome</sys:String>
+    <sys:String x:Key="Ext_PowerBiWorkspaceId">ID (opcional)</sys:String>
+    <sys:String x:Key="Ext_PowerBiWorkspaceDica">Onde ficam os dataflows e modelos que os relatórios novos usam. O agente grava nos parâmetros do projeto em vez de um valor provisório; depois o PBI fica com esse valor.</sys:String>
     <sys:String x:Key="Ext_JanelasTitulo">Janelas do Windows (prévia)</sys:String>
     <sys:String x:Key="Ext_JanelasAviso">Liste, leia e capture janelas dos apps liberados abaixo. Ler um app que você escolher, mesmo minimizado, monitorar com intervalo mínimo de 20 s e clicar ou digitar só por processos que você aprova. Exclusões sempre pedem nova autorização. O que for lido vai ao agente como dado, nunca como instrução.</sys:String>
     <sys:String x:Key="Ext_JanelasLiberados">Apps liberados (nome do processo, um por linha — ex.: EXCEL, PBIDesktop, saplogon)</sys:String>

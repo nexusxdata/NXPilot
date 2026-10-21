@@ -38,7 +38,7 @@ public sealed class RuleRiskClassifier : IRiskClassifier
         R(RiskLevel.Alto, @"\bnpm\s+publish\b|\bdotnet\s+nuget\s+push\b", "publica pacote", "publishes a package", "publica un paquete"),
         // Conexões e tokens ficam com o NXPilot/NXProject: o agente usa as extensões (com o gate), nunca os segredos direto.
         // Por NOME de arquivo — os arquivos do worktree (também em AppData\Local\NXPilot) não entram.
-        R(RiskLevel.Alto, @"config_nxproject\.json|NXProject[^\\/\s]*[\\/](ai-settings|config)[^\\/\s]*\.json|NXPilot[\\/](ai-provider|databricks|entra-token|git-repos|mail|teams|whatsapp|work-items|windows-ui|windows-processes|settings)\.json|NXPilot[\\/](mail|tokens?)[\\/]|\.claude[\\/]\.credentials\.json|\.codex[\\/]auth\.json|\.git-credentials|[\\/]gh[\\/]hosts\.yml",
+        R(RiskLevel.Alto, @"config_nxproject\.json|NXProject[^\\/\s]*[\\/](ai-settings|config)[^\\/\s]*\.json|NXPilot[\\/](ai-provider|databricks|entra-token|git-repos|mail|teams|whatsapp|work-items|windows-ui|windows-processes|powerbi|settings)\.json|NXPilot[\\/]MCP[\\/]Settings\b|NXPilot[\\/](mail|tokens?)[\\/]|\.claude[\\/]\.credentials\.json|\.codex[\\/]auth\.json|\.git-credentials|[\\/]gh[\\/]hosts\.yml",
             "lê/altera conexões e tokens do NXPilot, do NXProject ou dos agentes", "reads/changes NXPilot, NXProject or agent connections and tokens", "lee/modifica conexiones y tokens de NXPilot, NXProject o los agentes"),
         R(RiskLevel.Alto, @"ProtectedData|CryptUnprotectData|DataProtectionScope|ConvertFrom-SecureString|\bcmdkey\b|\bvaultcmd\b|Get-StoredCredential",
             "decifra segredos do Windows (DPAPI/cofre)", "decrypts Windows secrets (DPAPI/vault)", "descifra secretos de Windows (DPAPI/almacén)"),

@@ -122,6 +122,17 @@ public static class TaskCitations
         });
     }
 
+    /// <summary>A tarefa cita um PBI de exemplo (.pbip, .pbix ou pasta com .pbip)?</summary>
+    public static bool CitesPowerBi(string intent) => SplitLegend(intent).Citations.Any(c =>
+        c.Kind is "pbip" or "pbix" ||
+        (c.Kind == FolderKind && Directory.Exists(c.FullPath) && Directory.EnumerateFiles(c.FullPath, "*.pbip", SearchOption.AllDirectories).Any()));
+
+    /// <summary>Orientação ao agente quando a tarefa cita um PBI de exemplo.</summary>
+    public static string PowerBiExampleGuidance() => NxText.T(
+        "O PBI citado é um EXEMPLO de estilo: leia a aba indicada com a ferramenta MCP powerbi_style (path = o arquivo citado, page = a aba). No PBI novo, copie o tema com powerbi_copy_theme e reproduza o tamanho da página, o fundo, a grade de posições e a formatação (títulos, fontes, cores) dos visuais, com os campos do modelo novo. Nunca altere o exemplo. Ao final, powerbi_validate e powerbi_capture: o novo deve abrir parecido com a aba de exemplo.",
+        "The cited report is a STYLE EXAMPLE: read the named tab with the MCP tool powerbi_style (path = the cited file, page = the tab). In the new report, copy the theme with powerbi_copy_theme and reproduce the page size, background, grid of positions and the visuals' formatting (titles, fonts, colors), with the new model's fields. Never change the example. At the end, powerbi_validate and powerbi_capture: the new one should look like the example tab.",
+        "El PBI citado es un EJEMPLO de estilo: lea la pestaña indicada con la herramienta MCP powerbi_style (path = el archivo citado, page = la pestaña). En el PBI nuevo, copie el tema con powerbi_copy_theme y reproduzca el tamaño de página, el fondo, la cuadrícula de posiciones y el formato (títulos, fuentes, colores) de los visuales, con los campos del modelo nuevo. Nunca altere el ejemplo. Al final, powerbi_validate y powerbi_capture: el nuevo debe abrirse parecido a la pestaña de ejemplo.");
+
     /// <summary>
     /// Orientação ao agente quando a tarefa cita work items: de onde vêm os dados, como ler a referência e,
     /// ao criar itens, horas = estimativa original e aviso quando a referência cresceu. Usada pelo app e pelo Bench.

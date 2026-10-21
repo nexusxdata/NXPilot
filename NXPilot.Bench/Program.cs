@@ -99,6 +99,20 @@ if (args.Length > 2 && args[0] == "--wi-hours" && OperatingSystem.IsWindows())
     return 0;
 }
 
+// --pbi-style <pbip|pasta|pbix> [aba]: o estilo que o agente recebe do PBI de exemplo (powerbi_style). Diagnóstico.
+if (args.Length > 1 && args[0] == "--pbi-style")
+{
+    Console.WriteLine(NXPilot.Integrations.PowerBiStyle.Describe(args[1], args.Length > 2 ? args[2] : null));
+    return 0;
+}
+
+// --pbi-copy-theme <exemplo> <pasta .Report de destino> [tema base de reserva]: o que powerbi_copy_theme faz. Diagnóstico.
+if (args.Length > 2 && args[0] == "--pbi-copy-theme")
+{
+    Console.WriteLine(NXPilot.Integrations.PowerBiStyle.CopyTheme(args[1], args[2], args.Length > 3 ? args[3] : null));
+    return 0;
+}
+
 // --exec-sim <claude|codex> <prompt>: o agente em modo EXECUÇÃO (fora do plano), com o MCP real; o gate libera
 // MÉDIO como se o usuário aprovasse no painel (ALTO continua negado). Para testes autorizados de gravação.
 if (args.Length > 2 && args[0] == "--exec-sim" && OperatingSystem.IsWindows())
@@ -281,7 +295,7 @@ static async Task<int> PlanSimAsync(string agent, string project, string intentT
 
     var wt = Path.Combine(Path.GetTempPath(), "nx-plan-sim-" + DateTime.Now.ToString("HHmmss"));
     Directory.CreateDirectory(wt);
-    File.WriteAllText(Path.Combine(wt, "README.md"), "# Frotec\n");
+    File.WriteAllText(Path.Combine(wt, "README.md"), "# Teste\n");
     var bridge = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\NXPilot.Desktop\bin\Release\net10.0-windows\NxPilot.exe"));
     var log = new List<string>();
     var mcpPipe = "NXPilot.Mcp.sim." + Environment.ProcessId;

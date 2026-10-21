@@ -86,6 +86,7 @@ public partial class NewTaskWindow : Window
         Select(TaskModeBox, clone.AsTemplate ? "Hook" : "Online"); // clonar um hook cria outro hook
         Select(AgentBox, clone.Executor.ToString());
         Select(ReviewerBox, clone.Reviewer.ToString());
+        AutoFixBox.IsChecked = clone.AutoFixFindings;
         Select(ModelBox, clone.Model ?? "");
         if (clone.CodexModel is { Length: > 0 } codexModel) CodexModelBox.Text = codexModel;
         Title = T("Nova tarefa (clonada do Histórico)", "New task (cloned from History)", "Nueva tarea (clonada del Historial)");
@@ -437,9 +438,13 @@ public partial class NewTaskWindow : Window
             _ => "Codex" + (codexModel.Length > 0 ? $" ({codexModel})" : ""),
         };
         // Rótulo antes de cada valor: "Agente: Claude Code (…) · Revisor: Codex (…)".
+        // Sem revisor não há achados para corrigir.
+        var hasReviewer = (ReviewerBox.SelectedItem as ComboBoxItem)?.Tag as string != "None";
+        if (AutoFixBox != null) AutoFixBox.IsEnabled = hasReviewer;
         SummaryText.Text = (IsHookMode ? "⚡ Hook   ·   " : "")
             + (folder == null ? "" : folder + "   ·   ")
-            + $"🤖 {T("Agente:", "Agent:", "Agente:")} {agent}   ·   🔍 {T("Revisor:", "Reviewer:", "Revisor:")} {reviewer}";
+            + $"🤖 {T("Agente:", "Agent:", "Agente:")} {agent}   ·   🔍 {T("Revisor:", "Reviewer:", "Revisor:")} {reviewer}"
+            + (hasReviewer && AutoFixBox?.IsChecked == true ? "   ·   🔧 " + T("corrige os achados sozinho", "fixes findings by itself", "corrige los hallazgos solo") : "");
         var fullPath = SelectedVersioning == VersioningMode.Local ? SelectedSubject?.Path : RepoBox.Text.Trim();
         SummaryText.ToolTip = SummaryText.Text + (string.IsNullOrEmpty(fullPath) ? "" : "\n" + fullPath);
     }
@@ -678,7 +683,8 @@ public partial class NewTaskWindow : Window
         Result = new NewTaskInfo(subject?.Dir ?? repo, TitleBox.Text.Trim(), IntentBox.Text.Trim() + NXPilot.Planning.TaskCitations.Legend(_citations),
             CriteriaBox.Text.Trim().Length > 0 ? CriteriaBox.Text.Trim() : T("(não informados)", "(not provided)", "(no informado)"),
             model.Length > 0 ? model : null, reviewer, codexModel.Length > 0 ? codexModel : null, executor, versioning,
-            subject?.Name, subject?.Path, AsTemplate: IsHookMode, WorkItem: _workItem);
+            subject?.Name, subject?.Path, AsTemplate: IsHookMode, WorkItem: _workItem,
+            AutoFixFindings: AutoFixBox.IsChecked == true && reviewer != ReviewerKind.None);
         DialogResult = true;
     }
 }

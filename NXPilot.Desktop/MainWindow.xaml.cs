@@ -22,6 +22,9 @@ public partial class MainWindow : Window
 
     private bool _closeConfirmed;
 
+    /// <summary>Terminal da fase acompanha o fim da saída, como um terminal.</summary>
+    private void OnPhaseTerminalChanged(object sender, TextChangedEventArgs e) => PhaseTerminalScroll.ScrollToEnd();
+
     public MainWindow()
     {
         InitializeComponent();
@@ -36,6 +39,7 @@ public partial class MainWindow : Window
                      "Type the text an event would bring (it replaces {texto}, as data). The risks you approve in this run become pre-approved for triggers; afterwards, use ⚡ Arm hook.",
                      "Escriba el texto que traería un evento (reemplaza {texto}, como dato). Los riesgos que apruebe en esta ejecución quedan preaprobados en los disparos; después, use ⚡ Armar hook."),
             NxText.T("Executar teste", "Run test", "Ejecutar prueba"));
+        Vm.PlanApproved += () => MainTabs.SelectedIndex = 1; // plano aprovado: acompanhar pela aba Fases
         Vm.Notifications.Raised += _ => FlashIfAway();
         Services.TeamsNotifier.Attach(Vm.Notifications, () => Vm.CurrentTask?.Info.SubjectFolder); // extensão Teams: os avisos escolhidos vão para o canal
         KeyDown += (_, e) =>
@@ -424,6 +428,7 @@ public partial class MainWindow : Window
                          "Fase 1: crear saudacao.txt con la línea ¡Hola, NXPilot!. Fase 2: crear contar.ps1 que imprima cuántas líneas tiene saudacao.txt."),
                 NxText.T("Os dois arquivos existem; contar.ps1 imprime 1; nada mais muda.", "Both files exist; contar.ps1 prints 1; nothing else changes.", "Los dos archivos existen; contar.ps1 imprime 1; nada más cambia."),
                 "haiku", ReviewerKind.Codex, Environment.GetEnvironmentVariable("NXPILOT_CODEX_MODEL"), executor);
+        if (Environment.GetEnvironmentVariable("NXPILOT_DEMO_AUTOFIX") == "1") info = info with { AutoFixFindings = true }; // correção automática dos achados
         await Vm.StartTaskAsync(info);
         await Task.Delay(500);
         SaveVisual((FrameworkElement)Content, this, Name("-plano"));
@@ -434,8 +439,11 @@ public partial class MainWindow : Window
 
         var execution = Vm.ApprovePlanCommand.ExecuteAsync(null);
         var shotDecision = false;
+        DateTime? shotRunning = DateTime.Now.AddSeconds(8);
         while (!execution.IsCompleted)
         {
+            // Aba Fases durante a execução: terminal e log da fase rodando.
+            if (shotRunning is { } at && DateTime.Now > at) { SaveVisual((FrameworkElement)Content, this, Name("-rodando-fases")); shotRunning = null; }
             // Pedidos reais parados no gate: o primeiro vira print; todos são aprovados
             // (repositório descartável).
             foreach (var d in Vm.PendingDecisions.Where(d => d.Response != null).ToList())
@@ -454,9 +462,18 @@ public partial class MainWindow : Window
         MainTabs.SelectedIndex = 1;
         await Task.Delay(600);
         SaveVisual((FrameworkElement)Content, this, Name("-fim-fases"));
+        if (Vm.Phases.FirstOrDefault() is { } first) { Vm.ShowPhaseTerminal = false; Vm.DetailPhaseCommand.Execute(first); await Task.Delay(600); SaveVisual((FrameworkElement)Content, this, Name("-fim-fase1")); }
         MainTabs.SelectedIndex = 2;
         await Task.Delay(600);
         SaveVisual((FrameworkElement)Content, this, Name("-fim-diff"));
+        if (Vm.CurrentTask is { } done && Services.TaskStore.LoadAll().FirstOrDefault(r => r.Id == done.Id) is { } saved)
+        {
+            var findings = new Views.FindingsWindow(saved) { Owner = this };
+            findings.Show();
+            await Task.Delay(800);
+            SaveVisual((FrameworkElement)findings.Content, findings, Name("-achados"));
+            findings.Close();
+        }
         var wt = Vm.CurrentTask?.Worktree ?? "";
         var lines = new List<string>
         {

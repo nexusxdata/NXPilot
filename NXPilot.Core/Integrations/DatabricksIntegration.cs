@@ -23,13 +23,21 @@ public sealed class DatabricksSettings
     public string Catalog { get; set; } = "";
     public string Schema { get; set; } = "";
 
+    /// <summary>
+    /// Schemas onde o agente pode criar e alterar objetos: nomes completos ou com curinga
+    /// ("sandbox_*", "dev.sandbox_*"), separados por vírgula. Vazio = escrita segue o gate de sempre
+    /// (ALTO, você decide). Com padrões, escrever fora deles é bloqueado — protege a produção.
+    /// </summary>
+    public string WriteSchemas { get; set; } = "";
+
+    public WriteSchemaPolicy WritePolicy() => new(WriteSchemas, Catalog, Schema);
+
     [JsonIgnore] public string Token { get; set; } = "";
     public string TokenProtected { get; set; } = "";
 
     public DatabricksConnection ToConnection() => new(Host, Token, WarehouseId, Catalog, Schema);
 
-    internal static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXPilot", "databricks.json");
+    internal static string FilePath => NXPilot.Integrations.ExtensionSettings.File("databricks.json");
 
     /// <summary>Campos salvos (token decifrado só em memória); sem arquivo, vazio.</summary>
     [SupportedOSPlatform("windows")]
@@ -66,9 +74,28 @@ public sealed class DatabricksSettings
 /// SQL desconhecido são MÉDIO; escrita, DDL e permissões são ALTO. O que não for aprovado sozinho
 /// vai para <paramref name="askUser"/> — sem ele, nega (nunca libera por omissão).
 /// </summary>
-public sealed class GateSqlApprover(Func<SqlStatementReview, RiskResult, CancellationToken, Task<bool>>? askUser = null)
+public sealed class GateSqlApprover(Func<SqlStatementReview, RiskResult, CancellationToken, Task<bool>>? askUser = null,
+    WriteSchemaPolicy? writePolicy = null)
     : ISqlStatementApprover
 {
+    /// <summary>
+    /// Com schemas de gravação: escrita/DDL só DENTRO deles é MÉDIO (você ou a regra da tarefa
+    /// liberam); FORA é bloqueada sem perguntar; destino que não deu para identificar é ALTO.
+    /// Permissões (GRANT/REVOKE) continuam ALTO. Sem schemas de gravação, nada muda.
+    /// </summary>
+    public static (RiskResult Risk, string? Blocked) Evaluate(SqlStatementReview review, WriteSchemaPolicy? policy)
+    {
+        if (policy is not { IsActive: true } || review.Kind is not (SqlStatementKind.Write or SqlStatementKind.Schema))
+            return (Risk(review), null);
+        var (scope, _, detail) = policy.Evaluate(review.Sql);
+        return scope switch
+        {
+            WriteScope.Allowed => (new(RiskLevel.Medio, 0.95, "SQL", $"{review.Kind}{(review.IsDestructive ? ", destrutivo" : "")} · {detail}", TimeSpan.Zero), null),
+            WriteScope.Blocked => (new(RiskLevel.Alto, 1, "SQL", detail, TimeSpan.Zero), detail),
+            _ => (new(RiskLevel.Alto, 0.9, "SQL", $"{review.Kind} · {detail}", TimeSpan.Zero), null),
+        };
+    }
+
     public static RiskResult Risk(SqlStatementReview review) => review.Kind switch
     {
         SqlStatementKind.Read or SqlStatementKind.Empty => new(RiskLevel.Baixo, 0.95, "SQL", "leitura", TimeSpan.Zero),
@@ -79,7 +106,9 @@ public sealed class GateSqlApprover(Func<SqlStatementReview, RiskResult, Cancell
 
     public async Task<SqlApproval> ApproveAsync(SqlStatementReview review, CancellationToken ct = default)
     {
-        var risk = Risk(review);
+        var (risk, blocked) = Evaluate(review, writePolicy);
+        if (blocked != null)
+            return SqlApproval.Deny($"bloqueado pelos schemas de gravação: {blocked}. Crie/altere objetos só em {writePolicy!.PatternsText}.");
         if (DecisionGate.Decide(risk) == GateOutcome.AutoApprove) return SqlApproval.Allow($"gate: {risk.Level}");
         if (askUser == null) return SqlApproval.Deny($"gate: {risk.Level} — ninguém para aprovar");
         return await askUser(review, risk, ct)

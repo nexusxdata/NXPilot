@@ -84,7 +84,7 @@ public static class DesktopTools
         yield return new NxTool
         {
             Name = "powerbi_capture", Extension = "Power BI", ReadOnly = true,
-            Available = c => c.PowerBi != null && PowerBiDesktop.Locate() != null,
+            Available = c => c.PowerBiToolsAvailable && PowerBiDesktop.IsInstalled,
             Description = "Open the PBIP project in Power BI Desktop and return a screenshot of the report (takes ~1 min). Power BI does not reload files that changed " +
                           "while it is open: pass reopen=true to close it and open again (the user approves, since unsaved changes in Power BI would be lost).",
             Schema = NxTool.ParseSchema("""{"type":"object","properties":{"reopen":{"type":"boolean"}}}"""),
@@ -93,7 +93,7 @@ public static class DesktopTools
                 : NxTool.Low(),
             Run = async (a, c, ct) =>
             {
-                var pbi = c.PowerBi!;
+                if (c.PowerBiNow is not { } pbi) return CoreTools.NoPbip();
                 var png = Path.Combine(TempDir, $"powerbi-{Guid.NewGuid():N}.png");
                 WindowInfo? open;
                 using (var ui = new WindowsUiService(WindowsUiPolicy.PowerBiOnly))
@@ -113,13 +113,68 @@ public static class DesktopTools
                         return ToolResult.Error(NxText.T("O Power BI não fechou (talvez esteja perguntando se salva). Peça ao usuário para fechá-lo e tente de novo.",
                             "Power BI did not close (it may be asking to save). Ask the user to close it and try again.",
                             "Power BI no se cerró (quizá pregunta si guardar). Pida al usuario que lo cierre e intente de nuevo."));
-                    await PowerBiDesktop.OpenAndCaptureAsync(pbi.PbipPath, png, ct);
+                    open = await PowerBiDesktop.OpenAndCaptureAsync(pbi.PbipPath, png, ct);
                 }
                 var (img, mime) = Shrink(await File.ReadAllBytesAsync(png, ct));
                 TryDelete(png);
                 var content = new List<ToolContent> { ToolContent.OfImage(img, mime) };
                 if (note.Length > 0) content.Add(ToolContent.OfText(note));
+
+                // Janela de erro do Power BI ("Something went wrong"): o relatório NÃO carregou.
+                using (var ui = new WindowsUiService(WindowsUiPolicy.PowerBiOnly))
+                    foreach (var dialog in open == null ? [] : PowerBiDesktop.ErrorDialogs(ui, open))
+                    {
+                        var dialogPng = Path.Combine(TempDir, $"powerbi-dialog-{Guid.NewGuid():N}.png");
+                        string text;
+                        try { ui.Capture(dialog, dialogPng); text = ui.ReadText(dialog, 2000); }
+                        catch { text = ""; }
+                        content.Add(ToolContent.OfText(NxText.T(
+                            $"⚠ O Power BI abriu a janela \"{dialog.Title}\": o relatório NÃO carregou. {text}\nRode powerbi_validate, corrija (relatório sem tema base: powerbi_fix_report) e capture de novo com reopen=true.",
+                            $"⚠ Power BI opened the window \"{dialog.Title}\": the report did NOT load. {text}\nRun powerbi_validate, fix it (report without base theme: powerbi_fix_report) and capture again with reopen=true.",
+                            $"⚠ Power BI abrió la ventana \"{dialog.Title}\": el informe NO cargó. {text}\nEjecute powerbi_validate, corrija (informe sin tema base: powerbi_fix_report) y capture de nuevo con reopen=true.")));
+                        if (File.Exists(dialogPng))
+                        {
+                            var (dImg, dMime) = Shrink(await File.ReadAllBytesAsync(dialogPng, ct));
+                            content.Add(ToolContent.OfImage(dImg, dMime));
+                            TryDelete(dialogPng);
+                        }
+                    }
                 return new ToolResult(content);
+            },
+        };
+
+        yield return new NxTool
+        {
+            Name = "powerbi_fix_report", Extension = "Power BI",
+            Available = c => c.PowerBiToolsAvailable && PowerBiDesktop.IsInstalled,
+            Description = "Complete the report skeleton of the PBIP project with the base theme of the installed Power BI Desktop (themeCollection, resourcePackages and the theme file). " +
+                          "Use when powerbi_validate says the report has no base theme — without it Power BI Desktop shows 'Something went wrong' and a blank page. Pages and visuals are not touched.",
+            Schema = NxTool.ParseSchema("""{"type":"object","properties":{}}"""),
+            Risk = (_, _) => NxTool.Low(NxText.T("grava o tema base no relatório do worktree", "writes the base theme into the worktree report", "graba el tema base en el informe del worktree")),
+            Run = (_, c, _) =>
+            {
+                if (c.PowerBiNow is not { ReportDir: { } report }) return Task.FromResult(CoreTools.NoPbip());
+                var theme = PowerBiDesktop.BaseThemeFile();
+                if (theme == null)
+                    return Task.FromResult(ToolResult.Error(NxText.T("Não achei os temas base na instalação do Power BI Desktop.", "Could not find the base themes in the Power BI Desktop installation.", "No encontré los temas base en la instalación de Power BI Desktop.")));
+                return Task.FromResult(ToolResult.Text(NXPilot.Integrations.PowerBiReport.Fix(report, theme) + " " +
+                    NxText.T("Agora rode powerbi_validate e powerbi_capture com reopen=true.", "Now run powerbi_validate and powerbi_capture with reopen=true.", "Ahora ejecute powerbi_validate y powerbi_capture con reopen=true.")));
+            },
+        };
+
+        yield return new NxTool
+        {
+            Name = "powerbi_copy_theme", Extension = "Power BI",
+            Available = c => c.PowerBiToolsAvailable && PowerBiDesktop.IsInstalled,
+            Description = "Copy the theme (base and custom: colors, fonts, visual defaults) of an example Power BI report the user cited (.pbip, its folder or .pbix) into the PBIP project of the worktree. " +
+                          "The example is only read. Create the report pages first; then run powerbi_validate.",
+            Schema = NxTool.ParseSchema("""{"type":"object","required":["source"],"properties":{"source":{"type":"string","description":"Example report: .pbip, its folder or .pbix"}}}"""),
+            Risk = (a, c) => c.PathRisk(Str(a, "source"), write: false),
+            Run = (a, c, _) =>
+            {
+                if (c.PowerBiNow is not { ReportDir: { } report }) return Task.FromResult(CoreTools.NoPbip());
+                var source = c.Resolve(Str(a, "source") ?? throw new ArgumentException("source"));
+                return Task.FromResult(ToolResult.Text(NXPilot.Integrations.PowerBiStyle.CopyTheme(source, report, PowerBiDesktop.BaseThemeFile())));
             },
         };
 

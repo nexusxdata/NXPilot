@@ -70,7 +70,45 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool HasTask => CurrentTask != null;
 
-    [ObservableProperty] private PhaseItem? _selectedPhase;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(SelectedPhaseTerminal), nameof(SelectedPhaseLog))]
+    private PhaseItem? _selectedPhase;
+
+    /// <summary>Terminal da fase aberto (botão Detalhar na aba Fases).</summary>
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(PhaseTerminalRow))]
+    private bool _showPhaseTerminal;
+
+    public GridLength PhaseTerminalRow => ShowPhaseTerminal ? new GridLength(3, GridUnitType.Star) : new GridLength(0);
+
+    /// <summary>Saída do agente na fase selecionada.</summary>
+    public string SelectedPhaseTerminal => CurrentTask is { } t && SelectedPhase is { } p && t.PhaseTerminal.TryGetValue(p.Number, out var sb) && sb.Length > 0
+        ? sb.ToString()
+        : T("(sem saída do agente nesta fase ainda)", "(no agent output in this phase yet)", "(aún no hay salida del agente en esta fase)");
+
+    /// <summary>Eventos da fase selecionada, na ordem em que aconteceram (erros e resultado no fim).</summary>
+    public IReadOnlyList<LogEntry> SelectedPhaseLog => CurrentTask is { } t && SelectedPhase is { } p
+        ? t.Log.Where(l => l.Phase == p.Number).ToList() : Array.Empty<LogEntry>();
+
+    /// <summary>A seleção acompanha a fase rodando até você escolher outra.</summary>
+    private bool _followRunningPhase;
+    private bool _settingPhase;
+
+    partial void OnSelectedPhaseChanged(PhaseItem? value)
+    {
+        if (!_settingPhase) _followRunningPhase = false;
+    }
+
+    /// <summary>Detalhar: mostra o terminal e o log da fase (de novo na mesma fase, fecha o terminal).</summary>
+    [RelayCommand]
+    private void DetailPhase(PhaseItem? phase)
+    {
+        if (phase == null) return;
+        if (SelectedPhase?.Number == phase.Number && ShowPhaseTerminal) { ShowPhaseTerminal = false; return; }
+        SelectedPhase = Phases.FirstOrDefault(p => p.Number == phase.Number) ?? phase;
+        ShowPhaseTerminal = true;
+    }
+
+    /// <summary>A tela troca para a aba Fases quando o plano é aprovado.</summary>
+    public event Action? PlanApproved;
     [ObservableProperty] private string _gateStatus = "Gate: …";
     [ObservableProperty] private int _autoApprovedCount;
 
@@ -120,9 +158,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void AddLog(string source, string kind, string message)
     {
-        var entry = new LogEntry(DateTime.Now, source, kind, message);
+        var entry = new LogEntry(DateTime.Now, source, kind, message, CurrentTask?.RunningPhase);
         Log.Insert(0, entry);
         CurrentTask?.Log.Add(entry); // trilha de auditoria da tarefa (vai para o Histórico)
+        if (entry.Phase is { } phase) UpdatePhaseEvent(phase);
     }
 
     /// <summary>
@@ -265,6 +304,7 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task ApprovePlan()
     {
         if (CurrentTask is not { CanApprove: true } task) return;
+        ResolveApprovalNotice(task);
         string? note = null;
         if (task.Info.AsTemplate)
         {
@@ -282,6 +322,9 @@ public sealed partial class MainViewModel : ObservableObject
         }
         AddLog(T("Você", "You", "Usted"), T("aprovado", "approved", "aprobado"), T($"Plano aprovado: {task.Title}", $"Plan approved: {task.Title}", $"Plan aprobado: {task.Title}"));
         ReplacePlanArtifact(T("aprovado por você", "approved by you", "aprobado por usted"));
+        _followRunningPhase = true;
+        ShowPhaseTerminal = true;
+        PlanApproved?.Invoke();
         await ExecutePhasesAsync(task, note);
     }
 
@@ -373,7 +416,7 @@ public sealed partial class MainViewModel : ObservableObject
             task.State = TaskState.AwaitingApproval;
             SetAgent(ExecutorName, "Aguardando", T("disparo fora do ritmo — aguardando você", "trigger out of pace — waiting for you", "disparo fuera de ritmo — esperando por usted"));
             AddLog("⚡ " + hook.Title, T("aprovação", "approval", "aprobación"), check.Reason!);
-            Notifications.Notify(NotificationKind.Decision, T("Hook disparou fora do ritmo — aprove para executar", "Hook fired out of pace — approve to run", "El hook se disparó fuera de ritmo — apruebe para ejecutar"),
+            _approvalNotices[task.Id] = Notifications.Notify(NotificationKind.Decision, T("Hook disparou fora do ritmo — aprove para executar", "Hook fired out of pace — approve to run", "El hook se disparó fuera de ritmo — apruebe para ejecutar"),
                 $"{hook.Title} · {check.Reason}");
             Persist();
             return;
@@ -495,6 +538,19 @@ public sealed partial class MainViewModel : ObservableObject
         if (CurrentTask is not { CanFixFindings: true } task || task.Verification is not { } verification) return;
         AddLog(T("Você", "You", "Usted"), T("corrigir achados", "fix findings", "corregir hallazgos"),
             T($"{verification.Findings.Count} achado(s) devolvido(s) ao {ExecutorName}", $"{verification.Findings.Count} finding(s) sent back to {ExecutorName}", $"{verification.Findings.Count} hallazgo(s) devuelto(s) a {ExecutorName}"));
+        await FixFindingsCoreAsync(task, verification, automatic: false);
+    }
+
+    /// <summary>
+    /// Uma rodada de correção: vira uma linha na aba Fases ("Correção dos achados · rodada N", com
+    /// terminal e log próprios), o executor corrige sob o gate, commit, e a verificação roda de novo.
+    /// </summary>
+    private async Task FixFindingsCoreAsync(TaskSession task, VerificationResult verification, bool automatic)
+    {
+        var round = new FixRound(task.FixRounds.Count + 1, DateTime.Now, verification, automatic);
+        task.FixRounds.Add(round);
+        task.RunningPhase = task.FixPhaseNumber(round.Number);
+        _followRunningPhase = true;
         task.FixingFindings = true;
         // Os achados antigos saem da tela: a verificação vai ser refeita depois da correção.
         task.Verification = null;
@@ -510,11 +566,15 @@ public sealed partial class MainViewModel : ObservableObject
         var summary = await RunAgentAsync(task, executor, new AgentRequest(TaskPlanning.FixFindingsPrompt(verification), task.Worktree!, AgentMode.Execute, task.SessionId,
             task.Info.Executor == ExecutorKind.Codex ? task.Info.CodexModel : task.Info.Model));
         task.FixingFindings = false;
-        if (task.State != TaskState.Executing) return; // falhou ou foi interrompida
+        if (task.State != TaskState.Executing) { task.RunningPhase = null; RenderPhases(task); Persist(); return; } // falhou ou foi interrompida
 
-        var committed = await GitWorktree.CommitAllAsync(task.Worktree!, $"NXPilot · {T("Correção dos achados da verificação", "Fix for verification findings", "Corrección de los hallazgos de la verificación")}");
+        var committed = await GitWorktree.CommitAllAsync(task.Worktree!, $"NXPilot · {T($"Correção dos achados da verificação (rodada {round.Number})", $"Fix for verification findings (round {round.Number})", $"Corrección de los hallazgos de la verificación (ronda {round.Number})")}");
         AddLog(ExecutorName, T("correção", "fix", "corrección"), T($"{(committed ? "Commit de correção no worktree" : "Sem alterações")}: {Trim(summary, 200)}",
             $"{(committed ? "Fix committed in the worktree" : "No changes")}: {Trim(summary, 200)}", $"{(committed ? "Commit de corrección en el worktree" : "Sin cambios")}: {Trim(summary, 200)}"));
+        task.FixRounds[round.Number - 1] = round with { Summary = summary, Committed = committed, Finished = DateTime.Now };
+        task.RunningPhase = null;
+        RenderPhases(task);
+        Persist();
         await FinishAsync(task);
     }
 
@@ -527,6 +587,7 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var phase in task.Phases.Where(p => task.PhaseStatus[p.Number - 1] != "Concluido"))
         {
             task.PhaseStatus[phase.Number - 1] = "Rodando";
+            task.RunningPhase = phase.Number;
             task.RefreshTexts();
             RenderPhases(task);
             SetAgent(ExecutorName, "Rodando", T($"fase {phase.Number}/{task.Phases.Count}: {phase.Title}", $"phase {phase.Number}/{task.Phases.Count}: {phase.Title}", $"fase {phase.Number}/{task.Phases.Count}: {phase.Title}"));
@@ -536,13 +597,14 @@ public sealed partial class MainViewModel : ObservableObject
             if (resumeNote != null) { phasePrompt = resumeNote + "\n\n" + phasePrompt; resumeNote = null; } // só na primeira fase retomada
             var summary = await RunAgentAsync(task, executor, new AgentRequest(phasePrompt, task.Worktree!, AgentMode.Execute, task.SessionId,
                 task.Info.Executor == ExecutorKind.Codex ? task.Info.CodexModel : task.Info.Model));
-            if (task.State != TaskState.Executing) { RenderPhases(task); return; }
+            if (task.State != TaskState.Executing) { task.RunningPhase = null; RenderPhases(task); return; }
 
             var committed = await GitWorktree.CommitAllAsync(task.Worktree!, $"NXPilot · {T("Fase", "Phase", "Fase")} {phase.Number}: {phase.Title}");
             task.PhaseStatus[phase.Number - 1] = "Concluido";
             AddLog(ExecutorName, T("fase", "phase", "fase"), T($"Fase {phase.Number} concluída{(committed ? " (commit no worktree)" : " (sem alterações)")}: {Trim(summary, 160)}",
                 $"Phase {phase.Number} done{(committed ? " (committed in the worktree)" : " (no changes)")}: {Trim(summary, 160)}",
                 $"Fase {phase.Number} completada{(committed ? " (commit en el worktree)" : " (sin cambios)")}: {Trim(summary, 160)}"));
+            task.RunningPhase = null;
         }
         RenderPhases(task);
         await FinishAsync(task);
@@ -555,9 +617,26 @@ public sealed partial class MainViewModel : ObservableObject
         RenderDiff(diff);
         await RefreshResultFilesAsync(task);
         var files = diff.Split('\n').Count(l => l.StartsWith("diff --git"));
+        // Um só "Resultado da execução": cada rodada de correção atualiza o mesmo.
+        foreach (var old in Artifacts.Where(a => a.Glyph == "✔" && a.Title == T("Resultado da execução", "Execution result", "Resultado de la ejecución")).ToList()) Artifacts.Remove(old);
         Artifacts.Add(new ArtifactItem("✔", T("Resultado da execução", "Execution result", "Resultado de la ejecución"), T($"{files} arquivo(s) alterado(s) · branch {task.Branch}", $"{files} file(s) changed · branch {task.Branch}", $"{files} archivo(s) modificado(s) · branch {task.Branch}")));
 
-        await VerifyAsync(task, diff);
+        if (task.Info.Reviewer != ReviewerKind.None) task.RunningPhase = task.Phases.Count + 1; // a verificação é a última fase da lista
+        try { await VerifyAsync(task, diff); }
+        finally { task.RunningPhase = null; RenderPhases(task); } // a verificação aparece concluída na lista
+
+        // Opção da tarefa: verificação reprovou com achados → corrige sozinho (até MaxAutoFixRounds rodadas).
+        if (task.Info.AutoFixFindings && task.Verification is { Approved: false, Findings.Count: > 0 } found
+            && task.FixRounds.Count(r => r.Automatic) < NewTaskInfo.MaxAutoFixRounds && task.Worktree is { } fixWt && Directory.Exists(fixWt))
+        {
+            var n = task.FixRounds.Count(r => r.Automatic) + 1;
+            AddLog("Gate", T("corrigir achados", "fix findings", "corregir hallazgos"),
+                T($"Correção automática (opção da tarefa), rodada {n} de {NewTaskInfo.MaxAutoFixRounds}: {found.Findings.Count} achado(s) devolvido(s) ao {ExecutorName}",
+                  $"Automatic fix (task option), round {n} of {NewTaskInfo.MaxAutoFixRounds}: {found.Findings.Count} finding(s) sent back to {ExecutorName}",
+                  $"Corrección automática (opción de la tarea), ronda {n} de {NewTaskInfo.MaxAutoFixRounds}: {found.Findings.Count} hallazgo(s) devuelto(s) a {ExecutorName}"));
+            await FixFindingsCoreAsync(task, found, automatic: true);
+            return;
+        }
         task.State = TaskState.Done;
         EndExecutor();
         SetAgent(ExecutorName, "Concluido", T("concluída", "done", "completada"));
@@ -589,7 +668,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         // Os dois revisores rodam SOMENTE LEITURA numa sessão nova (Codex: sandbox read-only; Claude: modo plan).
         IAgentAdapter reviewer = choice.Reviewer == AgentKind.Codex
-            ? new CodexAdapter(task.Info.CodexModel) { OutputSchema = TaskPlanning.VerificationSchema }
+            ? new CodexAdapter(ReviewerCodexModel(task)) { OutputSchema = TaskPlanning.VerificationSchema }
             : NewClaude();
         if (choice.SameAsExecutor)
             AddLog("Gate", "info", T($"Só o {reviewer.Name} está instalado — ele revisa numa sessão nova, somente leitura (com os dois agentes a revisão é cruzada).",
@@ -598,7 +677,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         SetAgent(reviewer.Name, "Revisando", T("verificação cruzada (somente leitura)", "cross-verification (read-only)", "verificación cruzada (solo lectura)"));
         var answer = await RunAgentAsync(task, reviewer, new AgentRequest(prompt, task.Worktree!, AgentMode.Plan,
-            Model: reviewer is CodexAdapter ? task.Info.CodexModel : task.Info.Model), failTask: false);
+            Model: reviewer is CodexAdapter ? ReviewerCodexModel(task) : task.Info.Model), failTask: false);
 
         var result = TaskPlanning.ParseVerification(answer, reviewer.Name);
         if (task.PowerBi != null && NXPilot.Integrations.PowerBiProject.ValidateChangedFiles(task.Worktree!, diff) is { Count: > 0 } pbiFindings)
@@ -614,6 +693,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void DiscardPlan()
     {
+        if (CurrentTask is { } discarded) ResolveApprovalNotice(discarded);
         if (CurrentTask is not { CanDiscard: true } task) return;
         task.State = TaskState.Discarded;
         EndExecutor();
@@ -789,6 +869,13 @@ public sealed partial class MainViewModel : ObservableObject
         return finalText;
     }
 
+    /// <summary>
+    /// Modelo do Codex revisor: o da tarefa; sem ele, o testado com o NXPilot — o padrão do config.toml
+    /// pode ser um modelo que a conta ChatGPT recusa, e aí não há revisão nenhuma.
+    /// </summary>
+    private static string ReviewerCodexModel(TaskSession task) =>
+        task.Info.CodexModel is { Length: > 0 } m ? m : NXPilot.Agents.CodexAppServerAdapter.TestedModels[0];
+
     /// <summary>Revisor efetivo: o outro agente se instalado; senão o mesmo, em sessão nova (ver ReviewerChoice).</summary>
     private static (AgentKind Reviewer, bool SameAsExecutor)? ChooseReviewer(TaskSession task) =>
         task.Info.Reviewer == ReviewerKind.None ? null : ReviewerChoice.Choose(
@@ -870,7 +957,11 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 Worktree = wt,
                 ReadOnlyPhase = task.State is not TaskState.Executing,
-                PowerBi = task.PowerBi,
+                PowerBi = task.PowerBi ??= NXPilot.Integrations.PowerBiProject.Detect(wt), // .pbip criado depois do início da tarefa
+                PowerBiInstalled = Services.PowerBiDesktop.IsInstalled,
+                // Arquivos/pastas citados na tarefa: o agente lê sem pedir (você já apontou). Gravar fora continua ALTO.
+                CitedPaths = NXPilot.Planning.TaskCitations.SplitLegend(task.Info.Intent).Citations
+                    .Select(c => c.FullPath).Where(p => Path.IsPathRooted(p)).ToList(),
                 Approve = async (action, risk, _) => (await DecideAsync(ExecutorName, action, risk, wt)).Allow,
             }
             : null);
@@ -903,6 +994,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         // MÉDIO/ALTO: vai para o painel e o agente espera a sua decisão.
         var response = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        NotificationItem? notice = null;
         await OnUi(() =>
         {
             var d = new DecisionItem(agent, action, CurrentTask?.Title ?? "") { Response = response, Scripts = ScriptReferences.Find(action, worktree) };
@@ -910,13 +1002,25 @@ public sealed partial class MainViewModel : ObservableObject
             d.RiskDetail = $"{r.Confidence:P0} · {AiLabViewModel.ShortEngine(r.Engine)} · {BenchmarkRow.FormatMs(r.Elapsed.TotalMilliseconds)}" + (r.Reason != null ? $"\n{r.Reason}" : "");
             PendingDecisions.Insert(0, d);
             AddLog(agent, T("pedido", "request", "solicitud"), $"{action} → {r.Level}");
-            Notifications.Notify(NotificationKind.Decision, T($"Decisão pendente · risco {r.Level}", $"Pending decision · {r.Level} risk", $"Decisión pendiente · riesgo {r.Level}"), $"{agent}: {action}");
+            notice = Notifications.Notify(NotificationKind.Decision, T($"Decisão pendente · risco {r.Level}", $"Pending decision · {r.Level} risk", $"Decisión pendiente · riesgo {r.Level}"), $"{agent}: {action}");
         });
         var allowed = await response.Task;
-        await OnUi(() => RecordRisk(agent, action, r, allowed ? "approved" : "denied"));
+        await OnUi(() =>
+        {
+            RecordRisk(agent, action, r, allowed ? "approved" : "denied");
+            Notifications.Resolve(notice); // aprovada ou negada: o aviso sai da lista
+        });
         return new GateResponse(allowed, allowed
             ? T("aprovado pelo usuário no NXPilot", "approved by the user in NXPilot", "aprobado por el usuario en NXPilot")
             : T("NEGADO pelo usuário no NXPilot — não execute esta ação; ajuste o plano ou pergunte.", "DENIED by the user in NXPilot — do not run this action; adjust the plan or ask.", "DENEGADO por el usuario en NXPilot — no ejecute esta acción; ajuste el plan o pregunte."));
+    }
+
+    /// <summary>Aviso "aprove para executar" de cada tarefa (disparo de hook fora do ritmo), para sair quando você age.</summary>
+    private readonly Dictionary<string, NotificationItem> _approvalNotices = new();
+
+    private void ResolveApprovalNotice(TaskSession task)
+    {
+        if (_approvalNotices.Remove(task.Id, out var notice)) Notifications.Resolve(notice);
     }
 
     /// <summary>Decisão do gate na tarefa atual (Histórico: coluna e filtro de riscos). As suas decisões gravam na hora; as automáticas, com a tarefa.</summary>
@@ -959,16 +1063,61 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var p in task.Phases)
         {
             var status = task.PhaseStatus.ElementAtOrDefault(p.Number - 1) ?? "Pendente";
+            var (last, lastError) = LastPhaseEvent(task, p.Number);
             Phases.Add(new PhaseItem(p.Number, p.Title, status, ExecutorName, status == "Concluido" ? 1 : status == "Rodando" ? 0.5 : 0,
-                p.Files.Select(f => new FileChangeItem(f.Path, Kind(f.Change), f.Why)).ToList()));
+                p.Files.Select(f => new FileChangeItem(f.Path, Kind(f.Change), f.Why)).ToList(), last, lastError));
         }
         if (task.Info.Reviewer != ReviewerKind.None)
         {
             var vStatus = task.Verification != null ? "Concluido" : task.State == TaskState.Verifying ? "Rodando" : "Pendente";
+            var (last, lastError) = LastPhaseEvent(task, task.Phases.Count + 1);
             Phases.Add(new PhaseItem(task.Phases.Count + 1, T("Verificação cruzada", "Cross-verification", "Verificación cruzada"), vStatus,
-                ChooseReviewer(task)?.Reviewer == AgentKind.Codex ? "Codex" : "Claude Code", vStatus == "Concluido" ? 1 : vStatus == "Rodando" ? 0.5 : 0, Array.Empty<FileChangeItem>()));
+                ChooseReviewer(task)?.Reviewer == AgentKind.Codex ? "Codex" : "Claude Code", vStatus == "Concluido" ? 1 : vStatus == "Rodando" ? 0.5 : 0, Array.Empty<FileChangeItem>(),
+                last, lastError));
         }
-        SelectedPhase = Phases.FirstOrDefault(p => p.Number == selected) ?? Phases.FirstOrDefault(p => p.Status == "Rodando") ?? Phases.FirstOrDefault();
+        // Rodadas de "analisar e corrigir achados": cada uma é uma linha, com os achados enviados.
+        foreach (var round in task.FixRounds)
+        {
+            var number = task.FixPhaseNumber(round.Number);
+            var rStatus = round.Finished != null ? "Concluido" : task.RunningPhase == number ? "Rodando" : "Pendente";
+            var (last, lastError) = LastPhaseEvent(task, number);
+            Phases.Add(new PhaseItem(number,
+                T($"Correção dos achados · rodada {round.Number}", $"Findings fix · round {round.Number}", $"Corrección de hallazgos · ronda {round.Number}")
+                    + (round.Automatic ? T(" (automática)", " (automatic)", " (automática)") : ""),
+                rStatus, ExecutorName, rStatus == "Concluido" ? 1 : rStatus == "Rodando" ? 0.5 : 0,
+                round.Before.Findings.Select(f => new FileChangeItem(f.Line is { } l ? $"{f.File}:{l}" : f.File, f.Severity, f.Message)).ToList(), last, lastError));
+        }
+        _settingPhase = true;
+        try
+        {
+            SelectedPhase = (_followRunningPhase ? Phases.FirstOrDefault(p => p.Status == "Rodando") : null)
+                ?? Phases.FirstOrDefault(p => p.Number == selected) ?? Phases.FirstOrDefault(p => p.Status == "Rodando") ?? Phases.FirstOrDefault();
+        }
+        finally { _settingPhase = false; }
+    }
+
+    /// <summary>Último evento da fase (resultado ou erro), abaixo dela na lista.</summary>
+    private static (string Text, bool IsError) LastPhaseEvent(TaskSession task, int phase) =>
+        task.Log.LastOrDefault(l => l.Phase == phase) is { } e ? ($"{e.TimeText} · {e.Kind} · {Trim(e.Message, 140)}", e.IsError) : ("", false);
+
+    /// <summary>Evento novo numa fase: atualiza a linha dela e, se for a selecionada, o log ao lado.</summary>
+    private void UpdatePhaseEvent(int phase)
+    {
+        if (CurrentTask is not { } task) return;
+        var i = Phases.ToList().FindIndex(p => p.Number == phase);
+        if (i >= 0)
+        {
+            var (text, error) = LastPhaseEvent(task, phase);
+            var wasSelected = SelectedPhase?.Number == phase;
+            _settingPhase = true;
+            try
+            {
+                Phases[i] = Phases[i] with { LastEvent = text, LastIsError = error };
+                if (wasSelected) SelectedPhase = Phases[i];
+            }
+            finally { _settingPhase = false; }
+        }
+        if (SelectedPhase?.Number == phase) OnPropertyChanged(nameof(SelectedPhaseLog));
     }
 
     private void RenderDiff(string diff)
@@ -1017,6 +1166,11 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _terminal.AppendLine(text);
         OnPropertyChanged(nameof(TerminalText));
+        if (CurrentTask is { RunningPhase: { } phase } task)
+        {
+            task.AppendPhaseTerminal(phase, text);
+            if (SelectedPhase?.Number == phase) OnPropertyChanged(nameof(SelectedPhaseTerminal));
+        }
     }
 
     private static string Trim(string s, int max) => s.Length > max ? s[..max] + "…" : s;

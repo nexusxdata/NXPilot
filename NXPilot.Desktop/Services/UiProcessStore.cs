@@ -18,8 +18,7 @@ public static class UiProcessStore
 {
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
 
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXPilot", "windows-processes.json");
+    private static string FilePath => NXPilot.Integrations.ExtensionSettings.File("windows-processes.json");
 
     public static List<UiProcess> Load()
     {

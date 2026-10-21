@@ -300,17 +300,40 @@
                                         </Border>
                                         <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,6,0"><Run Text="{DynamicResource Main_Fase}"/><Run Text="{Binding Number, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding Title, Mode=OneWay}"/></TextBlock>
                                     </DockPanel>
-                                    <TextBlock Text="{Binding Agent}" Style="{StaticResource Muted}" Margin="0,2,0,4"/>
+                                    <DockPanel Margin="0,2,0,4">
+                                        <!-- Detalhar: terminal e log desta fase ao lado. -->
+                                        <Button DockPanel.Dock="Right" Content="{DynamicResource Main_Detalhar}" Padding="8,1" FontSize="11"
+                                                Command="{Binding DataContext.DetailPhaseCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                        <TextBlock Text="{Binding Agent}" Style="{StaticResource Muted}" VerticalAlignment="Center"/>
+                                    </DockPanel>
                                     <ProgressBar Value="{Binding Progress, Mode=OneWay}" Maximum="1" Height="4" Foreground="{StaticResource AccentBrush}" BorderThickness="0" Background="#E6E6E6"/>
+                                    <!-- Último evento da fase (resultado ou erro). -->
+                                    <TextBlock Text="{Binding LastEvent}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" MaxHeight="48" TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasLastEvent}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                                    <DataTrigger Binding="{Binding LastIsError}" Value="True"><Setter Property="Foreground" Value="#C62828"/></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
                     <Border x:Name="PhaseFiles" Grid.Column="1" Style="{StaticResource Card}" Margin="12,0,0,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="{Binding PhaseTerminalRow}"/>
+                                <RowDefinition Height="2*" MinHeight="120"/>
+                            </Grid.RowDefinitions>
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Top" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,10">
                                 <Run Text="{DynamicResource Main_PlanoPorArquivoFase}"/><Run Text="{Binding SelectedPhase.Number, Mode=OneWay}"/>
                             </TextBlock>
+                            <ScrollViewer MaxHeight="170" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding SelectedPhase.Files}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -326,7 +349,48 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            </ScrollViewer>
                         </DockPanel>
+
+                        <!-- Terminal da fase (Detalhar): a saída do agente só desta fase. -->
+                        <DockPanel Grid.Row="1" Margin="0,8,0,0">
+                            <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,6">
+                                <Run Text="{DynamicResource Main_TerminalDaFase}"/><Run Text="{Binding SelectedPhase.Number, Mode=OneWay}"/>
+                            </TextBlock>
+                            <Border Background="{StaticResource TerminalBrush}" CornerRadius="6" Padding="12">
+                                <ScrollViewer x:Name="PhaseTerminalScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <TextBox Text="{Binding SelectedPhaseTerminal, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent" TextWrapping="Wrap"
+                                             FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="#D4D4D4" TextChanged="OnPhaseTerminalChanged"/>
+                                </ScrollViewer>
+                            </Border>
+                        </DockPanel>
+
+                        <!-- Log da fase: eventos (gate, resultado, erro) na ordem em que aconteceram. -->
+                        <DockPanel Grid.Row="2" Margin="0,10,0,0">
+                            <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,6">
+                                <Run Text="{DynamicResource Main_LogDaFase}"/><Run Text="{Binding SelectedPhase.Number, Mode=OneWay}"/>
+                            </TextBlock>
+                            <DataGrid ItemsSource="{Binding SelectedPhaseLog}" RowHeight="NaN">
+                                <DataGrid.RowStyle>
+                                    <Style TargetType="DataGridRow">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsError}" Value="True"><Setter Property="Foreground" Value="#C62828"/></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.RowStyle>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="{DynamicResource Main_Hora}" Binding="{Binding TimeText}" Width="70"/>
+                                    <DataGridTextColumn Header="{DynamicResource Main_Origem}" Binding="{Binding Source}" Width="110"/>
+                                    <DataGridTextColumn Header="{DynamicResource Main_Tipo}" Binding="{Binding Kind}" Width="100"/>
+                                    <DataGridTextColumn Header="{DynamicResource Main_Evento}" Binding="{Binding Message}" Width="*">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                        </Grid>
                     </Border>
                 </Grid>
             </TabItem>

@@ -299,27 +299,66 @@ public static class CoreTools
 
     private static IEnumerable<NxTool> PowerBi()
     {
+        yield return PowerBiStyleTool();
         yield return new NxTool
         {
-            Name = "powerbi_info", Extension = "Power BI", ReadOnly = true, Available = c => c.PowerBi != null,
-            Description = "Summary of the PBIP project in the worktree: report pages (with visual count), tables, measures and relationships — with the file of each.",
-            Schema = NxTool.ParseSchema("""{"type":"object","properties":{}}"""),
-            Run = (_, c, _) => Task.FromResult(ToolResult.Text(PbipSummary(c.PowerBi!, c.Worktree))),
-        };
-        yield return new NxTool
-        {
-            Name = "powerbi_validate", Extension = "Power BI", ReadOnly = true, Available = c => c.PowerBi != null,
-            Description = "Validate the PBIP project: every JSON (PBIR pages/visuals, .pbip, .pbir, .pbism) must parse, and TMDL files must be TAB-indented. Run after editing.",
+            Name = "powerbi_info", Extension = "Power BI", ReadOnly = true, Available = c => c.PowerBiToolsAvailable,
+            Description = "Summary of the PBIP project in the worktree: report pages (with visual count), tables, measures and relationships — with the file of each — " +
+                          "and the workspace the user configured for new Power BI reports. Call it BEFORE creating a new PBIP to get that workspace.",
             Schema = NxTool.ParseSchema("""{"type":"object","properties":{}}"""),
             Run = (_, c, _) =>
             {
-                var problems = PbipProblems(c.PowerBi!, c.Worktree);
+                var workspace = PowerBiSettings.Load().AgentLine();
+                if (c.PowerBiNow is { } pbi) return Task.FromResult(ToolResult.Text(PbipSummary(pbi, c.Worktree) + (workspace.Length > 0 ? "\n\n" + workspace : "")));
+                // Antes de criar o projeto: o agente pergunta aqui onde ficam os dados dos PBI novos.
+                return Task.FromResult(workspace.Length > 0
+                    ? ToolResult.Text(NxText.T("Ainda não há .pbip no worktree.", "There is no .pbip in the worktree yet.", "Aún no hay .pbip en el worktree.") + "\n" + workspace)
+                    : NoPbip());
+            },
+        };
+        yield return new NxTool
+        {
+            Name = "powerbi_validate", Extension = "Power BI", ReadOnly = true, Available = c => c.PowerBiToolsAvailable,
+            Description = "Validate the PBIP project: every JSON (PBIR pages/visuals, .pbip, .pbir, .pbism) must parse, TMDL files must be TAB-indented, " +
+                          "and the report must have its base theme (without it Power BI Desktop shows 'Something went wrong' and a blank page — fix with powerbi_fix_report). " +
+                          "Run after creating or editing a PBIP project, then powerbi_capture.",
+            Schema = NxTool.ParseSchema("""{"type":"object","properties":{}}"""),
+            Run = (_, c, _) =>
+            {
+                if (c.PowerBiNow is not { } pbi) return Task.FromResult(NoPbip());
+                var problems = PbipProblems(pbi, c.Worktree);
                 return Task.FromResult(problems.Count == 0
                     ? ToolResult.Text(NxText.T("OK: JSON e TMDL do projeto válidos.", "OK: project JSON and TMDL are valid.", "OK: JSON y TMDL del proyecto válidos."))
                     : ToolResult.Error(string.Join("\n", problems.Take(50))));
             },
         };
     }
+
+    /// <summary>PBI de exemplo citado na tarefa: o estilo de uma aba, para reproduzir no PBI novo.</summary>
+    private static NxTool PowerBiStyleTool() => new()
+    {
+        Name = "powerbi_style", Extension = "Power BI", ReadOnly = true, Available = c => c.PowerBiToolsAvailable,
+        Description = "Read the STYLE of an example Power BI report the user cited (.pbip, its folder, or .pbix): the list of pages and, for the page named in `page` " +
+                      "(the tab the user pointed to; empty = first), page size and background, base/custom theme, and every visual with type, position, size, title and formatting. " +
+                      "Use it to build the new report with the same look: copy the theme with powerbi_copy_theme, then reproduce the page size, background, grid of positions and formatting.",
+        Schema = NxTool.ParseSchema("""
+            {"type":"object","required":["path"],"properties":{
+              "path":{"type":"string","description":"Example report: .pbip, its project folder or .pbix (usually a file cited in the task)"},
+              "page":{"type":"string","description":"Display name of the example tab whose style to copy"}}}
+            """),
+        Risk = (a, c) => c.PathRisk(Str(a, "path"), write: false),
+        Run = (a, c, _) =>
+        {
+            var path = c.Resolve(Str(a, "path") ?? throw new ArgumentException("path"));
+            return Task.FromResult(ToolResult.Text(PowerBiStyle.Describe(path, Str(a, "page"))));
+        },
+    };
+
+    /// <summary>Ainda não há .pbip no worktree (o agente pode estar criando o projeto).</summary>
+    public static ToolResult NoPbip() => ToolResult.Error(NxText.T(
+        "Ainda não há um projeto .pbip no worktree. Crie o projeto (arquivo .pbip + pastas .SemanticModel e .Report) e chame de novo.",
+        "There is no .pbip project in the worktree yet. Create it (.pbip file + .SemanticModel and .Report folders) and call again.",
+        "Aún no hay un proyecto .pbip en el worktree. Créelo (archivo .pbip + carpetas .SemanticModel y .Report) y vuelva a llamar."));
 
     private static IEnumerable<string> ProjectFiles(PowerBiProject pbi) =>
         new[] { pbi.SemanticModelDir, pbi.ReportDir }.Where(d => d != null && Directory.Exists(d))
@@ -350,6 +389,8 @@ public static class CoreTools
                     }
             }
         }
+        if (pbi.ReportDir is { } report) problems.AddRange(PowerBiReport.Problems(report, worktree));
+        if (pbi.SemanticModelDir is { } model) problems.AddRange(PowerBiReport.PlaceholderProblems(model, worktree));
         return problems;
     }
 
@@ -380,6 +421,19 @@ public static class CoreTools
                 sb.AppendLine($"- {name} — {visuals} visual(s) — {Path.GetRelativePath(worktree, page)}");
             }
         }
+        else if (pbi.ReportDir is { } legacyDir && PowerBiReport.ReportJson(legacyDir) is { Path: { } legacy, Pbir: false })
+        {
+            // Formato antigo: as páginas (sections) e os visuais ficam todos no report.json.
+            sb.AppendLine($"\n## Pages (report.json, formato antigo — {Path.GetRelativePath(worktree, legacy)})");
+            try
+            {
+                foreach (var section in JsonNode.Parse(File.ReadAllText(legacy))?["sections"] as JsonArray ?? [])
+                    sb.AppendLine($"- {section?["displayName"]?.GetValue<string>() ?? "?"} — {(section?["visualContainers"] as JsonArray)?.Count ?? 0} visual(s)");
+            }
+            catch { sb.AppendLine("- (JSON inválido)"); }
+        }
+        if (pbi.ReportDir is { } themed && PowerBiReport.Problems(themed, worktree) is { Count: > 0 } skeleton)
+            sb.AppendLine("\n⚠ " + string.Join("\n⚠ ", skeleton));
         if (pbi.SemanticModelDir is { } model && Directory.Exists(Path.Combine(model, "definition")))
         {
             var tables = Path.Combine(model, "definition", "tables");
@@ -436,14 +490,16 @@ public static class CoreTools
         {
             Name = "databricks_sql", Extension = "Databricks", ReadOnly = true, Available = Configured,
             Description = "Run ONE SQL statement on the configured Databricks SQL warehouse. Reads run directly; writes, DDL and permission changes go to the user for approval " +
-                          "(and are refused during planning/review). Returns a markdown table.",
+                          "(and are refused during planning/review). If the user set write schemas (e.g. sandbox_*), CREATE/INSERT/MERGE/UPDATE/DELETE/DROP/ALTER are only allowed " +
+                          "there — create objects with a fully qualified name in one of them; anything outside is refused. Returns a markdown table.",
             Schema = NxTool.ParseSchema("""{"type":"object","required":["sql"],"properties":{"sql":{"type":"string"},"max_rows":{"type":"integer","description":"Default 100, max 1000"}}}"""),
             // O gate fica DENTRO: o classificador de SQL decide por instrução (leitura BAIXO, escrita ALTO).
             Run = async (a, c, ct) =>
             {
                 ISqlStatementApprover approver = c.ReadOnlyPhase
                     ? new ReadOnlySqlApprover()
-                    : new GateSqlApprover((review, risk, t) => c.Approve($"Databricks SQL: {review.Kind} — {Trim(Req(a, "sql"), 300)}", risk, t));
+                    : new GateSqlApprover((review, risk, t) => c.Approve($"Databricks SQL: {review.Kind} — {Trim(Req(a, "sql"), 300)}", risk, t),
+                        DatabricksSettings.Load().WritePolicy()); // escrita só nos schemas de gravação (fora: bloqueada)
                 using var svc = new DatabricksSqlService(Conn(), approver);
                 var max = Math.Clamp(Int(a, "max_rows") ?? 100, 1, 1000);
                 try

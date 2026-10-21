@@ -47,8 +47,7 @@ public sealed class TeamsSettings
 
     public bool IsConfigured => WebhookUrl.Length > 0;
 
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXPilot", "teams.json");
+    private static string FilePath => NXPilot.Integrations.ExtensionSettings.File("teams.json");
 
     [SupportedOSPlatform("windows")]
     public static TeamsSettings Load()

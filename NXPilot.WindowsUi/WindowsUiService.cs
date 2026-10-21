@@ -64,6 +64,18 @@ public sealed class WindowsUiService(WindowsUiPolicy policy) : IWindowsUiService
         return list;
     }
 
+    /// <summary>
+    /// Janelas abertas DENTRO de <paramref name="window"/> (diálogos que o app abre por cima dela,
+    /// como "Something went wrong" do Power BI) — na automação do Windows elas são filhas da janela.
+    /// </summary>
+    public IReadOnlyList<WindowInfo> ChildWindows(WindowInfo window)
+    {
+        var list = new List<WindowInfo>();
+        foreach (var child in Element(window).FindAllChildren(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.Window)))
+            if (Describe(child) is { Allowed: true } info && info.Handle != 0) list.Add(info);
+        return list;
+    }
+
     public WindowInfo? FindWindow(string processName, string? titleContains = null)
     {
         Ensure(processName);

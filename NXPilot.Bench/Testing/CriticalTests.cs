@@ -100,6 +100,8 @@ public static class CriticalTests
                 AssertEqual(level, (await rules.ClassifyAsync(action)).Level, $"\"{action}\"");
             await Expect(@"Read: C:\Users\x\AppData\Local\NXProject.Community\config_nxproject.json", RiskLevel.Alto);
             await Expect(@"Bash: type %LOCALAPPDATA%\NXPilot\work-items.json", RiskLevel.Alto);
+            await Expect(@"Read: C:\Users\ana\AppData\Local\NXPilot\MCP\Settings\databricks.json", RiskLevel.Alto);
+            await Expect(@"PowerShell: Get-ChildItem $env:LOCALAPPDATA\NXPilot\MCP\Settings", RiskLevel.Alto);
             await Expect(@"Read: C:\Users\x\AppData\Local\NXPilot\git-repos.json", RiskLevel.Alto);
             await Expect(@"Read: C:\Users\x\.codex\auth.json", RiskLevel.Alto);
             await Expect(@"Read: C:\Users\x\.claude\.credentials.json", RiskLevel.Alto);
@@ -311,6 +313,9 @@ public static class CriticalTests
             var crit = TaskPlanning.ParseVerification("""{"approved":true,"summary":"s","findings":[{"severity":"critical","file":"a","line":3,"message":"m"}]}""", "Codex");
             AssertFalse(crit.Approved, "Com crítico NUNCA aprovado, mesmo se o revisor disser approved=true.");
             AssertFalse(TaskPlanning.ParseVerification("resposta livre", "Codex").Approved, "Sem JSON: não aprovado.");
+            var failed = TaskPlanning.ParseVerification("", "Codex");
+            AssertTrue(failed.ReviewerFailed && failed.Findings.Count == 0 && !failed.Approved, "Revisor sem resposta (erro/modelo recusado): falhou, SEM achado vazio para corrigir.");
+            AssertFalse(TaskPlanning.ParseVerification("resposta livre", "Codex").ReviewerFailed, "Resposta em texto livre é revisão (vira achado com o texto), não falha.");
             return Task.CompletedTask;
         }),
 
@@ -533,6 +538,41 @@ public static class CriticalTests
             AssertEqual(RiskLevel.Alto, GateSqlApprover.Risk(SqlStatementClassifier.Classify("MERGE INTO t USING s ON 1=1")).Level, "Escrita é ALTO.");
             AssertEqual(RiskLevel.Medio, GateSqlApprover.Risk(SqlStatementClassifier.Classify("FOO")).Level, "Desconhecido pergunta (MÉDIO).");
             return Task.CompletedTask;
+        }),
+
+        new("Databricks: schemas de gravação (sandbox_*) — dentro é MÉDIO, fora (produção) é bloqueado, destino desconhecido pergunta", async () =>
+        {
+            // Padrão da conexão: catálogo dev, schema sandbox_carmo.
+            var policy = new WriteSchemaPolicy("sandbox_*, prd.area_teste", "dev", "sandbox_carmo");
+            (RiskLevel Level, string? Blocked) Eval(string sql)
+            {
+                var (risk, blocked) = GateSqlApprover.Evaluate(SqlStatementClassifier.Classify(sql), policy);
+                return (risk.Level, blocked);
+            }
+            AssertEqual((RiskLevel.Medio, (string?)null), Eval("CREATE TABLE dev.sandbox_x.vendas AS SELECT 1"), "Dentro de sandbox_*: MÉDIO.");
+            AssertEqual((RiskLevel.Medio, (string?)null), Eval("CREATE OR REPLACE TABLE vendas (id INT)"), "Nome curto: usa o schema padrão (sandbox_carmo).");
+            AssertEqual((RiskLevel.Medio, (string?)null), Eval("INSERT INTO `sandbox_y`.`t` SELECT * FROM prd.gold.fato"), "Crase e leitura de produção: grava só em sandbox.");
+            AssertEqual((RiskLevel.Medio, (string?)null), Eval("CREATE SCHEMA IF NOT EXISTS dev.sandbox_novo"), "Criar schema que casa com o padrão.");
+            AssertEqual((RiskLevel.Medio, (string?)null), Eval("MERGE INTO prd.area_teste.t USING s ON 1=1 WHEN MATCHED THEN DELETE"), "Padrão catálogo.schema exato.");
+            AssertEqual((RiskLevel.Medio, (string?)null), Eval("CREATE TEMP VIEW v AS SELECT 1"), "View temporária não cria objeto.");
+            AssertTrue(Eval("CREATE TABLE prd.gold.vendas AS SELECT 1").Blocked is { } b1 && b1.Contains("prd.gold"), "Produção: bloqueado, com o destino na mensagem.");
+            AssertTrue(Eval("DROP TABLE gold.fato").Blocked != null, "Schema de duas partes fora do padrão: bloqueado.");
+            AssertTrue(Eval("INSERT INTO sandbox_x.t SELECT 1; DELETE FROM prd.gold.t").Blocked != null, "Lote com UM destino fora: bloqueia tudo.");
+            AssertTrue(Eval("WITH c AS (SELECT 1) INSERT INTO prd.gold.t SELECT * FROM c").Blocked != null, "Escrita dentro de WITH é vista.");
+            AssertTrue(Eval("CREATE TABLE prd.area_teste2.t (id INT)").Blocked != null, "Padrão sem curinga é exato (area_teste2 ≠ area_teste).");
+            AssertEqual((RiskLevel.Alto, (string?)null), Eval("USE CATALOG prd; CREATE TABLE t (id INT)"), "USE no lote: nome curto não é confiável → ALTO, você decide.");
+            AssertEqual((RiskLevel.Alto, (string?)null), Eval("GRANT SELECT ON TABLE sandbox_x.t TO `ana`"), "Permissão continua ALTO.");
+            AssertEqual((RiskLevel.Baixo, (string?)null), Eval("SELECT * FROM prd.gold.fato"), "Leitura de produção continua livre.");
+            var off = GateSqlApprover.Evaluate(SqlStatementClassifier.Classify("CREATE TABLE prd.gold.t (id INT)"), new WriteSchemaPolicy("", "dev", "x"));
+            AssertTrue(off.Risk.Level == RiskLevel.Alto && off.Blocked == null, "Sem schemas de gravação: nada muda (ALTO, você decide).");
+
+            // Pelo aprovador: bloqueado nem chega a perguntar.
+            var asked = false;
+            var approver = new GateSqlApprover((_, _, _) => { asked = true; return Task.FromResult(true); }, policy);
+            var denied = await approver.ApproveAsync(SqlStatementClassifier.Classify("CREATE TABLE prd.gold.t (id INT)"));
+            AssertTrue(!denied.Approved && !asked && denied.Reason.Contains("sandbox_*"), "Fora: negado sem perguntar, dizendo onde pode gravar.");
+            var ok = await approver.ApproveAsync(SqlStatementClassifier.Classify("CREATE TABLE sandbox_x.t (id INT)"));
+            AssertTrue(ok.Approved && asked, "Dentro: vai para você (MÉDIO) e executa se aprovar.");
         }),
 
         new("Databricks: escrita sem aprovação não chega ao warehouse; aprovada executa, espera e junta os blocos", async () =>
@@ -1088,16 +1128,16 @@ public static class CriticalTests
         new("Work items citados: marcador pelo tipo (story01, story02, task01, epicgroup01), legenda com workitems_tree, volta ao clonar, legenda antiga ainda lida", () =>
         {
             var list = new List<Citation>();
-            void Add(string type, int id, string title) => list.Add(TaskCitations.ForWorkItem(list, type, id, title, "Soluções - Suprimentos", $"https://dev/x/{id}"));
-            Add("User Story", 1053309, "Cargas `Bronze`");
-            Add("User Story", 1056568, "Replicação");
-            Add("Task", 1103239, "Analise TK13");
+            void Add(string type, int id, string title) => list.Add(TaskCitations.ForWorkItem(list, type, id, title, "Projeto Exemplo", $"https://dev/x/{id}"));
+            Add("User Story", 100001, "Cargas `Camada A`");
+            Add("User Story", 100002, "Replicação de teste");
+            Add("Task", 100003, "Análise exemplo");
             Add("EPIC_GROUP", 900001, "Grupo");
             AssertEqual("[story01],[story02],[task01],[epicgroup01]", string.Join(",", list.Select(c => c.Marker)), "Marcador pelo tipo, numerado por tipo.");
             AssertTrue(list.All(TaskCitations.IsWorkItem), "Reconhecidas como work item.");
             var legend = TaskCitations.Legend(list);
-            AssertContains("workitems_tree id=1053309 project=\"Soluções - Suprimentos\"", legend, "Legenda diz como ler (id e projeto).");
-            AssertFalse(legend.Contains('`' + "Bronze"), "Crase do título não quebra a legenda.");
+            AssertContains("workitems_tree id=100001 project=\"Projeto Exemplo\"", legend, "Legenda diz como ler (id e projeto).");
+            AssertFalse(legend.Contains('`' + "Camada"), "Crase do título não quebra a legenda.");
             var (text, back) = TaskCitations.SplitLegend("Crie as tasks da [story01] como as da [story02]." + legend);
             AssertEqual("Crie as tasks da [story01] como as da [story02].", text, "Clonar: o texto volta sem a legenda.");
             AssertEqual(4, back.Count, "Clonar: as 4 citações voltam.");
@@ -1447,6 +1487,124 @@ public static class CriticalTests
                 PptxDocument.Build(fromTemplate, JsonNode.Parse("""[{"layout":"title","title":"Novo"}]""")!.AsArray(), wt, template: file);
                 AssertEqual(1, PptxDocument.SlideCount(fromTemplate), "Com modelo: só os slides novos.");
                 AssertEqual(0, PptxDocument.Validate(fromTemplate).Count, "Com modelo: sem erro de esquema.");
+            }
+            finally { try { Directory.Delete(wt, true); } catch { } }
+        }),
+        new("Power BI: ferramentas visíveis antes do .pbip existir; projeto criado depois é achado; relatório sem tema base é apontado e corrigido (antigo e PBIR)", async () =>
+        {
+            if (!OperatingSystem.IsWindows()) return;
+            var wt = Path.Combine(Path.GetTempPath(), "nx-pbi-" + Guid.NewGuid().ToString("N")[..8]);
+            Directory.CreateDirectory(wt);
+            try
+            {
+                var host = new NxToolHost(CoreTools.All());
+                ToolContext Ctx(bool installed) => new() { Worktree = wt, PowerBiInstalled = installed, Approve = (_, risk, _) => Task.FromResult(risk.Level == RiskLevel.Baixo) };
+                AssertFalse(host.AvailableTools(Ctx(false)).Any(t => t.Name == "powerbi_validate"), "Sem .pbip e sem Power BI instalado: ferramentas Power BI não aparecem.");
+                AssertTrue(host.AvailableTools(Ctx(true)).Any(t => t.Name == "powerbi_validate"), "Com o Power BI instalado aparecem antes do .pbip existir (o agente vai criá-lo).");
+                var none = await host.CallAsync("powerbi_validate", new JsonObject(), Ctx(true), default);
+                AssertTrue(none.IsError && none.Content[0].Text!.Contains(".pbip"), "Sem projeto ainda: erro claro, não exceção.");
+
+                // O agente cria o projeto no meio da tarefa (relatório no formato antigo, sem tema base — o caso real).
+                File.WriteAllText(Path.Combine(wt, "Teste.pbip"), """{"version":"1.0","artifacts":[{"report":{"path":"Teste.Report"}}]}""");
+                var report = Path.Combine(wt, "Teste.Report");
+                Directory.CreateDirectory(report);
+                File.WriteAllText(Path.Combine(report, "definition.pbir"), """{"version":"4.0","datasetReference":{"byPath":{"path":"../Teste.SemanticModel"}}}""");
+                File.WriteAllText(Path.Combine(report, "report.json"), """{"config":"{\"version\":\"5.43\"}","layoutOptimization":0,"sections":[{"name":"s1","displayName":"Página","visualContainers":[]}]}""");
+                var bad = await host.CallAsync("powerbi_validate", new JsonObject(), Ctx(true), default);
+                AssertTrue(bad.IsError && bad.Content[0].Text!.Contains("tema base") && bad.Content[0].Text!.Contains("powerbi_fix_report"), "Sem tema base: apontado, com a correção: " + bad.Content[0].Text);
+
+                var theme = Path.Combine(wt, "..", "nx-pbi-tema-" + Guid.NewGuid().ToString("N")[..6], "CY99SU01.json");
+                Directory.CreateDirectory(Path.GetDirectoryName(theme)!);
+                File.WriteAllText(theme, """{"name":"CY99SU01","dataColors":["#118DFF"]}""");
+                NXPilot.Integrations.PowerBiReport.Fix(report, theme);
+                var ok = await host.CallAsync("powerbi_validate", new JsonObject(), Ctx(true), default);
+                AssertFalse(ok.IsError, "Depois do tema base: válido. " + ok.Content[0].Text);
+                var json = JsonNode.Parse(File.ReadAllText(Path.Combine(report, "report.json")))!;
+                AssertContains("CY99SU01", json["config"]!.GetValue<string>(), "Tema base no config.");
+                AssertEqual(0, json["sections"]![0]!["ordinal"]!.GetValue<int>(), "Páginas com ordinal.");
+
+                // PBIR (definition/report.json): mesma regra.
+                File.Delete(Path.Combine(report, "report.json"));
+                Directory.CreateDirectory(Path.Combine(report, "definition"));
+                File.WriteAllText(Path.Combine(report, "definition", "report.json"), """{"layoutOptimization":"None"}""");
+                Directory.Delete(Path.Combine(report, "StaticResources"), true);
+                AssertTrue(NXPilot.Integrations.PowerBiReport.Problems(report, wt).Count > 0, "PBIR sem tema base: apontado.");
+                NXPilot.Integrations.PowerBiReport.Fix(report, theme);
+                AssertEqual(0, NXPilot.Integrations.PowerBiReport.Problems(report, wt).Count, "PBIR com tema base: válido.");
+                var pbirJson = Path.Combine(report, "definition", "report.json");
+                AssertTrue(JsonNode.Parse(File.ReadAllText(pbirJson))!["themeCollection"]!["baseTheme"]!["reportVersionAtImport"] is JsonObject,
+                    "PBIR: reportVersionAtImport é objeto (texto faz o Power BI recusar o relatório).");
+                // O caso real: versão como texto num PBIR → apontado; a correção mantém o tema personalizado.
+                var broken = JsonNode.Parse(File.ReadAllText(pbirJson))!.AsObject();
+                broken["themeCollection"]!["baseTheme"]!["reportVersionAtImport"] = "5.70";
+                broken["themeCollection"]!["customTheme"] = new JsonObject { ["name"] = "Marca.json", ["reportVersionAtImport"] = "5.70", ["type"] = "RegisteredResources" };
+                File.WriteAllText(pbirJson, broken.ToJsonString());
+                AssertTrue(NXPilot.Integrations.PowerBiReport.Problems(report, wt).Count(p => p.Contains("reportVersionAtImport")) == 2, "Versão como texto (base e personalizado) é apontada.");
+                NXPilot.Integrations.PowerBiReport.Fix(report, theme);
+                var fixedTc = JsonNode.Parse(File.ReadAllText(pbirJson))!["themeCollection"]!;
+                AssertTrue(fixedTc["baseTheme"]!["reportVersionAtImport"] is JsonObject && fixedTc["customTheme"]?["reportVersionAtImport"] is JsonObject,
+                    "Corrigido: as duas versões viram objeto e o tema personalizado continua.");
+                AssertEqual(0, NXPilot.Integrations.PowerBiReport.Problems(report, wt).Count(p => p.Contains("reportVersionAtImport")), "Depois da correção: nada a apontar.");
+
+                // Parâmetro com valor provisório (o workspace que o agente não sabia): reprovado até a tarefa preencher.
+                var model = Path.Combine(wt, "Teste.SemanticModel", "definition");
+                Directory.CreateDirectory(model);
+                File.WriteAllText(Path.Combine(model, "expressions.tmdl"),
+                    "expression NomeWorkspace = \"INFORMAR_WORKSPACE\" meta [IsParameterQuery=true, Type=\"Text\"]\n\tlineageTag: x\n");
+                var placeholder = await host.CallAsync("powerbi_validate", new JsonObject(), Ctx(true), default);
+                AssertTrue(placeholder.IsError && placeholder.Content[0].Text!.Contains("NomeWorkspace") && placeholder.Content[0].Text!.Contains("provisório"),
+                    "Workspace provisório reprovado: " + placeholder.Content[0].Text);
+                File.WriteAllText(Path.Combine(model, "expressions.tmdl"),
+                    "expression NomeWorkspace = \"Workspace Exemplo\" meta [IsParameterQuery=true, Type=\"Text\"]\n\tlineageTag: x\n");
+                AssertEqual(0, NXPilot.Integrations.PowerBiReport.PlaceholderProblems(Path.Combine(wt, "Teste.SemanticModel"), wt).Count, "Workspace preenchido: válido.");
+                // PBI de exemplo citado: estilo da aba pedida, cópia do tema e da imagem de fundo, leitura liberada só por ser citado.
+                var example = Path.Combine(Path.GetTempPath(), "nx-pbi-exemplo-" + Guid.NewGuid().ToString("N")[..6]);
+                var exReport = Path.Combine(example, "Exemplo.Report");
+                Directory.CreateDirectory(Path.Combine(exReport, "StaticResources", "RegisteredResources"));
+                File.WriteAllText(Path.Combine(example, "Exemplo.pbip"), """{"version":"1.0","artifacts":[{"report":{"path":"Exemplo.Report"}}]}""");
+                File.WriteAllText(Path.Combine(exReport, "StaticResources", "RegisteredResources", "Marca.json"), """{"name":"Marca","dataColors":["#8649FF"],"background":"#F5F5F5"}""");
+                File.WriteAllBytes(Path.Combine(exReport, "StaticResources", "RegisteredResources", "Fundo.png"), [137, 80, 78, 71]);
+                var visual = """{"name":"v1","singleVisual":{"visualType":"card","vcObjects":{"title":[{"properties":{"text":{"expr":{"Literal":{"Value":"'Receita'"}}}}}]},"objects":{"labels":[{"properties":{"color":{"solid":{"color":{"expr":{"Literal":{"Value":"'#8649FF'"}}}}}}}]}}}""";
+                var exRoot = new JsonObject
+                {
+                    ["config"] = """{"version":"5.43","themeCollection":{"customTheme":{"name":"Marca","version":"5.70","type":1}}}""",
+                    ["resourcePackages"] = JsonNode.Parse("""[{"resourcePackage":{"name":"RegisteredResources","type":1,"items":[{"type":201,"path":"Marca.json","name":"Marca"},{"type":100,"path":"Fundo.png","name":"Fundo.png"}]}}]"""),
+                    ["sections"] = new JsonArray(
+                        new JsonObject { ["name"] = "a", ["displayName"] = "Capa", ["width"] = 1280, ["height"] = 720, ["visualContainers"] = new JsonArray() },
+                        new JsonObject { ["name"] = "b", ["displayName"] = "Vendas", ["width"] = 1280, ["height"] = 720,
+                            ["config"] = """{"objects":{"background":[{"properties":{"image":{"image":{"name":{"expr":{"Literal":{"Value":"'Fundo.png'"}}}}}}}]}}""",
+                            ["visualContainers"] = new JsonArray(new JsonObject { ["x"] = 10, ["y"] = 20, ["width"] = 300, ["height"] = 120, ["config"] = visual }) }),
+                };
+                File.WriteAllText(Path.Combine(exReport, "report.json"), exRoot.ToJsonString());
+                try
+                {
+                    var exPbip = Path.Combine(example, "Exemplo.pbip");
+                    AssertEqual(RiskLevel.Medio, Ctx(true).PathRisk(exPbip, write: false).Level, "Fora do worktree e sem citar: ler é MÉDIO.");
+                    var cited = new ToolContext { Worktree = wt, PowerBiInstalled = true, CitedPaths = [exPbip], Approve = (_, risk, _) => Task.FromResult(risk.Level == RiskLevel.Baixo) };
+                    AssertEqual(RiskLevel.Baixo, cited.PathRisk(Path.Combine(exReport, "report.json"), write: false).Level, "Citado: ler o .pbip e as pastas dele é BAIXO.");
+                    AssertEqual(RiskLevel.Alto, cited.PathRisk(Path.Combine(exReport, "report.json"), write: true).Level, "Citado: gravar no exemplo continua ALTO.");
+
+                    var style = await host.CallAsync("powerbi_style", new JsonObject { ["path"] = exPbip, ["page"] = "vendas" }, cited, default);
+                    AssertFalse(style.IsError, "powerbi_style: " + style.Content[0].Text);
+                    var text = style.Content[0].Text!;
+                    AssertTrue(text.Contains("aba \"Vendas\"") && text.Contains("Capa") && text.Contains("card · x=10 y=20 w=300 h=120") && text.Contains("título \"Receita\"")
+                               && text.Contains("#8649FF") && text.Contains("Fundo.png") && text.Contains("personalizado: Marca"), "Estilo da aba pedida (posição, título, cor, fundo, tema): " + text);
+                    var missing = await host.CallAsync("powerbi_style", new JsonObject { ["path"] = exPbip, ["page"] = "Inexistente" }, cited, default);
+                    AssertTrue(missing.IsError && missing.Content[0].Text!.Contains("Vendas"), "Aba que não existe: erro com a lista de abas.");
+
+                    var copied = NXPilot.Integrations.PowerBiStyle.CopyTheme(exPbip, report, theme);
+                    AssertTrue(File.Exists(Path.Combine(report, "StaticResources", "RegisteredResources", "Marca.json"))
+                               && File.Exists(Path.Combine(report, "StaticResources", "RegisteredResources", "Fundo.png")), "Tema e imagem copiados: " + copied);
+                    var target = File.ReadAllText(Path.Combine(report, "definition", "report.json"));
+                    AssertTrue(target.Contains("\"customTheme\"") && target.Contains("Fundo.png") && target.Contains("\"Image\""), "Registrados no relatório novo (PBIR).");
+                    AssertEqual(0, NXPilot.Integrations.PowerBiReport.Problems(report, wt).Count, "Depois de copiar o tema: relatório válido.");
+                }
+                finally { try { Directory.Delete(example, true); } catch { } }
+
+                var line = new NXPilot.Integrations.PowerBiSettings { NewWorkspaceName = "WS", NewWorkspaceId = "123" }.AgentLine();
+                AssertTrue(line.Contains("\"WS\"") && line.Contains("123"), "O agente recebe nome e id do workspace de novos PBI.");
+                AssertEqual("", new NXPilot.Integrations.PowerBiSettings().AgentLine(), "Sem workspace configurado: nada a dizer.");
+                try { Directory.Delete(Path.GetDirectoryName(theme)!, true); } catch { }
             }
             finally { try { Directory.Delete(wt, true); } catch { } }
         }),

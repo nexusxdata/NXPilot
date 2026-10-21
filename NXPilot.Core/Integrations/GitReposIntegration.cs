@@ -35,8 +35,7 @@ public sealed class GitRepoSettings : IGitCredentialProvider
         _ => null,
     };
 
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXPilot", "git-repos.json");
+    private static string FilePath => NXPilot.Integrations.ExtensionSettings.File("git-repos.json");
 
     [SupportedOSPlatform("windows")]
     public static GitRepoSettings Load()

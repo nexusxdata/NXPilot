@@ -163,8 +163,7 @@ public sealed class WorkItemSettings
         HasOwnGitHub ? (new GitHubProjectConnection(GitHubOwner, GitHubOwnerIsOrganization, GitHubProjectNumber, GitHubToken), WorkItemConnectionOrigin.Own)
         : GitHubProjectConnection.FromNXProject() is { } nx ? (nx, WorkItemConnectionOrigin.NXProject) : null;
 
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXPilot", "work-items.json");
+    private static string FilePath => NXPilot.Integrations.ExtensionSettings.File("work-items.json");
 
     [SupportedOSPlatform("windows")]
     public static WorkItemSettings Load()

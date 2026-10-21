@@ -28,7 +28,12 @@ public static class McpServer
         "For PowerPoint ALWAYS use the pptx_* tools: do not write python-pptx/Node scripts and do not install packages for it; after building, call pptx_render to look at the slides and fix what looks bad. " +
         "For Excel use the xlsx_* tools to inspect (xlsx_info, then xlsx_read with a range) and for small or medium edits; a script is fine only for bulk transformations of thousands of rows. " +
         "To CREATE work items (e.g. the Tasks of a User Story) use nxproject_create_items (it goes through NXProject: its fields and the Adm_NX rule, and the user approves) — never the DevOps/GitHub API directly; check nxproject_status first. " +
-        "For a Power BI PBIP project, after editing TMDL/PBIR call powerbi_validate, then powerbi_capture to see the report. " +
+        "If the task cites an example Power BI report (.pbip/.pbix or its folder) and names a tab, call powerbi_style on it with that page and build the new report in that style " +
+        "(powerbi_copy_theme, same page size, background, positions and formatting). " +
+        "Power BI: before CREATING a PBIP project call powerbi_info — it gives the workspace the user configured for new reports (use it in the parameters, never a placeholder); " +
+        "after creating or editing a PBIP project, review it through these tools before saying the phase is done — powerbi_validate (fix every problem; " +
+        "a report without its base theme needs powerbi_fix_report), then powerbi_capture to open it in Power BI Desktop and look at the image: an error dialog or a blank page " +
+        "means it is not done — fix and repeat until the report loads. " +
         "Every call passes the NXPilot gate: a denial means the user said no — do not retry the same call; adjust the plan or ask.";
 
     /// <summary>

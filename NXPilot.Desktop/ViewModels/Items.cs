@@ -40,8 +40,12 @@ public sealed record ResultFile(string RelativePath, string FullPath)
 
 public sealed record FileChangeItem(string Path, string Kind, string Description);
 
-public sealed record PhaseItem(int Number, string Title, string Status, string Agent, double Progress, IReadOnlyList<FileChangeItem> Files)
+/// <param name="LastEvent">Último evento do log desta fase (resultado ou erro), mostrado abaixo dela.</param>
+public sealed record PhaseItem(int Number, string Title, string Status, string Agent, double Progress, IReadOnlyList<FileChangeItem> Files,
+    string LastEvent = "", bool LastIsError = false)
 {
+    public bool HasLastEvent => LastEvent.Length > 0;
+
     /// <summary>Status é chave interna (cor do selo); este é o texto exibido.</summary>
     public string StatusLabel => Status switch
     {
@@ -57,8 +61,11 @@ public sealed record VerificationItem(string Severity, string File, string Messa
 
 public sealed record DiffLine(string Text, string Kind);
 
-public sealed record LogEntry(DateTime Time, string Source, string Kind, string Message)
+/// <param name="Phase">Fase em execução quando o evento aconteceu (nula = fora das fases: plano, aprovação…).</param>
+public sealed record LogEntry(DateTime Time, string Source, string Kind, string Message, int? Phase = null)
 {
+    public bool IsError => Kind is "erro" or "error" or "negado" or "denied" or "denegado";
+
     public string TimeText => Time.ToString("HH:mm:ss");
 }
 

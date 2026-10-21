@@ -30,8 +30,8 @@ public sealed class MailSettings
         _ => null,
     };
 
-    internal static string Folder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXPilot");
-    private static string FilePath => Path.Combine(Folder, "mail.json");
+    internal static string Folder => ExtensionSettings.Folder;
+    private static string FilePath => ExtensionSettings.File("mail.json");
 
     [SupportedOSPlatform("windows")]
     public static MailSettings Load()
@@ -68,7 +68,7 @@ public sealed class DpapiTokenStore(MailProvider provider) : IOAuthTokenStore
 {
     private sealed record Stored(string Access, string Refresh, DateTimeOffset ExpiresAt);
 
-    private string FilePath => Path.Combine(MailSettings.Folder, $"mail-token-{provider.ToString().ToLowerInvariant()}.json");
+    private string FilePath => ExtensionSettings.File($"mail-token-{provider.ToString().ToLowerInvariant()}.json");
 
     public Task<OAuthToken?> LoadAsync(CancellationToken ct = default)
     {

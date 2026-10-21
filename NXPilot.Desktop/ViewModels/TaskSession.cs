@@ -28,20 +28,28 @@ public enum ExecutorKind { Claude, Codex }
 public sealed record NewTaskInfo(string RepoPath, string Title, string Intent, string Criteria, string? Model,
     ReviewerKind Reviewer = ReviewerKind.Codex, string? CodexModel = null, ExecutorKind Executor = ExecutorKind.Claude,
     VersioningMode Versioning = VersioningMode.Git, string? Subject = null, string? SubjectFolder = null,
-    bool AsTemplate = false, string? TemplateId = null, NXPilot.Integrations.WorkItemLink? WorkItem = null)
+    bool AsTemplate = false, string? TemplateId = null, NXPilot.Integrations.WorkItemLink? WorkItem = null,
+    bool AutoFixFindings = false)
 {
+    /// <summary>Rodadas automáticas de "analisar e corrigir achados" por tarefa (depois disso, você decide).</summary>
+    public const int MaxAutoFixRounds = 2;
+
     /// <summary>
     /// Intenção para o prompt: com work item vinculado, diz ao agente qual é e como ler o item e a
     /// hierarquia dele (workitems_tree) — os dados vêm do DevOps, não do repositório.
     /// </summary>
-    public string IntentForAgent => WorkItemsHint(WorkItem is not { } w ? Intent : Intent + "\n\n" + NXPilot.NxText.T(
+    public string IntentForAgent => PowerBiExampleHint(WorkItemsHint(WorkItem is not { } w ? Intent : Intent + "\n\n" + NXPilot.NxText.T(
         $"WORK ITEM VINCULADO: {w.Label} ({w.Source}, projeto {w.Project}) — {w.Url}\nOs dados dele (e de tudo abaixo na hierarquia: Epic, Feature, Story, Task) vêm do Azure DevOps, não do repositório: leia com a ferramenta MCP workitems_tree (id {w.Id}, project \"{w.Project}\"; open_only=true para só o que está pendente) antes de planejar.",
         $"LINKED WORK ITEM: {w.Label} ({w.Source}, project {w.Project}) — {w.Url}\nIts data (and everything below it: Epic, Feature, Story, Task) comes from Azure DevOps, not from the repository: read it with the MCP tool workitems_tree (id {w.Id}, project \"{w.Project}\"; open_only=true for pending items only) before planning.",
-        $"WORK ITEM VINCULADO: {w.Label} ({w.Source}, proyecto {w.Project}) — {w.Url}\nSus datos (y todo lo que está debajo: Epic, Feature, Story, Task) vienen de Azure DevOps, no del repositorio: léalos con la herramienta MCP workitems_tree (id {w.Id}, project \"{w.Project}\"; open_only=true para solo lo pendiente) antes de planificar."));
+        $"WORK ITEM VINCULADO: {w.Label} ({w.Source}, proyecto {w.Project}) — {w.Url}\nSus datos (y todo lo que está debajo: Epic, Feature, Story, Task) vienen de Azure DevOps, no del repositorio: léalos con la herramienta MCP workitems_tree (id {w.Id}, project \"{w.Project}\"; open_only=true para solo lo pendiente) antes de planificar.")));
 
     /// <summary>Com work items citados ([story01], [task01]…): diz de onde vêm os dados e como ler cada um.</summary>
     private static string WorkItemsHint(string intent) => !intent.Contains(NXPilot.Planning.TaskCitations.WorkItemToolHint, StringComparison.Ordinal) ? intent
         : intent + "\n\n" + NXPilot.Planning.TaskCitations.WorkItemsGuidance();
+
+    /// <summary>Com um PBI de exemplo citado ([pbip01], [pbix01] ou pasta com .pbip): como ler e copiar o estilo.</summary>
+    private static string PowerBiExampleHint(string intent) => !NXPilot.Planning.TaskCitations.CitesPowerBi(intent) ? intent
+        : intent + "\n\n" + NXPilot.Planning.TaskCitations.PowerBiExampleGuidance();
 }
 
 /// <summary>Registro salvo no Histórico (%LOCALAPPDATA%\NXPilot\tasks\&lt;id&gt;.json).</summary>
@@ -50,7 +58,15 @@ public sealed record TaskRecord(
     string? Worktree, string? Branch, string? BaseCommit, string? SessionId,
     string PlanText, List<PlannedPhase> Phases, List<string> PhaseStatus,
     VerificationResult? Verification, decimal CostUsd, List<LogEntry> Log, TokenUsage? Tokens = null,
-    List<string>? PreApprovals = null, List<RiskEntry>? Risks = null);
+    List<string>? PreApprovals = null, List<RiskEntry>? Risks = null, Dictionary<int, string>? PhaseTerminals = null,
+    List<FixRound>? FixRounds = null);
+
+/// <summary>
+/// Uma rodada de "analisar e corrigir achados": os achados que a verificação devolveu, o que o
+/// executor fez (resumo e se houve commit) e quando. A verificação refeita depois fica na tarefa.
+/// </summary>
+public sealed record FixRound(int Number, DateTime Started, VerificationResult Before, bool Automatic,
+    string Summary = "", bool Committed = false, DateTime? Finished = null);
 
 /// <summary>
 /// Uma tarefa real: intenção → plano em fases (agente em modo plan) → sua aprovação → fases
@@ -195,7 +211,30 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     }
 
     public TaskRecord ToRecord() => new(Id, Info, State, CreatedAt, DateTime.Now, Worktree, Branch, BaseCommit, SessionId,
-        PlanText, Phases, PhaseStatus, Verification, CostUsd, Log.ToList(), Tokens, PreApprovals.Count > 0 ? PreApprovals.ToList() : null, Risks.ToList());
+        PlanText, Phases, PhaseStatus, Verification, CostUsd, Log.ToList(), Tokens, PreApprovals.Count > 0 ? PreApprovals.ToList() : null, Risks.ToList(),
+        PhaseTerminal.Count > 0 ? PhaseTerminal.ToDictionary(p => p.Key, p => p.Value.ToString()) : null,
+        FixRounds.Count > 0 ? FixRounds.ToList() : null);
+
+    /// <summary>Rodadas de correção dos achados (Histórico: "Achados e correções").</summary>
+    public List<FixRound> FixRounds { get; } = new();
+
+    /// <summary>Número da linha da rodada na aba Fases: depois das fases e da verificação.</summary>
+    public int FixPhaseNumber(int round) => Phases.Count + 1 + round;
+
+    /// <summary>Fase rodando agora (a verificação cruzada é a fase Phases.Count + 1); nula fora das fases.</summary>
+    public int? RunningPhase { get; set; }
+
+    /// <summary>Saída do agente por fase (o "Terminal" da fase na aba Fases); guarda só o fim de saídas enormes.</summary>
+    public Dictionary<int, System.Text.StringBuilder> PhaseTerminal { get; } = new();
+
+    private const int MaxPhaseTerminal = 400_000;
+
+    public void AppendPhaseTerminal(int phase, string text)
+    {
+        if (!PhaseTerminal.TryGetValue(phase, out var sb)) PhaseTerminal[phase] = sb = new System.Text.StringBuilder();
+        sb.AppendLine(text);
+        if (sb.Length > MaxPhaseTerminal) sb.Remove(0, sb.Length - MaxPhaseTerminal * 3 / 4).Insert(0, "…\n");
+    }
 
     /// <summary>
     /// Tarefa gravada antes do registro de riscos: recupera do Log ("auto-aprovado … (Baixo, 85%)",
@@ -238,7 +277,9 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
             State = r.State is TaskState.Preparing or TaskState.Planning or TaskState.Executing or TaskState.Verifying ? TaskState.Stopped : r.State,
         };
         s.Log.AddRange(r.Log);
+        foreach (var (phase, text) in r.PhaseTerminals ?? new()) s.PhaseTerminal[phase] = new System.Text.StringBuilder(text);
         s.Risks.AddRange(r.Risks ?? RisksFromLog(r.Log));
+        s.FixRounds.AddRange(r.FixRounds ?? new());
         foreach (var a in r.PreApprovals ?? new()) s.PreApprovals.Add(a);
         if (s.State == TaskState.Failed) s.LastError = r.Log.LastOrDefault(l => l.Kind is "erro" or "error")?.Message;
         return s;

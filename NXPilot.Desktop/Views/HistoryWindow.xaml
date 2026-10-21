@@ -29,6 +29,9 @@
                 <ComboBox x:Name="RiskBox" DockPanel.Dock="Right" Width="170" Margin="8,0,0,0" Padding="8,5"
                           SelectionChanged="OnSearchChanged" ToolTip="{DynamicResource Hist_Riscos}"/>
                 <!-- Estado: em andamento, aguardando, concluída, aviso, erro… (itens montados no código). -->
+                <ComboBox x:Name="SubjectBox" DockPanel.Dock="Right" Width="190" Margin="8,0,0,0" Padding="8,5"
+                          SelectionChanged="OnSearchChanged" ToolTip="{DynamicResource Hist_Assunto}"/>
+
                 <ComboBox x:Name="StatusBox" DockPanel.Dock="Right" Width="170" Margin="8,0,0,0" Padding="8,5"
                           SelectionChanged="OnSearchChanged" ToolTip="{DynamicResource Hist_Estado}"/>
                 <ComboBox x:Name="PeriodBox" DockPanel.Dock="Right" Width="160" Margin="8,0,0,0" Padding="8,5" SelectedIndex="0"
@@ -62,6 +65,7 @@
             <WrapPanel HorizontalAlignment="Right">
                 <Button x:Name="RemoveButton" Content="{DynamicResource Hist_Remover}" Style="{StaticResource DangerButton}" Click="OnRemoveClick"/>
                 <Button x:Name="CloneButton" Content="{DynamicResource Hist_Clonar}" ToolTip="{DynamicResource Hist_ClonarDica}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnCloneClick"/>
+                <Button x:Name="FindingsButton" Content="{DynamicResource Hist_Achados}" ToolTip="{DynamicResource Hist_AchadosDica}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnFindingsClick"/>
                 <Button x:Name="RisksButton" Content="{DynamicResource Hist_VerRiscos}" ToolTip="{DynamicResource Hist_VerRiscosDica}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnRisksClick"/>
                 <Button x:Name="AllRisksButton" Content="{DynamicResource Hist_RiscosDaLista}" ToolTip="{DynamicResource Hist_RiscosDaListaDica}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnAllRisksClick"/>
                 <Button x:Name="TimelineButton" Content="{DynamicResource Hist_LinhaDoTempo}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnTimelineClick"/>

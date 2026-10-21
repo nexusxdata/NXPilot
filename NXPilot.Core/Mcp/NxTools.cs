@@ -45,6 +45,15 @@ public sealed class ToolContext
     /// <summary>Ação + risco → liberado? (auto-aprova BAIXO, regras da tarefa, ou pergunta a você).</summary>
     public required Func<string, RiskResult, CancellationToken, Task<bool>> Approve { get; init; }
     public PowerBiProject? PowerBi { get; init; }
+
+    /// <summary>Power BI Desktop instalado: as ferramentas Power BI aparecem mesmo antes de existir um .pbip (o agente pode criá-lo).</summary>
+    public bool PowerBiInstalled { get; init; }
+
+    /// <summary>O projeto PBIP do worktree agora — procura de novo quando ele foi criado depois do início da tarefa.</summary>
+    public PowerBiProject? PowerBiNow => PowerBi ?? PowerBiProject.Detect(Worktree);
+
+    /// <summary>Ferramentas Power BI disponíveis: há um .pbip ou o Power BI Desktop está instalado.</summary>
+    public bool PowerBiToolsAvailable => PowerBi != null || PowerBiInstalled;
     public Action<string>? Log { get; init; }
 
     /// <summary>Caminho relativo ao worktree (ou absoluto), normalizado.</summary>
@@ -56,12 +65,43 @@ public sealed class ToolContext
         return (Path.GetFullPath(fullPath) + Path.DirectorySeparatorChar).StartsWith(root, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Mesma regra do gate para arquivos: dentro do worktree é BAIXO; ler fora é MÉDIO; gravar fora é ALTO.</summary>
+    /// <summary>Arquivos e pastas que o usuário citou na tarefa ([xlsx01], [pbip01], [folder01]…): ler é consentido.</summary>
+    public IReadOnlyList<string> CitedPaths { get; init; } = [];
+
+    /// <summary>
+    /// O caminho é um arquivo citado, está dentro de uma pasta citada ou, para um .pbip citado, nas
+    /// pastas .Report/.SemanticModel dele (o projeto Power BI é o .pbip + essas pastas).
+    /// </summary>
+    public bool IsCited(string fullPath)
+    {
+        var full = Path.GetFullPath(fullPath).TrimEnd(Path.DirectorySeparatorChar);
+        foreach (var cited in CitedPaths)
+        {
+            var c = Path.GetFullPath(cited).TrimEnd(Path.DirectorySeparatorChar);
+            if (string.Equals(full, c, StringComparison.OrdinalIgnoreCase)) return true;
+            var roots = new List<string>();
+            if (Directory.Exists(c)) roots.Add(c);
+            if (c.EndsWith(".pbip", StringComparison.OrdinalIgnoreCase))
+            {
+                var stem = Path.Combine(Path.GetDirectoryName(c)!, Path.GetFileNameWithoutExtension(c));
+                roots.Add(stem + ".Report");
+                roots.Add(stem + ".SemanticModel");
+            }
+            if (roots.Any(r => (full + Path.DirectorySeparatorChar).StartsWith(r + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Mesma regra do gate para arquivos: dentro do worktree é BAIXO; ler o que o usuário citou é BAIXO;
+    /// ler fora é MÉDIO; gravar fora é ALTO (mesmo se citado — o exemplo nunca é alterado).
+    /// </summary>
     public RiskResult PathRisk(string? path, bool write)
     {
         if (string.IsNullOrWhiteSpace(path)) return NxTool.Low();
         var full = Resolve(path);
         if (IsInside(full)) return NxTool.Low(write ? "grava no worktree" : "lê do worktree");
+        if (!write && IsCited(full)) return NxTool.Low(NxText.T("lê arquivo citado na tarefa", "reads a file cited in the task", "lee un archivo citado en la tarea"));
         return write
             ? new RiskResult(RiskLevel.Alto, 1, "MCP", NxText.T("grava FORA do worktree da tarefa", "writes OUTSIDE the task worktree", "escribe FUERA del worktree de la tarea"), TimeSpan.Zero)
             : new RiskResult(RiskLevel.Medio, 0.9, "MCP", NxText.T("lê FORA do worktree da tarefa", "reads OUTSIDE the task worktree", "lee FUERA del worktree de la tarea"), TimeSpan.Zero);

@@ -15,6 +15,43 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**📊 Power BI: criar PBI novo com pente fino, workspace e PBI de exemplo**
+
+- As ferramentas Power BI aparecem mesmo com o repositório vazio (com o Power BI Desktop instalado): o agente cria o projeto e depois valida e abre no Desktop, corrigindo até carregar sem erro.
+- `powerbi_validate` aponta relatório sem tema base (o Power BI mostrava "Something went wrong" e página em branco), versão do tema no tipo errado e parâmetro com valor provisório (ex.: INFORMAR_WORKSPACE). `powerbi_fix_report` completa o tema base copiado do seu Power BI instalado.
+- `powerbi_capture` avisa quando o Power BI abre uma janela de erro, com o texto dela.
+- **Workspace de novos PBI** na aba Power BI da Extensão MCP: o agente grava nos parâmetros do projeto.
+- **PBI de exemplo**: cite o `.pbip`, a pasta ou o `.pbix` na tarefa e diga a aba — `powerbi_style` lê o estilo (tamanho, fundo, tema, posição e formatação de cada visual) e `powerbi_copy_theme` copia o tema e as imagens (ex.: fundo da página). Sem exemplo, segue sem.
+- Arquivo citado na tarefa é lido sem pedir aprovação; gravar fora do worktree continua ALTO.
+
+**🔧 Verificação cruzada: correção visível e automática**
+
+- Cada "Analisar e corrigir achados" vira uma linha na aba Fases ("Correção dos achados · rodada N"), com barra, terminal, log e os achados enviados.
+- Opção na Nova tarefa: **corrigir os achados automaticamente** (até 2 rodadas, cada ação passa pelo gate).
+- Histórico → **🔎 Achados e correções**: o que foi achado em cada rodada, o que o agente fez e o resultado final.
+- Revisor Codex sem modelo definido usa o modelo testado (gpt-5.6-terra); revisor que falha não vira "achado".
+
+**🗂 Aba Fases: terminal e log por fase**
+
+- Ao aprovar o plano, a tela vai para a aba Fases. Cada fase tem **Detalhar** (a saída do agente só daquela fase) e o log da fase embaixo; o último evento (resultado ou erro) aparece abaixo de cada fase.
+
+**🛡 Databricks: schemas de gravação**
+
+- Novo campo na aba Databricks (ex.: `sandbox_*`, `dev.sandbox_*`): criar e alterar objetos só nesses schemas (MÉDIO); fora deles, a escrita é bloqueada — protege a produção. Destino incerto pergunta (ALTO). Vazio = como antes.
+
+**📋 Histórico e avisos**
+
+- Filtro por **Assunto** (um assunto, todos, ou sem assunto).
+- A notificação "Decisão pendente" sai da lista quando você aprova ou nega.
+
+**⏱ Work items**
+
+- `workitems_tree` mostra estimativa original, horas trabalhadas, estimativa atual (HH Atual), restante e data de criação; quando a referência cresceu, o agente avisa no plano e lista as tasks que entraram depois.
+
+**🔒 Configurações das extensões em pasta própria**
+
+- Databricks, Git, e-mail, work items, Teams, Power BI e janelas do Windows ficam em `%LOCALAPPDATA%\NXPilot\MCP\Settings` (movidas sozinhas na primeira abertura). Só na sua máquina; o agente não lê (ALTO).
+
 **⏱ Work items: horas completas e aviso quando a referência cresceu**
 
 - `workitems_tree` agora mostra, por item, a estimativa original, as horas trabalhadas, a estimativa atual (HH Atual do NXProject), o restante e a data de criação.

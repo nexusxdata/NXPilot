@@ -34,6 +34,9 @@
     <sys:String x:Key="Main_Fases">Phases</sys:String>
     <sys:String x:Key="Main_Fase" xml:space="preserve">Phase </sys:String>
     <sys:String x:Key="Main_PlanoPorArquivoFase" xml:space="preserve">Per-file plan · Phase </sys:String>
+    <sys:String x:Key="Main_TerminalDaFase" xml:space="preserve">Phase terminal </sys:String>
+    <sys:String x:Key="Main_LogDaFase" xml:space="preserve">Phase log </sys:String>
+    <sys:String x:Key="Main_Detalhar">Details</sys:String>
     <sys:String x:Key="Main_Diff">Diff</sys:String>
     <sys:String x:Key="Main_Terminal">Terminal</sys:String>
     <sys:String x:Key="Main_LogDeEventos">Event log (</sys:String>
@@ -193,6 +196,7 @@
     <sys:String x:Key="Task_AplicarNaPasta">⇩  Apply to the original folder</sys:String>
     <sys:String x:Key="Task_CriteriosLabel">Acceptance criteria</sys:String>
     <sys:String x:Key="NewTask_Revisor">Reviewer (cross-verification)</sys:String>
+    <sys:String x:Key="NewTask_AutoFix">Analyze and fix the verification findings automatically (up to 2 rounds, without asking each time — every action still goes through the gate)</sys:String>
     <sys:String x:Key="NewTask_RevisorCodex">Codex — read-only (recommended)</sys:String>
     <sys:String x:Key="NewTask_RevisorClaude">Claude — in a new session</sys:String>
     <sys:String x:Key="NewTask_RevisorNenhum">No verification</sys:String>
@@ -202,6 +206,7 @@
     <sys:String x:Key="Hist_Data">Date</sys:String>
     <sys:String x:Key="Hist_Tarefa">Task</sys:String>
     <sys:String x:Key="Hist_Estado">State</sys:String>
+    <sys:String x:Key="Hist_Assunto">Subject</sys:String>
     <sys:String x:Key="Hist_Detalhe">Details</sys:String>
     <sys:String x:Key="Hist_Riscos">Risks</sys:String>
     <sys:String x:Key="Hist_VerRiscos">⚠  Task risks</sys:String>
@@ -237,6 +242,8 @@
     <sys:String x:Key="Ext_Warehouse">Warehouse ID or HTTP path (/sql/1.0/warehouses/…)</sys:String>
     <sys:String x:Key="Ext_Catalogo">Default catalog (optional)</sys:String>
     <sys:String x:Key="Ext_Schema">Default schema (optional)</sys:String>
+    <sys:String x:Key="Ext_DbSchemasGravacao">Write schemas (where the agent may create and change objects)</sys:String>
+    <sys:String x:Key="Ext_DbSchemasGravacaoDica">Full schema name or wildcard, comma-separated — e.g. sandbox_*, dev.sandbox_*. Writing outside them is blocked (protects production). A name without schema uses the default catalog/schema above. Empty = every write asks for your approval.</sys:String>
     <sys:String x:Key="Ext_TokenDatabricks">Databricks token (PAT)</sys:String>
     <sys:String x:Key="Ext_DatabricksGate">SELECT, SHOW and DESCRIBE run on their own. INSERT, UPDATE, DELETE, MERGE, DDL and GRANT ask for your approval.</sys:String>
     <sys:String x:Key="Ext_TestarDatabricks">Test connection</sys:String>
@@ -258,6 +265,10 @@
     <sys:String x:Key="Ext_Salvar">Save</sys:String>
     <sys:String x:Key="Ext_PowerBiComo">The agent edits the Power BI project (.pbip) as code — model in TMDL, report in PBIR — and NXPilot validates the files. To check the result, NXPilot opens the project in Power BI Desktop and captures the screen. It never clicks.</sys:String>
     <sys:String x:Key="Ext_PowerBiTestar">Open a .pbip and capture…</sys:String>
+    <sys:String x:Key="Ext_PowerBiWorkspace">Workspace for new reports</sys:String>
+    <sys:String x:Key="Ext_PowerBiWorkspaceNome">Name</sys:String>
+    <sys:String x:Key="Ext_PowerBiWorkspaceId">ID (optional)</sys:String>
+    <sys:String x:Key="Ext_PowerBiWorkspaceDica">Where the dataflows and models used by new reports live. The agent writes it into the project parameters instead of a placeholder; the report then keeps that value.</sys:String>
     <sys:String x:Key="Ext_JanelasTitulo">Windows windows (preview)</sys:String>
     <sys:String x:Key="Ext_JanelasAviso">List, read and capture windows of the apps allowed below. Read an app you pick, even minimized; monitor with a 20 s minimum interval; click or type only through processes you approve. Deletions always ask again. Whatever is read reaches the agent as data, never as instructions.</sys:String>
     <sys:String x:Key="Ext_JanelasLiberados">Allowed apps (process name, one per line — e.g. EXCEL, PBIDesktop, saplogon)</sys:String>

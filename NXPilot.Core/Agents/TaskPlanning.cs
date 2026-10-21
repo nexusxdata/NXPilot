@@ -15,7 +15,8 @@ public sealed record PlannedPhase(int Number, string Title, IReadOnlyList<Planne
 /// <summary>Achado da verificação. Severity: "Critico", "Maior" ou "Menor" (mesmas chaves das cores da tela).</summary>
 public sealed record Finding(string Severity, string File, int? Line, string Message);
 
-public sealed record VerificationResult(bool Approved, string Summary, IReadOnlyList<Finding> Findings, string Reviewer);
+/// <param name="ReviewerFailed">O revisor não respondeu (erro, modelo recusado, sem saída): não há achados para corrigir.</param>
+public sealed record VerificationResult(bool Approved, string Summary, IReadOnlyList<Finding> Findings, string Reviewer, bool ReviewerFailed = false);
 
 /// <summary>
 /// Prompts e leitura das respostas estruturadas do plano (fases) e da verificação (achados).
@@ -192,6 +193,12 @@ public static class TaskPlanning
             }
         }
         catch (Exception) { /* resposta fora do formato */ }
+        // Sem resposta nenhuma: o revisor falhou (erro já está no Log/Terminal) — não é um achado do código.
+        if (string.IsNullOrWhiteSpace(text))
+            return new VerificationResult(false, NxText.T("O revisor não respondeu (veja o erro no Log da verificação). Nada foi revisado — rode de novo ou troque o revisor/modelo.",
+                "The reviewer did not answer (see the error in the verification Log). Nothing was reviewed — run again or change the reviewer/model.",
+                "El revisor no respondió (vea el error en el Log de la verificación). Nada fue revisado — ejecute de nuevo o cambie el revisor/modelo."),
+                Array.Empty<Finding>(), reviewer, ReviewerFailed: true);
         return new VerificationResult(false, NxText.T("O revisor não devolveu o JSON esperado; leia a resposta no Terminal.", "The reviewer did not return the expected JSON; read the answer in the Terminal.", "El revisor no devolvió el JSON esperado; lea la respuesta en la Terminal."),
             new[] { new Finding("Maior", "", null, Trim(text, 400)) }, reviewer);
     }

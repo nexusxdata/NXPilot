@@ -62,6 +62,7 @@ public partial class ExtensionsWindow : Window
         DbWarehouseBox.Text = _db.WarehouseId;
         DbCatalogBox.Text = _db.Catalog;
         DbSchemaBox.Text = _db.Schema;
+        DbWriteSchemasBox.Text = _db.WriteSchemas;
         AdoOrgBox.Text = _git.AzureDevOpsOrganizationUrl;
         OutlookClientBox.Text = _mail.OutlookClientId;
         OutlookTenantBox.Text = _mail.OutlookTenant;
@@ -158,6 +159,9 @@ public partial class ExtensionsWindow : Window
             ? T($"Power BI Desktop encontrado: {pbi}", $"Power BI Desktop found: {pbi}", $"Power BI Desktop encontrado: {pbi}")
             : T("Power BI Desktop não encontrado. Instale pela Microsoft Store ou em powerbi.microsoft.com/desktop.", "Power BI Desktop not found. Install it from the Microsoft Store or powerbi.microsoft.com/desktop.", "Power BI Desktop no encontrado. Instálelo desde Microsoft Store o en powerbi.microsoft.com/desktop.");
         Dot(PowerBiDot, pbi != null);
+        var powerBi = NXPilot.Integrations.PowerBiSettings.Load();
+        PowerBiWorkspaceName.Text = powerBi.NewWorkspaceName;
+        PowerBiWorkspaceId.Text = powerBi.NewWorkspaceId;
         Dot(WindowsDot, _windows.AllowedProcesses.Count > 0);
         RefreshNXProject();
     }
@@ -259,6 +263,7 @@ public partial class ExtensionsWindow : Window
         WarehouseId = DbWarehouseBox.Text.Trim(),
         Catalog = DbCatalogBox.Text.Trim(),
         Schema = DbSchemaBox.Text.Trim(),
+        WriteSchemas = DbWriteSchemasBox.Text.Trim(),
         Token = DbTokenBox.Password.Length > 0 ? DbTokenBox.Password : _db.Token,
     };
 
@@ -594,6 +599,7 @@ public partial class ExtensionsWindow : Window
             CollectWorkItems().Save();
             CollectTeams().Save();
             CollectWindows().Save();
+            new NXPilot.Integrations.PowerBiSettings { NewWorkspaceName = PowerBiWorkspaceName.Text.Trim(), NewWorkspaceId = PowerBiWorkspaceId.Text.Trim() }.Save();
             DialogResult = true;
         }
         catch (Exception ex) { Status(SaveStatus, T("Não salvou: ", "Not saved: ", "No se guardó: ") + ex.Message, Brushes.Firebrick); }

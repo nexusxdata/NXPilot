@@ -100,14 +100,36 @@ public partial class HistoryWindow : Window
                 st.Key, $"{st.Icon}  {st.Label()}", brush, session.Risks.ToList());
         }).ToList();
         _allRows = rows;
+        FillSubjects();
         ApplyFilter();
+    }
+
+    /// <summary>Chave do assunto da tarefa (a pasta; tarefa em repositório git não tem assunto).</summary>
+    private const string NoSubject = "(sem assunto)";
+    private static string SubjectKey(TaskRecord r) => r.Info.SubjectFolder ?? r.Info.Subject ?? NoSubject;
+
+    /// <summary>Assuntos que aparecem no histórico (mantém a escolha ao recarregar).</summary>
+    private void FillSubjects()
+    {
+        var keep = (SubjectBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
+        SubjectBox.Items.Clear();
+        SubjectBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = T("Todos os assuntos", "All subjects", "Todos los asuntos"), Tag = "all" });
+        foreach (var g in _allRows.Where(r => SubjectKey(r.Record) != NoSubject).GroupBy(r => SubjectKey(r.Record))
+                     .OrderBy(g => g.First().Record.Info.Subject ?? g.Key, StringComparer.CurrentCultureIgnoreCase))
+        {
+            var name = g.First().Record.Info.Subject ?? Path.GetFileName(g.Key.TrimEnd('\\', '/'));
+            SubjectBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = $"◆ {name} ({g.Count()})", Tag = g.Key, ToolTip = g.Key });
+        }
+        if (_allRows.Any(r => SubjectKey(r.Record) == NoSubject))
+            SubjectBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = T("Sem assunto (repositório git)", "No subject (git repository)", "Sin asunto (repositorio git)"), Tag = NoSubject });
+        SubjectBox.SelectedItem = SubjectBox.Items.Cast<System.Windows.Controls.ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == keep) ?? SubjectBox.Items[0];
     }
 
     private List<Row> _allRows = new();
 
     private void OnSearchChanged(object sender, RoutedEventArgs e)
     {
-        if (!IsInitialized || SearchBox == null || PeriodBox == null || ToDate == null || TypeBox == null || StatusBox == null || RiskBox == null) return; // SelectionChanged dispara durante o InitializeComponent
+        if (!IsInitialized || SearchBox == null || PeriodBox == null || ToDate == null || TypeBox == null || StatusBox == null || RiskBox == null || SubjectBox == null) return; // SelectionChanged dispara durante o InitializeComponent
         CustomPeriodPanel.Visibility = PeriodTag == "custom" ? Visibility.Visible : Visibility.Collapsed;
         SearchHint.Visibility = SearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         ApplyFilter();
@@ -126,9 +148,11 @@ public partial class HistoryWindow : Window
         var type = (TypeBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
         var status = (StatusBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
         var risk = (RiskBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
+        var subject = (SubjectBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
         var inPeriod = _allRows.Where(r => (from == null || r.Record.CreatedAt >= from) && (to == null || r.Record.CreatedAt < to))
             .Where(r => type switch { "hooks" => r.Record.Info.AsTemplate, "tasks" => !r.Record.Info.AsTemplate, _ => true })
             .Where(r => status == "all" || r.StatusKey == status)
+            .Where(r => subject == "all" || SubjectKey(r.Record) == subject)
             .Where(r => risk switch
             {
                 "all" => true,
@@ -148,7 +172,7 @@ public partial class HistoryWindow : Window
         Grid.ItemsSource = rows;
         EmptyText.Text = _allRows.Count == 0
             ? T("Nenhuma tarefa ainda. Use + Nova tarefa.", "No tasks yet. Use + New task.", "Aún no hay tareas. Use + Nueva tarea.")
-            : T("Nenhuma tarefa encontrada com essa busca, período, estado ou risco.", "No task matches this search, period, state or risk.", "Ninguna tarea coincide con esta búsqueda, período, estado o riesgo.");
+            : T("Nenhuma tarefa encontrada com essa busca, período, assunto, estado ou risco.", "No task matches this search, period, subject, state or risk.", "Ninguna tarea coincide con esta búsqueda, período, asunto, estado o riesgo.");
         EmptyText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (rows.Count > 0) Grid.SelectedItem = rows.FirstOrDefault(r => r.Record == selected) ?? rows[0];
         OnSelectionChanged(this, null!);
@@ -186,6 +210,7 @@ public partial class HistoryWindow : Window
         WorktreeButton.IsEnabled = worktreeExists;
         TimelineButton.IsEnabled = r != null;
         RisksButton.IsEnabled = r != null;
+        FindingsButton.IsEnabled = r is { Verification: not null } || r?.FixRounds is { Count: > 0 };
         AllRisksButton.IsEnabled = Grid.Items.Count > 0;
         CloneButton.IsEnabled = r != null && !_taskRunning;
         RemoveButton.IsEnabled = r != null && !_taskRunning;
@@ -218,6 +243,12 @@ public partial class HistoryWindow : Window
     private void OnRisksClick(object sender, RoutedEventArgs e)
     {
         if (Grid.SelectedItem is Row row) new RisksWindow([(row.Record.Info.Title, row.Risks)], FilterLevel) { Owner = this }.ShowDialog();
+    }
+
+    /// <summary>Achados da verificação e as rodadas de correção (o que foi achado e o que foi corrigido).</summary>
+    private void OnFindingsClick(object sender, RoutedEventArgs e)
+    {
+        if (Selected is { } r) new FindingsWindow(r) { Owner = this }.ShowDialog();
     }
 
     /// <summary>Riscos de todas as tarefas que estão na lista (com os filtros aplicados).</summary>
