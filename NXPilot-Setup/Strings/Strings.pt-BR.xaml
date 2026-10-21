@@ -9,6 +9,7 @@
     <sys:String x:Key="Setup_OrquestradorDeAgentesDe">Orquestrador de agentes de código (Claude Code, Codex) com log de auditoria e decisões. O NXPilot é instalado no perfil do usuário, sem administrador; só o .NET (passo 1) pede administrador.</sys:String>
     <sys:String x:Key="Setup_1InstalarONxpilot">2 · Instalar o NXPilot</sys:String>
     <sys:String x:Key="Setup_Instalar">Instalar</sys:String>
+    <sys:String x:Key="Setup_AtualizarAgente">Atualizar</sys:String>
     <sys:String x:Key="Setup_2ClassificadorDeRisco">4 · Classificador de risco ONNX (recomendado)</sys:String>
     <sys:String x:Key="Setup_ModeloAllMinilmL6">Modelo all-MiniLM-L6-v2 (~90 MB) que classifica cada ação dos agentes em milissegundos, na CPU — não precisa de GPU. Sem ele o NXPilot usa só regras.</sys:String>
     <sys:String x:Key="Setup_BaixarModelo">Baixar modelo</sys:String>

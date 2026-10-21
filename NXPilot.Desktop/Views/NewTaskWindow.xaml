@@ -27,7 +27,7 @@
         <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
                 <Button Content="{DynamicResource NewTask_Cancelar}" Style="{StaticResource SubtleButton}" IsCancel="True"/>
-                <Button Content="{DynamicResource NewTask_GerarPlano}" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" IsDefault="True" Click="OnCreateClick"/>
+                <Button x:Name="CreateButton" Content="{DynamicResource NewTask_GerarPlano}" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" IsDefault="True" Click="OnCreateClick"/>
             </StackPanel>
             <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" Visibility="Collapsed"/>
         </DockPanel>

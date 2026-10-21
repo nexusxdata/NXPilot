@@ -103,6 +103,15 @@ public partial class MainWindow : Window
             await StartNewTaskAsync(new Views.NewTaskWindow(clone.Info) { Owner = this });
     }
 
+    /// <summary>Falhou antes do plano: abre a tarefa para editar (pode trocar o agente) e tenta de novo.</summary>
+    private async void OnEditAndRetryClick(object sender, RoutedEventArgs e)
+    {
+        if (Vm.CurrentTask is not { CanRetry: true } task) return;
+        var dialog = new Views.NewTaskWindow(task.Info, editing: true) { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.Result is not { } info) return;
+        await Vm.EditAndRetryAsync(info);
+    }
+
     /// <summary>⚡ Hooks: tarefas em modo escuta (disparar, pausar, limites, remover).</summary>
     private void OnHooksClick(object sender, RoutedEventArgs e) => new Views.HooksWindow(Vm) { Owner = this }.ShowDialog();
 

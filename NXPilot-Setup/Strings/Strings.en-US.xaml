@@ -9,6 +9,7 @@
     <sys:String x:Key="Setup_OrquestradorDeAgentesDe">Coding agent orchestrator (Claude Code, Codex) with audit log and decisions. NXPilot installs in your user profile, without administrator; only .NET (step 1) asks for administrator.</sys:String>
     <sys:String x:Key="Setup_1InstalarONxpilot">2 · Install NXPilot</sys:String>
     <sys:String x:Key="Setup_Instalar">Install</sys:String>
+    <sys:String x:Key="Setup_AtualizarAgente">Update</sys:String>
     <sys:String x:Key="Setup_2ClassificadorDeRisco">4 · ONNX risk classifier (recommended)</sys:String>
     <sys:String x:Key="Setup_ModeloAllMinilmL6">all-MiniLM-L6-v2 model (~90 MB) that classifies each agent action in milliseconds, on the CPU — no GPU needed. Without it NXPilot uses rules only.</sys:String>
     <sys:String x:Key="Setup_BaixarModelo">Download model</sys:String>

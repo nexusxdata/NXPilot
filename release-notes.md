@@ -15,6 +15,24 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**🔐 Login do Claude Code e do Codex pelo navegador**
+
+- Sem login, o NXPilot abre o login oficial do agente (`claude auth login` / `codex login`), que leva ao navegador, como no VS Code. A tarefa continua quando você termina, e o login fica registrado no Log da tarefa.
+
+**⬆ Agente antigo: aviso para atualizar**
+
+- Claude Code sem a opção `--permission-prompts` (que garante que só o gate libera as ações) não roda: a mensagem mostra a versão, o executável e como atualizar.
+- Claude ou Codex que falham por não conhecer uma opção ou comando do NXPilot mostram o mesmo pedido para atualizar.
+- **NXPilot-Setup:** com versão nova disponível, o botão do Claude Code e do Codex vira **Atualizar** e mostra a versão.
+
+**✎ Editar e tentar novamente**
+
+- Tarefa que falhou antes do plano: além de Tentar novamente, dá para editar texto, critérios, **agente**, modelos e revisor e pedir o plano de novo. A pasta e o modo continuam os mesmos.
+
+**📋 Histórico: coluna e filtro de Estado**
+
+- Em andamento, Aguardando você, Concluída, Aviso, Erro, Interrompida, Descartada e Em escuta, com cor e filtro próprio. A descrição longa virou a coluna Detalhe.
+
 **🧩 Extensões agora se chama Extensão MCP**
 
 - O botão do menu e a janela passam a se chamar **Extensão MCP** (EN: MCP Extension; ES: Extensión MCP): é ali que se configura o que o agente usa pelo MCP NXPilot. As mensagens do app e os READMEs também usam o nome novo.

@@ -46,8 +46,17 @@ public sealed record TaskRecord(
 public sealed partial class TaskSession(NewTaskInfo info, string id) : ObservableObject
 {
     public string Id { get; } = id;
-    public NewTaskInfo Info { get; } = info;
+    public NewTaskInfo Info { get; private set; } = info;
     public string Title => Info.Title;
+
+    /// <summary>Editar antes de tentar de novo (título, intenção, critérios, agente, modelos, revisor).</summary>
+    public void UpdateInfo(NewTaskInfo info)
+    {
+        Info = info;
+        OnPropertyChanged(nameof(Info));
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(ApproveLabel));
+    }
     public DateTime CreatedAt { get; init; } = DateTime.Now;
 
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(StateLabel), nameof(CanApprove), nameof(IsRunning), nameof(CanDiscard), nameof(IsFinished), nameof(CanApplyToFolder), nameof(CanResume), nameof(CanRetry), nameof(HasError), nameof(CanFixFindings), nameof(CanArm))]

@@ -19,7 +19,36 @@ namespace NXPilot.Desktop.Views;
 /// </summary>
 public partial class HistoryWindow : Window
 {
-    private sealed record Row(TaskRecord Record, string When, string Title, string State, string Findings, string Cost, string Repo);
+    private sealed record Row(TaskRecord Record, string When, string Title, string State, string Findings, string Cost, string Repo,
+        string StatusKey, string Status, System.Windows.Media.Brush StatusBrush);
+
+    /// <summary>
+    /// Estado curto da tarefa (coluna e filtro): em andamento, aguardando, concluída, aviso
+    /// (concluída com achados da verificação), erro, interrompida, descartada, em escuta.
+    /// </summary>
+    private static readonly (string Key, string Icon, string Color, Func<string> Label)[] Statuses =
+    [
+        ("running", "⟳", "#1F6FB2", () => T("Em andamento", "Running", "En curso")),
+        ("waiting", "⏸", "#8A6D00", () => T("Aguardando você", "Waiting for you", "Esperando por usted")),
+        ("done", "✓", "#1E7B34", () => T("Concluída", "Done", "Concluida")),
+        ("warning", "⚠", "#C25E00", () => T("Aviso", "Warning", "Aviso")),
+        ("error", "✗", "#B3261E", () => T("Erro", "Error", "Error")),
+        ("stopped", "■", "#666666", () => T("Interrompida", "Stopped", "Interrumpida")),
+        ("discarded", "–", "#888888", () => T("Descartada", "Discarded", "Descartada")),
+        ("listening", "⚡", "#6A3FB5", () => T("Em escuta", "Listening", "En escucha")),
+    ];
+
+    private static string StatusKeyOf(TaskRecord r) => r.State switch
+    {
+        TaskState.Preparing or TaskState.Planning or TaskState.Executing or TaskState.Verifying => "running",
+        TaskState.AwaitingApproval => "waiting",
+        TaskState.Done when r.Verification is { Approved: false } => "warning",
+        TaskState.Done => "done",
+        TaskState.Failed => "error",
+        TaskState.Discarded => "discarded",
+        TaskState.Armed => "listening",
+        _ => "stopped",
+    };
 
     private readonly bool _taskRunning;
 
@@ -33,6 +62,10 @@ public partial class HistoryWindow : Window
     {
         InitializeComponent();
         _taskRunning = taskRunning;
+        StatusBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = T("Todos os estados", "All states", "Todos los estados"), Tag = "all" });
+        foreach (var st in Statuses)
+            StatusBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = $"{st.Icon}  {st.Label()}", Tag = st.Key });
+        StatusBox.SelectedIndex = 0;
         Reload();
     }
 
@@ -44,8 +77,11 @@ public partial class HistoryWindow : Window
             var findings = r.Verification is { } v
                 ? T($"{v.Findings.Count(f => f.Severity == "Critico")} crít. · {v.Findings.Count} total", $"{v.Findings.Count(f => f.Severity == "Critico")} crit. · {v.Findings.Count} total", $"{v.Findings.Count(f => f.Severity == "Critico")} crít. · {v.Findings.Count} total")
                 : "—";
+            var st = Statuses.First(x => x.Key == StatusKeyOf(r));
+            var brush = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(st.Color));
             return new Row(r, r.CreatedAt.ToString("dd/MM HH:mm"), (r.Info.AsTemplate ? "⚡ " : "") + r.Info.Title, label, findings,
-                r.Tokens is { Total: > 0 } t ? NXPilot.Agents.TokenUsage.Format(t.Total) : "—", r.Info.Subject is { } subject ? "◆ " + subject : r.Info.RepoPath);
+                r.Tokens is { Total: > 0 } t ? NXPilot.Agents.TokenUsage.Format(t.Total) : "—", r.Info.Subject is { } subject ? "◆ " + subject : r.Info.RepoPath,
+                st.Key, $"{st.Icon}  {st.Label()}", brush);
         }).ToList();
         _allRows = rows;
         ApplyFilter();
@@ -55,7 +91,7 @@ public partial class HistoryWindow : Window
 
     private void OnSearchChanged(object sender, RoutedEventArgs e)
     {
-        if (!IsInitialized || SearchBox == null || PeriodBox == null || ToDate == null || TypeBox == null) return; // SelectionChanged dispara durante o InitializeComponent
+        if (!IsInitialized || SearchBox == null || PeriodBox == null || ToDate == null || TypeBox == null || StatusBox == null) return; // SelectionChanged dispara durante o InitializeComponent
         CustomPeriodPanel.Visibility = PeriodTag == "custom" ? Visibility.Visible : Visibility.Collapsed;
         SearchHint.Visibility = SearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         ApplyFilter();
@@ -72,8 +108,10 @@ public partial class HistoryWindow : Window
         var field = (SearchFieldBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
         var (from, to) = PeriodRange();
         var type = (TypeBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
+        var status = (StatusBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
         var inPeriod = _allRows.Where(r => (from == null || r.Record.CreatedAt >= from) && (to == null || r.Record.CreatedAt < to))
             .Where(r => type switch { "hooks" => r.Record.Info.AsTemplate, "tasks" => !r.Record.Info.AsTemplate, _ => true })
+            .Where(r => status == "all" || r.StatusKey == status)
             .ToList();
         var rows = term.Length == 0 ? inPeriod : inPeriod.Where(r => field switch
         {
@@ -81,13 +119,13 @@ public partial class HistoryWindow : Window
             "intent" => Matches(r.Record.Info.Intent, term),
             "criteria" => Matches(r.Record.Info.Criteria, term),
             _ => Matches(r.Record.Info.Title, term) || Matches(r.Record.Info.Intent, term) || Matches(r.Record.Info.Criteria, term)
-                 || Matches(r.State, term) || Matches(r.Repo, term),
+                 || Matches(r.State, term) || Matches(r.Status, term) || Matches(r.Repo, term),
         }).ToList();
         var selected = Selected;
         Grid.ItemsSource = rows;
         EmptyText.Text = _allRows.Count == 0
             ? T("Nenhuma tarefa ainda. Use + Nova tarefa.", "No tasks yet. Use + New task.", "Aún no hay tareas. Use + Nueva tarea.")
-            : T("Nenhuma tarefa encontrada com essa busca ou período.", "No task matches this search or period.", "Ninguna tarea coincide con esta búsqueda o período.");
+            : T("Nenhuma tarefa encontrada com essa busca, período ou estado.", "No task matches this search, period or state.", "Ninguna tarea coincide con esta búsqueda, período o estado.");
         EmptyText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (rows.Count > 0) Grid.SelectedItem = rows.FirstOrDefault(r => r.Record == selected) ?? rows[0];
         OnSelectionChanged(this, null!);

@@ -114,6 +114,13 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
             yield break;
         }
 
+        if (_process is not { HasExited: false }) // app-server já de pé = já logado
+        {
+            var blocked = false;
+            await foreach (var ev in AgentLogin.EnsureAsync("Codex", ExecutablePath, ct)) { blocked |= ev.IsError; yield return ev; }
+            if (blocked) yield break;
+        }
+
         _mode = request.Mode;
         _events = Channel.CreateUnbounded<AgentEvent>();
         _lastMessage = null;
@@ -132,7 +139,8 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
 
         if (startError != null)
         {
-            yield return new AgentEvent(AgentEventKind.Error, "Codex: " + startError, IsError: true);
+            var detail = startError + " " + _stderrTail;
+            yield return new AgentEvent(AgentEventKind.Error, "Codex: " + startError + StderrNote() + OutdatedAgent.HintIfOutdated("Codex", ExecutablePath, detail), IsError: true);
             yield break;
         }
 
@@ -163,7 +171,14 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
         foreach (var a in Mcp?.CodexOverrides() ?? []) psi.ArgumentList.Add(a);
         psi.ArgumentList.Add("app-server");
         _process = Process.Start(psi) ?? throw new InvalidOperationException("codex app-server");
-        _ = Task.Run(async () => { while (await _process.StandardError.ReadLineAsync() != null) { } }); // drena o stderr
+        _stderrTail = "";
+        var proc = _process;
+        _ = Task.Run(async () =>
+        {
+            // Drena o stderr guardando o fim: versão antiga sai com "unrecognized subcommand" ali.
+            while (await proc.StandardError.ReadLineAsync() is { } l)
+                if (l.Trim().Length > 0) { var s = _stderrTail + "\n" + l; _stderrTail = s.Length > 1500 ? s[^1500..] : s; }
+        });
         _ = Task.Run(ReadLoopAsync);
 
         await RequestAsync("initialize", new JsonObject
@@ -209,8 +224,14 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
         }
         catch { /* processo encerrado */ }
         foreach (var p in _pending.Values) p.TrySetException(new InvalidOperationException(NxText.T("o Codex encerrou", "Codex exited", "Codex terminó")));
-        _events?.Writer.TryWrite(new AgentEvent(AgentEventKind.Error, NxText.T("O processo do Codex terminou.", "The Codex process ended.", "El proceso de Codex terminó."), IsError: true));
+        await Task.Delay(200); // o stderr costuma chegar junto do fim do stdout
+        _events?.Writer.TryWrite(new AgentEvent(AgentEventKind.Error, NxText.T("O processo do Codex terminou.", "The Codex process ended.", "El proceso de Codex terminó.")
+            + StderrNote() + OutdatedAgent.HintIfOutdated("Codex", ExecutablePath, _stderrTail), IsError: true));
     }
+
+    private volatile string _stderrTail = "";
+
+    private string StderrNote() => _stderrTail.Trim() is { Length: > 0 } t ? " " + t : "";
 
     /// <summary>
     /// Total de tokens da thread na notificação de uso (formato tolerante: camelCase ou

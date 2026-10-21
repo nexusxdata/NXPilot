@@ -405,16 +405,37 @@ public partial class MainWindow : Window
     /// </summary>
     private void RefreshAgents()
     {
-        foreach (var (cli, status, name) in new[] { (NXData.AgentInstaller.AgentCli.ClaudeCode, ClaudeStatus, "claude"), (NXData.AgentInstaller.AgentCli.Codex, CodexStatus, "codex") })
+        foreach (var (cli, status, name, button) in new[] { (NXData.AgentInstaller.AgentCli.ClaudeCode, ClaudeStatus, "claude", ClaudeInstallButton), (NXData.AgentInstaller.AgentCli.Codex, CodexStatus, "codex", CodexInstallButton) })
         {
+            button.SetResourceReference(ContentProperty, "Setup_Instalar");
             if (NXData.AgentInstaller.AgentLocator.Find(cli, _agentOptions) is { } found)
             {
                 status.Text = T($"✓ {found.Version ?? "instalado"} ({found.Source})", $"✓ {found.Version ?? "installed"} ({SourceEn(found.Source)})", $"✓ {found.Version ?? "instalado"} ({SourceEs(found.Source)})");
                 status.Foreground = Brushes.Green;
+                if (found.Version != null) _ = CheckAgentUpdateAsync(cli, found.Version, status, button);
             }
             else _ = CheckWslAsync(name, status);
         }
     }
+
+    /// <summary>
+    /// Versão escolhida (testada ou última) mais nova que a instalada: o botão vira "Atualizar"
+    /// e o status mostra a versão disponível. Sem internet, fica como está.
+    /// </summary>
+    private async Task CheckAgentUpdateAsync(NXData.AgentInstaller.AgentCli cli, string installed, TextBlock status, Button button)
+    {
+        try
+        {
+            var (target, _) = await _agents.ResolveVersionAsync(cli, SelectedVersion);
+            if (ParseVersion(target) is not { } t || ParseVersion(installed) is not { } i || t <= i) return;
+            button.SetResourceReference(ContentProperty, "Setup_AtualizarAgente");
+            status.Text += T($" · {target} disponível", $" · {target} available", $" · {target} disponible");
+            status.Foreground = Brushes.DarkOrange;
+        }
+        catch { /* sem internet ou serviço fora: não dá para comparar */ }
+    }
+
+    private static Version? ParseVersion(string v) => Version.TryParse(v.Split('-')[0], out var r) ? r : null;
 
     private static string SourceEn(string source) => source switch
     {
@@ -435,7 +456,12 @@ public partial class MainWindow : Window
     private NXData.AgentInstaller.InstallMode SelectedMode => ModeScript.IsChecked == true ? NXData.AgentInstaller.InstallMode.Script : NXData.AgentInstaller.InstallMode.Internal;
     private NXData.AgentInstaller.VersionChoice SelectedVersion => VersionBox.SelectedItem == VersionTestedItem ? NXData.AgentInstaller.VersionChoice.Tested : NXData.AgentInstaller.VersionChoice.Latest;
 
-    private void OnInstallOptionChanged(object sender, RoutedEventArgs e) => UpdateAgentCommands();
+    private void OnInstallOptionChanged(object sender, RoutedEventArgs e)
+    {
+        UpdateAgentCommands();
+        // Testada x última muda a versão alvo: o botão Instalar/Atualizar acompanha.
+        if (sender == VersionBox && IsLoaded) RefreshAgents();
+    }
 
     /// <summary>Comando oficial equivalente à escolha (para ver/copiar; é o que o modo Script roda).</summary>
     private void UpdateAgentCommands()

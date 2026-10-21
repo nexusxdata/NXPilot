@@ -64,6 +64,10 @@ public sealed class CodexAdapter(string? model = null, string? executablePath = 
             yield break;
         }
 
+        var blocked = false;
+        await foreach (var ev in AgentLogin.EnsureAsync("Codex", ExecutablePath, ct)) { blocked |= ev.IsError; yield return ev; }
+        if (blocked) yield break;
+
         string? schemaPath = null;
         var psi = new ProcessStartInfo(ExecutablePath)
         {
@@ -113,7 +117,7 @@ public sealed class CodexAdapter(string? model = null, string? executablePath = 
 
         if (!sawEnd)
             yield return new AgentEvent(AgentEventKind.Error,
-                NxText.T($"Codex terminou sem resultado (código {process.ExitCode}). ", $"Codex ended without a result (exit code {process.ExitCode}). ", $"Codex terminó sin resultado (código {process.ExitCode}). ") + stderr.Trim(), IsError: true);
+                NxText.T($"Codex terminou sem resultado (código {process.ExitCode}). ", $"Codex ended without a result (exit code {process.ExitCode}). ", $"Codex terminó sin resultado (código {process.ExitCode}). ") + stderr.Trim() + OutdatedAgent.HintIfOutdated("Codex", ExecutablePath, stderr), IsError: true);
     }
 }
 

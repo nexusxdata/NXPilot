@@ -202,6 +202,7 @@
     <sys:String x:Key="Hist_Data">Date</sys:String>
     <sys:String x:Key="Hist_Tarefa">Task</sys:String>
     <sys:String x:Key="Hist_Estado">State</sys:String>
+    <sys:String x:Key="Hist_Detalhe">Details</sys:String>
     <sys:String x:Key="Hist_Achados">Findings</sys:String>
     <sys:String x:Key="Hist_Custo">Tokens</sys:String>
     <sys:String x:Key="Hist_Repositorio">Repository</sys:String>
@@ -346,6 +347,9 @@
     <!-- Tentar novamente (plano) e Clonar (Histórico) -->
     <sys:String x:Key="Task_TentarNovamente">↻  Try again</sys:String>
     <sys:String x:Key="Task_TentarNovamenteDica">Asks the agent for the plan again, in the same task (recreates the worktree if it was never created).</sys:String>
+    <sys:String x:Key="Task_EditarETentar">✎  Edit and try again</sys:String>
+    <sys:String x:Key="Task_EditarETentarDica">Opens the task for editing (text, agent, models, reviewer) and asks for the plan again with your changes. The folder and the mode stay the same.</sys:String>
+    <sys:String x:Key="Task_SalvarETentar">↻  Save and try again</sys:String>
     <sys:String x:Key="Hist_Clonar">Clone and run again</sys:String>
     <sys:String x:Key="Hist_ClonarDica">Opens New task prefilled with this one's data (title, intent, criteria, agent, model and folder). Creates a new task; the original stays as it is.</sys:String>
     <!-- Busca no Histórico -->

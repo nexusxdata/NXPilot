@@ -1,7 +1,7 @@
 <Window x:Class="NXPilot.Desktop.Views.HistoryWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="{DynamicResource Hist_Titulo}" Width="1180" Height="560" MinWidth="700" MinHeight="360"
+        Title="{DynamicResource Hist_Titulo}" Width="1300" Height="560" MinWidth="700" MinHeight="360"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="{StaticResource BackgroundBrush}" FontFamily="Segoe UI" FontSize="13">
     <Border Padding="22,18">
@@ -25,6 +25,9 @@
                     <ComboBoxItem Content="{DynamicResource Hist_TipoHooks}" Tag="hooks"/>
                     <ComboBoxItem Content="{DynamicResource Hist_TipoTarefas}" Tag="tasks"/>
                 </ComboBox>
+                <!-- Estado: em andamento, aguardando, concluída, aviso, erro… (itens montados no código). -->
+                <ComboBox x:Name="StatusBox" DockPanel.Dock="Right" Width="170" Margin="8,0,0,0" Padding="8,5"
+                          SelectionChanged="OnSearchChanged" ToolTip="{DynamicResource Hist_Estado}"/>
                 <ComboBox x:Name="PeriodBox" DockPanel.Dock="Right" Width="160" Margin="8,0,0,0" Padding="8,5" SelectedIndex="0"
                           SelectionChanged="OnSearchChanged" ToolTip="{DynamicResource Hist_Periodo}">
                     <ComboBoxItem Content="{DynamicResource Hist_PeriodoQualquer}" Tag="any"/>
@@ -67,8 +70,15 @@
             <DataGrid x:Name="Grid" SelectionChanged="OnSelectionChanged" MouseDoubleClick="OnOpenClick">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="{DynamicResource Hist_Data}" Binding="{Binding When}" Width="120"/>
+                    <DataGridTemplateColumn Header="{DynamicResource Hist_Estado}" Width="140" SortMemberPath="StatusKey">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Status}" Foreground="{Binding StatusBrush}" FontWeight="SemiBold"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTextColumn Header="{DynamicResource Hist_Tarefa}" Binding="{Binding Title}" Width="2*"/>
-                    <DataGridTextColumn Header="{DynamicResource Hist_Estado}" Binding="{Binding State}" Width="2*"/>
+                    <DataGridTextColumn Header="{DynamicResource Hist_Detalhe}" Binding="{Binding State}" Width="2*"/>
                     <DataGridTextColumn Header="{DynamicResource Hist_Achados}" Binding="{Binding Findings}" Width="110"/>
                     <DataGridTextColumn Header="{DynamicResource Hist_Custo}" Binding="{Binding Cost}" Width="80"/>
                     <DataGridTextColumn Header="{DynamicResource Hist_Repositorio}" Binding="{Binding Repo}" Width="2*"/>

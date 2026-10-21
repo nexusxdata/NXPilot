@@ -54,6 +54,18 @@ public partial class NewTaskWindow : Window
         Title = T("Nova tarefa (clonada do Histórico)", "New task (cloned from History)", "Nueva tarea (clonada del Historial)");
     }
 
+    /// <summary>
+    /// Editar a tarefa que falhou antes de tentar de novo: tudo editável (texto, agente, modelos,
+    /// revisor), menos o lugar e o modo — o worktree já é daquele repositório/assunto.
+    /// </summary>
+    public NewTaskWindow(NewTaskInfo current, bool editing) : this(current)
+    {
+        if (!editing) return;
+        foreach (var c in new Control[] { TaskModeBox, VersioningBox, RepoBox, SubjectBox, SummarySubjectBox }) c.IsEnabled = false;
+        CreateButton.SetResourceReference(ContentProperty, "Task_SalvarETentar");
+        Title = T("Editar tarefa e tentar novamente", "Edit task and try again", "Editar tarea e intentar de nuevo");
+    }
+
     public NewTaskWindow()
     {
         InitializeComponent();

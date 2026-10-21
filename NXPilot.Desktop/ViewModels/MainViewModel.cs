@@ -422,6 +422,27 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Editar e tentar novamente: mesma condição do Tentar novamente (sem plano ainda). Troca o
+    /// que você editou — inclusive o agente — e pede o plano do zero, sem a sessão anterior.
+    /// O lugar (repositório/assunto) e o modo não mudam: o worktree é o mesmo.
+    /// </summary>
+    public async Task EditAndRetryAsync(NewTaskInfo edited)
+    {
+        if (CurrentTask is not { CanRetry: true } task) return;
+        var before = task.Info;
+        task.UpdateInfo(edited with
+        {
+            RepoPath = before.RepoPath, Versioning = before.Versioning, Subject = before.Subject,
+            SubjectFolder = before.SubjectFolder, AsTemplate = before.AsTemplate, TemplateId = before.TemplateId,
+        });
+        task.SessionId = null;
+        var agent = before.Executor == edited.Executor ? "" : T($" · agente: {before.Executor} → {edited.Executor}", $" · agent: {before.Executor} → {edited.Executor}", $" · agente: {before.Executor} → {edited.Executor}");
+        AddLog(T("Você", "You", "Usted"), T("editada", "edited", "editada"), task.Title + agent);
+        Persist();
+        await RetryTask();
+    }
+
+    /// <summary>
     /// Retomar uma tarefa interrompida ou que falhou: sem plano, planeja de novo; com plano, segue
     /// da fase que não terminou (as concluídas já estão commitadas no worktree). O agente recebe
     /// um aviso de retomada — o Claude volta à mesma sessão; o Codex abre uma nova com esse contexto.
@@ -723,7 +744,10 @@ public sealed partial class MainViewModel : ObservableObject
                     case AgentEventKind.Text: AppendTerminal(ev.Text); finalText = ev.Text; break;
                     case AgentEventKind.ToolUse: AppendTerminal("→ " + ev.Text); break;
                     case AgentEventKind.ToolResult: AppendTerminal((ev.IsError ? "✗ " : "  ") + ev.Text); break;
-                    case AgentEventKind.Stderr: AppendTerminal("[aviso] " + ev.Text); break;
+                    case AgentEventKind.Stderr:
+                        AppendTerminal("[aviso] " + ev.Text);
+                        if (ev.ToolName == AgentLogin.Tool) AddLog(adapter.Name, "login", ev.Text); // fica no Histórico da tarefa
+                        break;
                     case AgentEventKind.Result:
                         if (ev.Text.Length > 0) finalText = ev.Text;
                         AppendTerminal("[ok] " + T("resultado recebido", "result received", "resultado recibido"));

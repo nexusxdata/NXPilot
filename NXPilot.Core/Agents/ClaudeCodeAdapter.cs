@@ -16,7 +16,8 @@ namespace NXPilot.Agents;
 /// O portão é o hook PreToolUse (mecanismo documentado): antes de CADA ferramenta o Claude
 /// roda <paramref name="hookCommand"/>, que pergunta ao NXPilot pelo pipe
 /// <paramref name="gatePipeName"/>. Com `--permission-prompts none`, qualquer coisa que o
-/// hook não liberar é negada — falha no hook nunca vira permissão.
+/// hook não liberar é negada — falha no hook nunca vira permissão. Versão sem a opção não roda
+/// (pede para atualizar). Sem login, abre o "claude auth login" no navegador antes da tarefa.
 /// </summary>
 public sealed class ClaudeCodeAdapter(string hookCommand, string gatePipeName, string? executablePath = null) : IAgentAdapter
 {
@@ -62,6 +63,21 @@ public sealed class ClaudeCodeAdapter(string hookCommand, string gatePipeName, s
                 "Claude Code no se encontró en Windows. Instálelo con: irm https://claude.ai/install.ps1 | iex"), IsError: true);
             yield break;
         }
+
+        if (!SupportsPermissionPrompts(ExecutablePath))
+        {
+            // Sem "--permission-prompts none" não há garantia explícita de que o que o hook não
+            // liberar seja negado: não roda — pede para atualizar.
+            var version = NXData.AgentInstaller.AgentLocator.Version(ExecutablePath) ?? "?";
+            yield return new AgentEvent(AgentEventKind.Error, NxText.T(
+                $"Claude Code {version} é antigo demais para o NXPilot (falta a opção --permission-prompts, que garante que só o gate libera as ações). Atualize: no NXPilot-Setup, botão Atualizar do Claude Code, ou rode 'claude update'. Executável: {ExecutablePath}",
+                $"Claude Code {version} is too old for NXPilot (it lacks the --permission-prompts option, which ensures only the gate allows actions). Update it: in NXPilot-Setup, Claude Code's Update button, or run 'claude update'. Executable: {ExecutablePath}",
+                $"Claude Code {version} es demasiado antiguo para NXPilot (le falta la opción --permission-prompts, que garantiza que solo el gate permite las acciones). Actualícelo: en NXPilot-Setup, botón Actualizar de Claude Code, o ejecute 'claude update'. Ejecutable: {ExecutablePath}"), IsError: true);
+            yield break;
+        }
+        var blocked = false;
+        await foreach (var ev in AgentLogin.EnsureAsync(Name, ExecutablePath, ct)) { blocked |= ev.IsError; yield return ev; }
+        if (blocked) yield break;
 
         var settingsPath = WriteHookSettings();
         var psi = new ProcessStartInfo(ExecutablePath)
@@ -120,7 +136,22 @@ public sealed class ClaudeCodeAdapter(string hookCommand, string gatePipeName, s
         else if (!sawResult)
             yield return new AgentEvent(AgentEventKind.Error,
                 NxText.T($"Claude Code terminou sem resultado (código {process.ExitCode}). ", $"Claude Code ended without a result (exit code {process.ExitCode}). ", $"Claude Code terminó sin resultado (código {process.ExitCode}). ")
-                + stderr.ToString().Trim(), IsError: true);
+                + stderr.ToString().Trim() + OutdatedAgent.HintIfOutdated(Name, ExecutablePath, stderr.ToString()), IsError: true);
+    }
+
+    private static readonly Dictionary<string, bool> PermissionPromptsCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Este claude.exe aceita --permission-prompts? Lido do --help, uma vez por binário e data.</summary>
+    private static bool SupportsPermissionPrompts(string exe)
+    {
+        var key = $"{exe}|{File.GetLastWriteTimeUtc(exe):O}";
+        lock (PermissionPromptsCache) if (PermissionPromptsCache.TryGetValue(key, out var c)) return c;
+        var help = AgentLogin.Run(exe, ["--help"], TimeSpan.FromSeconds(15))?.Output ?? "";
+        // --help sem resposta não prova versão antiga: segue com a opção (e não guarda no cache).
+        if (!help.Contains("--print")) return true;
+        var ok = help.Contains("--permission-prompts");
+        lock (PermissionPromptsCache) PermissionPromptsCache[key] = ok;
+        return ok;
     }
 
     /// <summary>Settings temporário só com o hook: matcher "*" = toda ferramenta passa pelo gate.</summary>
