@@ -15,6 +15,13 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**📗 Excel no MCP NXPilot (sem Python)**
+
+- `xlsx_info` e `xlsx_read`: resumo do arquivo e leitura em tabela com limite de linhas — datas aparecem como data e fórmulas ficam à vista. O agente lê o cabeçalho e uma amostra, em vez de gerar script para isso.
+- `xlsx_write_cells`, `xlsx_append_rows`, `xlsx_add_sheet` e `xlsx_build`: valores, fórmulas e datas mantendo a formatação existente; linhas novas entram na tabela do Excel; aba nova e planilha nova com cabeçalho congelado e filtro.
+- `xlsx_recalculate` (com o Excel instalado, invisível e sem macros): calcula as fórmulas, grava os valores e aponta as células com erro (#REF!, #DIV/0!…).
+- Cada chamada passa pelo gate: ler segue sozinho; gravar fora do worktree é ALTO. Para transformar milhares de linhas, o script continua sendo o caminho mais barato.
+
 **🔐 Login do Claude Code e do Codex pelo navegador**
 
 - Sem login, o NXPilot abre o login oficial do agente (`claude auth login` / `codex login`), que leva ao navegador, como no VS Code. A tarefa continua quando você termina, e o login fica registrado no Log da tarefa.

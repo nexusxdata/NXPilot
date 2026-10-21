@@ -23,6 +23,7 @@ namespace NXPilot.Desktop.Services;
 public static class DesktopTools
 {
     private static readonly Lazy<bool> HasPowerPoint = new(() => Type.GetTypeFromProgID("PowerPoint.Application") != null);
+    private static readonly Lazy<bool> HasExcel = new(() => Type.GetTypeFromProgID("Excel.Application") != null);
 
     private static string TempDir
     {
@@ -36,6 +37,25 @@ public static class DesktopTools
 
     public static IEnumerable<NxTool> All()
     {
+        yield return new NxTool
+        {
+            Name = "xlsx_recalculate", Extension = "Excel", Available = _ => HasExcel.Value,
+            Description = "Recalculate every formula of an .xlsx/.xlsm with the Excel installed on this PC (invisible, macros disabled) and save, so the results are stored " +
+                          "and xlsx_read shows them. Returns the cells with errors (#REF!, #DIV/0!, #NAME?...). The file must not be open in Excel.",
+            Schema = NxTool.ParseSchema("""{"type":"object","required":["path"],"properties":{"path":{"type":"string"}}}"""),
+            Risk = (a, c) => c.PathRisk(Req(a, "path"), write: true),
+            Run = async (a, c, _) =>
+            {
+                var path = c.Resolve(Req(a, "path"));
+                if (!File.Exists(path)) return ToolResult.Error($"Não existe: {Req(a, "path")}");
+                if (Path.GetExtension(path).ToLowerInvariant() is not (".xlsx" or ".xlsm")) return ToolResult.Error("The file must be .xlsx or .xlsm.");
+                await RunSta(() => Recalculate(path));
+                var errors = NXPilot.Office.XlsxDocument.ErrorCells(path);
+                return ToolResult.Text(errors.Count == 0
+                    ? "OK: formulas recalculated and saved; no cell with an error."
+                    : $"Recalculated and saved. {errors.Count} cell(s) with errors:\n- " + string.Join("\n- ", errors));
+            },
+        };
         yield return new NxTool
         {
             Name = "pptx_render", Extension = "PowerPoint", ReadOnly = true, Available = _ => HasPowerPoint.Value,
@@ -217,6 +237,48 @@ public static class DesktopTools
             Marshal.FinalReleaseComObject(app);
         }
         return result;
+    }
+
+    private static Task RunSta(Action action)
+    {
+        var tcs = new TaskCompletionSource();
+        var thread = new Thread(() =>
+        {
+            try { action(); tcs.SetResult(); }
+            catch (Exception ex) { tcs.SetException(ex); }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true;
+        thread.Start();
+        return tcs.Task;
+    }
+
+    /// <summary>Excel invisível, sem macros nem eventos e sem atualizar vínculos: CalculateFull, salva e fecha.</summary>
+    private static void Recalculate(string path)
+    {
+        var wasRunning = Process.GetProcessesByName("EXCEL").Length > 0;
+        var type = Type.GetTypeFromProgID("Excel.Application") ?? throw new InvalidOperationException("Excel não está instalado.");
+        dynamic app = Activator.CreateInstance(type)!;
+        dynamic? wb = null;
+        try
+        {
+            app.Visible = false;
+            app.DisplayAlerts = false;
+            app.EnableEvents = false;
+            app.AutomationSecurity = 3; // msoAutomationSecurityForceDisable: macros nunca rodam
+            wb = app.Workbooks.Open(path, 0 /* UpdateLinks: não */, false /* ReadOnly */);
+            if ((bool)wb.ReadOnly)
+                throw new IOException(NxText.T("O arquivo está aberto no Excel (ou só leitura): feche e tente de novo.",
+                    "The file is open in Excel (or read-only): close it and try again.", "El archivo está abierto en Excel (o es de solo lectura): ciérrelo e intente de nuevo."));
+            app.CalculateFull();
+            wb.Save();
+        }
+        finally
+        {
+            try { wb?.Close(false); } catch { /* já fechado */ }
+            try { if (!wasRunning && app.Workbooks.Count == 0) app.Quit(); } catch { /* Excel saiu */ }
+            Marshal.FinalReleaseComObject(app);
+        }
     }
 
     /// <summary>Imagem para o agente: no máximo 1600 px de largura; acima de 1,5 MB vira JPEG.</summary>

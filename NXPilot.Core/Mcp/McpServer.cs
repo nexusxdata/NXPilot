@@ -23,9 +23,10 @@ public static class McpServer
 
     /// <summary>O que o agente lê ao conectar (instruções do servidor MCP).</summary>
     public const string Instructions =
-        "NXPilot tools for this task (Power BI, PowerPoint, Databricks, Git, e-mail, work items, Teams, Windows apps — only the ones the user configured are listed). " +
+        "NXPilot tools for this task (Power BI, PowerPoint, Excel, Databricks, Git, e-mail, work items, Teams, Windows apps — only the ones the user configured are listed). " +
         "Paths are relative to the task worktree. " +
         "For PowerPoint ALWAYS use the pptx_* tools: do not write python-pptx/Node scripts and do not install packages for it; after building, call pptx_render to look at the slides and fix what looks bad. " +
+        "For Excel use the xlsx_* tools to inspect (xlsx_info, then xlsx_read with a range) and for small or medium edits; a script is fine only for bulk transformations of thousands of rows. " +
         "For a Power BI PBIP project, after editing TMDL/PBIR call powerbi_validate, then powerbi_capture to see the report. " +
         "Every call passes the NXPilot gate: a denial means the user said no — do not retry the same call; adjust the plan or ask.";
 

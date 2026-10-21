@@ -44,6 +44,7 @@ And you stay in control: every call goes through NXPilot's decision gate. Reads 
 | Tools | What the agent gets |
 |---|---|
 | `pptx_build`, `pptx_read`, `pptx_replace_text`, `pptx_add_slides`, `pptx_delete_slides`, `pptx_reorder_slides`, `pptx_render` | PowerPoint without Python: slides described in JSON (title, section, bullets, two columns, table, image, KPIs, bars), NX theme or a template, and `pptx_render` returns the slides as images so the agent can look at them |
+| `xlsx_info`, `xlsx_read`, `xlsx_write_cells`, `xlsx_append_rows`, `xlsx_add_sheet`, `xlsx_build`, `xlsx_recalculate` | Excel without Python: file summary, reading as a table with a row limit (dates as dates, formulas shown), writing values, formulas and dates while keeping the formatting, rows that join the Excel table, new sheet and new workbook; `xlsx_recalculate` (with Excel installed) calculates the formulas and points out the cells with errors |
 | `powerbi_info`, `powerbi_validate`, `powerbi_capture` | PBIP project summary, JSON/TMDL validation, and a screenshot of the report in Power BI Desktop |
 | `databricks_list`, `databricks_describe_table`, `databricks_sql` | Catalog, tables and SQL; writes go to you |
 | `git_list_repositories`, `git_push`, `git_create_pull_request` | Push and PR go to you |

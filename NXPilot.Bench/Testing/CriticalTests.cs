@@ -1327,6 +1327,56 @@ public static class CriticalTests
             }
             finally { try { Directory.Delete(wt, true); } catch { } }
         }),
+        new("Excel (Open XML): criar, ler com limite, gravar valor/fórmula/data sem perder estilo, acrescentar na tabela, aba nova; fora do worktree negado", async () =>
+        {
+            if (!OperatingSystem.IsWindows()) return;
+            var wt = Path.Combine(Path.GetTempPath(), "nx-xlsx-" + Guid.NewGuid().ToString("N")[..8]);
+            Directory.CreateDirectory(wt);
+            try
+            {
+                var host = new NxToolHost(CoreTools.All());
+                var ctx = new ToolContext { Worktree = wt, Approve = (_, risk, _) => Task.FromResult(risk.Level == RiskLevel.Baixo) };
+                var rows = new JsonArray(new JsonArray("Item", "Horas", "Entrega"));
+                for (var i = 1; i <= 150; i++) rows.Add(new JsonArray($"Tarefa {i}", i, new JsonObject { ["date"] = "2026-10-21" }));
+                var sheets = new JsonArray(new JsonObject { ["name"] = "Plano", ["rows"] = rows });
+                var built = await host.CallAsync("xlsx_build", new JsonObject { ["output"] = "saida/plano.xlsx", ["sheets"] = sheets.DeepClone() }, ctx, default);
+                AssertFalse(built.IsError, "xlsx_build: " + built.Content[0].Text);
+                var file = Path.Combine(wt, "saida", "plano.xlsx");
+                AssertEqual(0, XlsxDocument.Validate(file).Count, "Zero erro de esquema: " + string.Join("; ", XlsxDocument.Validate(file)));
+
+                var outside = Path.Combine(Path.GetTempPath(), "nx-fora-" + Guid.NewGuid().ToString("N")[..8] + ".xlsx");
+                var denied = await host.CallAsync("xlsx_build", new JsonObject { ["output"] = outside, ["sheets"] = sheets.DeepClone() }, ctx, default);
+                AssertTrue(denied.IsError && !File.Exists(outside), "Gravar fora do worktree (ALTO) negado: arquivo não é criado.");
+
+                AssertContains("| Plano | A1:C151 | 151 |", XlsxDocument.Info(file), "Info: área usada e linhas.");
+                var read = XlsxDocument.Read(file, null, null, maxRows: 5);
+                AssertContains("| 2 | Tarefa 1 | 1 | 2026-10-21 |", read, "Leitura: data como yyyy-mm-dd (não número de série).");
+                AssertContains("146 more row(s) not shown", read, "Leitura limitada: avisa quantas linhas faltam.");
+
+                // Fórmula e valor numa célula que já tinha estilo (cabeçalho): o estilo fica.
+                AssertEqual(3, XlsxDocument.WriteCells(file, "Plano", "D1", JsonNode.Parse("""[["Total"],["=SUM(B2:B151)"],[{"formula":"B2*2"}]]""")!.AsArray()), "Grava 3 células.");
+                var afterWrite = XlsxDocument.Read(file, "Plano", "A1:D3", 10);
+                AssertContains("⟨=SUM(B2:B151)⟩", afterWrite, "Fórmula gravada (sem valor até o Excel calcular).");
+                AssertContains("no calculated value", afterWrite, "Avisa fórmula sem valor calculado.");
+                XlsxDocument.WriteCells(file, "Plano", "A1", JsonNode.Parse("""[["Atividade"]]""")!.AsArray());
+                using (var doc = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(file, false))
+                {
+                    var a1 = doc.WorkbookPart!.WorksheetParts.First().Worksheet!.Descendants<DocumentFormat.OpenXml.Spreadsheet.Cell>().First(c => c.CellReference == "A1");
+                    AssertEqual(1u, a1.StyleIndex?.Value ?? 0, "Trocar o texto do cabeçalho mantém o estilo.");
+                    AssertTrue(doc.WorkbookPart.Workbook!.CalculationProperties?.FullCalculationOnLoad?.Value == true, "Excel recalcula ao abrir.");
+                }
+
+                AssertEqual(152, XlsxDocument.AppendRows(file, "Plano", JsonNode.Parse("""[["Tarefa 151", 151, {"date":"2026-11-01"}]]""")!.AsArray()), "Acrescenta depois da última linha.");
+                AssertContains("| 152 | Tarefa 151 | 151 | 2026-11-01 |", XlsxDocument.Read(file, "Plano", "A152:C152", 5), "Linha nova com a data no formato de data (estilo da linha de cima).");
+
+                XlsxDocument.AddSheet(file, "Resumo", JsonNode.Parse("""[["Total de horas","=SUM(Plano!B2:B152)"]]""")!.AsArray());
+                AssertContains("Resumo", XlsxDocument.Info(file), "Aba nova.");
+                var dup = await host.CallAsync("xlsx_add_sheet", new JsonObject { ["path"] = "saida/plano.xlsx", ["name"] = "resumo" }, ctx, default);
+                AssertTrue(dup.IsError, "Nome de aba repetido é recusado.");
+                AssertEqual(0, XlsxDocument.Validate(file).Count, "Depois de editar, ainda sem erro de esquema: " + string.Join("; ", XlsxDocument.Validate(file)));
+            }
+            finally { try { Directory.Delete(wt, true); } catch { } }
+        }),
     };
 
     // ---------------------------------------------------------------- apoio

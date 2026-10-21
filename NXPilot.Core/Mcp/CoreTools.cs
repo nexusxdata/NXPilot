@@ -18,7 +18,7 @@ using static NXPilot.Mcp.ToolArgs;
 namespace NXPilot.Mcp;
 
 /// <summary>
-/// Ferramentas do MCP NXPilot que não dependem de janela: PowerPoint (Open XML), Power BI
+/// Ferramentas do MCP NXPilot que não dependem de janela: PowerPoint e Excel (Open XML), Power BI
 /// (PBIP como código), Databricks, Git, e-mail, work items e Teams. Cada extensão só aparece
 /// para o agente quando está configurada no NXPilot (tokens e conexões ficam no app — o agente
 /// nunca os vê). As de janela (render do PowerPoint, captura do Power BI, apps do Windows)
@@ -28,7 +28,7 @@ namespace NXPilot.Mcp;
 public static class CoreTools
 {
     public static IEnumerable<NxTool> All() =>
-        PowerPoint().Concat(PowerBi()).Concat(Databricks()).Concat(Git()).Concat(Mail()).Concat(WorkItems()).Concat(Teams());
+        PowerPoint().Concat(Excel()).Concat(PowerBi()).Concat(Databricks()).Concat(Git()).Concat(Mail()).Concat(WorkItems()).Concat(Teams());
 
     // ================================================================ PowerPoint
 
@@ -163,6 +163,137 @@ public static class CoreTools
     };
 
     private static Risk.RiskResult Max(Risk.RiskResult a, Risk.RiskResult b) => b.Level > a.Level ? b : a;
+
+    // ================================================================ Excel
+
+    private const string CellValuesHelp =
+        "Cell values: text, number, true/false, null (clears the value, keeps the format), \"=FORMULA\" (English function names, comma separators, e.g. \"=SUM(B2:B9)\") " +
+        "or {\"date\": \"2026-10-21\"} (stored as an Excel date). Existing cell formats are kept. Formulas are not calculated here: Excel calculates on open, " +
+        "and xlsx_recalculate (if available) stores the results. For bulk transformations of thousands of rows, a script is cheaper than passing every value here.";
+
+    private static IEnumerable<NxTool> Excel()
+    {
+        yield return new NxTool
+        {
+            Name = "xlsx_info", Extension = "Excel", ReadOnly = true,
+            Description = "Summary of an .xlsx/.xlsm: sheets with used range, row count, formulas and Excel tables; defined names. Call it first instead of reading everything.",
+            Schema = PathSchema("The .xlsx/.xlsm to inspect"),
+            Risk = (a, c) => c.PathRisk(Req(a, "path"), write: false),
+            Run = (a, c, _) => Task.FromResult(ToolResult.Text(XlsxDocument.Info(ExistingXlsx(c, a)))),
+        };
+        yield return new NxTool
+        {
+            Name = "xlsx_read", Extension = "Excel", ReadOnly = true,
+            Description = "Read one sheet as a markdown table (columns by letter, rows by number), in a range or the used range, up to max_rows (default 100). " +
+                          "Dates come as yyyy-mm-dd; formulas as value ⟨=FORMULA⟩. Read the header and a sample first; ask for more rows only if needed.",
+            Schema = NxTool.ParseSchema("""
+                {"type":"object","required":["path"],"properties":{
+                  "path":{"type":"string"},
+                  "sheet":{"type":"string","description":"Sheet name; default: the first one"},
+                  "range":{"type":"string","description":"e.g. A1:F50; default: the used range"},
+                  "max_rows":{"type":"integer","description":"Default 100, max 1000"}}}
+                """),
+            Risk = (a, c) => c.PathRisk(Req(a, "path"), write: false),
+            Run = (a, c, _) => Task.FromResult(ToolResult.Text(XlsxDocument.Read(ExistingXlsx(c, a), Str(a, "sheet"), Str(a, "range"), Int(a, "max_rows") ?? 100))),
+        };
+        yield return new NxTool
+        {
+            Name = "xlsx_write_cells", Extension = "Excel",
+            Description = "Write a block of cells starting at a cell: rows is a list of rows, each a list of values (left to right). " + CellValuesHelp,
+            Schema = NxTool.ParseSchema("""
+                {"type":"object","required":["path","sheet","start","rows"],"properties":{
+                  "path":{"type":"string"},"sheet":{"type":"string"},
+                  "start":{"type":"string","description":"Top-left cell, e.g. B2"},
+                  "rows":{"type":"array","items":{"type":"array"},"description":"[[v, v, ...], ...]"}}}
+                """),
+            Risk = (a, c) => c.PathRisk(Req(a, "path"), write: true),
+            Run = (a, c, _) =>
+            {
+                var path = ExistingXlsx(c, a);
+                var at = $"{Req(a, "sheet")}!{Req(a, "start")}";
+                var n = XlsxDocument.WriteCells(path, Req(a, "sheet"), Req(a, "start"), Arr(a, "rows"));
+                return Task.FromResult(SavedXlsx(c, path, NxText.T($"{n} célula(s) gravada(s) em {at}", $"{n} cell(s) written at {at}", $"{n} celda(s) escrita(s) en {at}")));
+            },
+        };
+        yield return new NxTool
+        {
+            Name = "xlsx_append_rows", Extension = "Excel",
+            Description = "Append rows after the last used row of a sheet, copying the format of the row above. An Excel table that ends there grows to include them. " + CellValuesHelp,
+            Schema = NxTool.ParseSchema("""
+                {"type":"object","required":["path","sheet","rows"],"properties":{
+                  "path":{"type":"string"},"sheet":{"type":"string"},
+                  "rows":{"type":"array","items":{"type":"array"}}}}
+                """),
+            Risk = (a, c) => c.PathRisk(Req(a, "path"), write: true),
+            Run = (a, c, _) =>
+            {
+                var path = ExistingXlsx(c, a);
+                var rows = Arr(a, "rows");
+                var first = XlsxDocument.AppendRows(path, Req(a, "sheet"), rows);
+                return Task.FromResult(SavedXlsx(c, path, NxText.T($"{rows.Count} linha(s) a partir da {first}", $"{rows.Count} row(s) from row {first}", $"{rows.Count} fila(s) desde la {first}")));
+            },
+        };
+        yield return new NxTool
+        {
+            Name = "xlsx_add_sheet", Extension = "Excel",
+            Description = "Add a new sheet to an existing workbook, optionally with rows written from A1. " + CellValuesHelp,
+            Schema = NxTool.ParseSchema("""
+                {"type":"object","required":["path","name"],"properties":{
+                  "path":{"type":"string"},"name":{"type":"string","description":"1-31 characters, unique"},
+                  "rows":{"type":"array","items":{"type":"array"}}}}
+                """),
+            Risk = (a, c) => c.PathRisk(Req(a, "path"), write: true),
+            Run = (a, c, _) =>
+            {
+                var path = ExistingXlsx(c, a);
+                XlsxDocument.AddSheet(path, Req(a, "name"), a["rows"] as JsonArray);
+                return Task.FromResult(SavedXlsx(c, path, NxText.T($"aba '{Req(a, "name")}' criada", $"sheet '{Req(a, "name")}' added", $"hoja '{Req(a, "name")}' creada")));
+            },
+        };
+        yield return new NxTool
+        {
+            Name = "xlsx_build", Extension = "Excel",
+            Description = "Create a new .xlsx (overwrites the output). sheets: [{name, rows: [[...]], header?: true, widths?: [n...]}]. " +
+                          "With header (default), the first row is bold on a dark fill, frozen and filterable; column widths follow the content. " + CellValuesHelp,
+            Schema = NxTool.ParseSchema("""
+                {"type":"object","required":["output","sheets"],"properties":{
+                  "output":{"type":"string","description":"Output .xlsx path (relative to the worktree)"},
+                  "sheets":{"type":"array","items":{"type":"object"}}}}
+                """),
+            Risk = (a, c) => c.PathRisk(Req(a, "output"), write: true),
+            Run = (a, c, _) =>
+            {
+                var output = c.Resolve(Req(a, "output"));
+                if (!Path.GetExtension(output).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
+                    throw new ArgumentException(NxText.T("O arquivo novo precisa ser .xlsx.", "The new file must be .xlsx.", "El archivo nuevo debe ser .xlsx."));
+                var n = XlsxDocument.Build(output, Arr(a, "sheets"));
+                return Task.FromResult(SavedXlsx(c, output, NxText.T($"{n} aba(s)", $"{n} sheet(s)", $"{n} hoja(s)")));
+            },
+        };
+    }
+
+    private static string ExistingXlsx(ToolContext c, JsonObject a)
+    {
+        var path = c.Resolve(Req(a, "path"));
+        if (Path.GetExtension(path).ToLowerInvariant() is not (".xlsx" or ".xlsm"))
+            throw new ArgumentException(NxText.T("O arquivo precisa ser .xlsx ou .xlsm (o .xls antigo não é suportado: salve como .xlsx).",
+                "The file must be .xlsx or .xlsm (old .xls is not supported: save it as .xlsx).",
+                "El archivo debe ser .xlsx o .xlsm (el .xls antiguo no es compatible: guárdelo como .xlsx)."));
+        if (!File.Exists(path)) throw new FileNotFoundException(NxText.T($"Não existe: {Req(a, "path")}", $"Not found: {Req(a, "path")}", $"No existe: {Req(a, "path")}"));
+        return path;
+    }
+
+    /// <summary>Gravou: confere o esquema Open XML e lembra que as fórmulas são calculadas pelo Excel.</summary>
+    private static ToolResult SavedXlsx(ToolContext c, string path, string detail)
+    {
+        var rel = c.IsInside(path) ? Path.GetRelativePath(c.Worktree, path) : path;
+        var errors = XlsxDocument.Validate(path);
+        var text = $"OK: {rel} ({detail}).";
+        if (errors.Count > 0) text += "\nOpen XML validation warnings:\n- " + string.Join("\n- ", errors);
+        text += "\nFormulas are recalculated when Excel opens the file; call xlsx_recalculate (if available) to store the results and see formula errors.";
+        return ToolResult.Text(text);
+    }
+
 
     // ================================================================ Power BI (PBIP)
 

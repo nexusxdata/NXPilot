@@ -44,6 +44,7 @@ Y el control sigue siendo suyo. Cada llamada pasa por el mismo gate de decisione
 | Herramientas | Qué obtiene el agente |
 |---|---|
 | `pptx_build`, `pptx_read`, `pptx_replace_text`, `pptx_add_slides`, `pptx_delete_slides`, `pptx_reorder_slides`, `pptx_render` | PowerPoint sin Python: diapositivas descritas en JSON (portada, sección, viñetas, dos columnas, tabla, imagen, indicadores, barras), con el tema NX o una plantilla suya; `pptx_render` devuelve las diapositivas como imagen para que el agente las vea |
+| `xlsx_info`, `xlsx_read`, `xlsx_write_cells`, `xlsx_append_rows`, `xlsx_add_sheet`, `xlsx_build`, `xlsx_recalculate` | Excel sin Python: resumen del archivo, lectura en tabla con límite de filas (fechas como fecha, fórmulas a la vista), escritura de valores, fórmulas y fechas manteniendo el formato, filas que entran en la tabla de Excel, hoja nueva y libro nuevo; `xlsx_recalculate` (con Excel instalado) calcula las fórmulas y señala las celdas con error |
 | `powerbi_info`, `powerbi_validate`, `powerbi_capture` | Resumen del proyecto PBIP, validación de JSON/TMDL y la imagen del informe en Power BI Desktop |
 | `databricks_list`, `databricks_describe_table`, `databricks_sql` | Catálogo, tablas y SQL; las escrituras van a usted |
 | `git_list_repositories`, `git_push`, `git_create_pull_request` | Push y PR van a usted |
