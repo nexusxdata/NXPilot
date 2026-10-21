@@ -1184,20 +1184,20 @@ public static class CriticalTests
         // ---------------------------------------------------------------- MCP NXPilot
         new("MCP NXPilot: a ponte (stdio) lista e chama pelo pipe do app; negado ou sem o app, NADA executa", async () =>
         {
-            var ran = new List<string>();
+            var ran = new System.Collections.Concurrent.ConcurrentQueue<string>();
             NxTool Fake(string name, RiskLevel level, bool readOnly) => new()
             {
                 Name = name, Extension = "Teste", Description = name, ReadOnly = readOnly,
                 Schema = NxTool.ParseSchema("""{"type":"object","properties":{}}"""),
                 Risk = (_, _) => new RiskResult(level, 0.95, "t", null, TimeSpan.Zero),
-                Run = (_, _, _) => { ran.Add(name); return Task.FromResult(ToolResult.Text("feito " + name)); },
+                Run = (_, _, _) => { ran.Enqueue(name); return Task.FromResult(ToolResult.Text("feito " + name)); },
             };
             var host = new NxToolHost([Fake("ler", RiskLevel.Baixo, true), Fake("apagar", RiskLevel.Alto, false)]);
-            var asked = new List<string>();
+            var asked = new System.Collections.Concurrent.ConcurrentQueue<string>(); // ler e apagar chegam ao mesmo tempo
             var ctx = new ToolContext
             {
                 Worktree = Path.GetTempPath(),
-                Approve = (action, risk, _) => { asked.Add(action); return Task.FromResult(risk.Level == RiskLevel.Baixo); }, // "você" nega o ALTO
+                Approve = (action, risk, _) => { asked.Enqueue(action); return Task.FromResult(risk.Level == RiskLevel.Baixo); }, // "você" nega o ALTO
             };
             var pipe = "NXPilot.Mcp.Test." + Guid.NewGuid().ToString("N")[..8];
             using var cts = new CancellationTokenSource();
