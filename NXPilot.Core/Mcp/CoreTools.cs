@@ -477,19 +477,43 @@ public static class CoreTools
         yield return new NxTool
         {
             Name = "databricks_describe_table", Extension = "Databricks", ReadOnly = true, Available = Configured,
-            Description = "Columns and types of a Databricks table.",
+            Description = "Columns, types and comments of a Databricks table or view (and the object's own comment).",
             Schema = NxTool.ParseSchema("""{"type":"object","required":["catalog","schema","table"],"properties":{"catalog":{"type":"string"},"schema":{"type":"string"},"table":{"type":"string"}}}"""),
             Run = async (a, _, ct) =>
             {
                 using var svc = new DatabricksSqlService(Conn());
-                var cols = await svc.DescribeTableAsync(Req(a, "catalog"), Req(a, "schema"), Req(a, "table"), ct);
-                return ToolResult.Text(string.Join("\n", cols.Select(c => $"{c.Name}: {c.TypeText ?? c.TypeName}")));
+                var info = await svc.CommentsAsync(Req(a, "catalog"), Req(a, "schema"), Req(a, "table"), ct);
+                return ToolResult.Text((info.Comment != null ? $"COMMENT: {info.Comment}\n\n" : "") +
+                    string.Join("\n", info.Columns.Select(c => $"{c.Name}: {c.TypeText ?? c.TypeName}" + (c.Comment != null ? $" — {c.Comment}" : ""))));
+            },
+        };
+        yield return new NxTool
+        {
+            Name = "databricks_comments", Extension = "Databricks", ReadOnly = true, Available = Configured,
+            Description = "Comments of a REFERENCE Databricks table/view (the object's comment and every column comment) plus ready SQL to carry them to a new object: " +
+                          "for a VIEW, the column list with COMMENT and the COMMENT clause for CREATE VIEW; for a TABLE, COMMENT ON TABLE and ALTER COLUMN … COMMENT. " +
+                          "Call it whenever you create a view/table based on another object, and keep the comments (write comments for new or renamed columns too).",
+            Schema = NxTool.ParseSchema("""
+                {"type":"object","required":["catalog","schema","table"],"properties":{
+                  "catalog":{"type":"string"},"schema":{"type":"string"},"table":{"type":"string","description":"Reference table or view"},
+                  "target":{"type":"string","description":"Full name of the new object (catalog.schema.name), used in the ready SQL"}}}
+                """),
+            Run = async (a, _, ct) =>
+            {
+                using var svc = new DatabricksSqlService(Conn());
+                var info = await svc.CommentsAsync(Req(a, "catalog"), Req(a, "schema"), Req(a, "table"), ct);
+                var withComment = info.Columns.Count(c => c.Comment != null);
+                var head = $"# {info.FullName}\nComentário do objeto: {info.Comment ?? "(nenhum)"}\nColunas: {info.Columns.Count} · com comentário: {withComment}\n\n";
+                if (info.Comment == null && withComment == 0) return ToolResult.Text(head + "O objeto de referência não tem comentários.");
+                var cols = string.Join("\n", info.Columns.Select(c => $"- {c.Name}: {c.Comment ?? "(sem comentário)"}"));
+                return ToolResult.Text(head + cols + "\n\n```sql\n" + info.Snippets(Str(a, "target") ?? "<catalogo.schema.novo_objeto>") + "```");
             },
         };
         yield return new NxTool
         {
             Name = "databricks_sql", Extension = "Databricks", ReadOnly = true, Available = Configured,
             Description = "Run ONE SQL statement on the configured Databricks SQL warehouse. Reads run directly; writes, DDL and permission changes go to the user for approval " +
+                          "(when creating a view/table based on another object, keep its comments — see databricks_comments) " +
                           "(and are refused during planning/review). If the user set write schemas (e.g. sandbox_*), CREATE/INSERT/MERGE/UPDATE/DELETE/DROP/ALTER are only allowed " +
                           "there — create objects with a fully qualified name in one of them; anything outside is refused. Returns a markdown table.",
             Schema = NxTool.ParseSchema("""{"type":"object","required":["sql"],"properties":{"sql":{"type":"string"},"max_rows":{"type":"integer","description":"Default 100, max 1000"}}}"""),

@@ -243,7 +243,7 @@
     <sys:String x:Key="Ext_Catalogo">Default catalog (optional)</sys:String>
     <sys:String x:Key="Ext_Schema">Default schema (optional)</sys:String>
     <sys:String x:Key="Ext_DbSchemasGravacao">Write schemas (where the agent may create and change objects)</sys:String>
-    <sys:String x:Key="Ext_DbSchemasGravacaoDica">Full schema name or wildcard, comma-separated — e.g. sandbox_*, dev.sandbox_*. Writing outside them is blocked (protects production). A name without schema uses the default catalog/schema above. Empty = every write asks for your approval.</sys:String>
+    <sys:String x:Key="Ext_DbSchemasGravacaoDica">Full schema name or wildcard, comma-separated — e.g. sandbox_*, dev.sandbox_*. Writing outside them is blocked (protects production). A name without schema uses the default catalog/schema above. Required — use * to allow all (every write still goes through the gate).</sys:String>
     <sys:String x:Key="Ext_TokenDatabricks">Databricks token (PAT)</sys:String>
     <sys:String x:Key="Ext_DatabricksGate">SELECT, SHOW and DESCRIBE run on their own. INSERT, UPDATE, DELETE, MERGE, DDL and GRANT ask for your approval.</sys:String>
     <sys:String x:Key="Ext_TestarDatabricks">Test connection</sys:String>
@@ -275,6 +275,7 @@
     <sys:String x:Key="Ext_JanelasListar">List open windows</sys:String>
     <sys:String x:Key="Ext_JanelasCapturar">Capture</sys:String>
     <sys:String x:Key="Ext_JanelasLer">Read text</sys:String>
+    <sys:String x:Key="Main_Ferramentas">🛠  Tools</sys:String>
     <sys:String x:Key="Main_Configurar">⚙  Settings</sys:String>
     <sys:String x:Key="Cfg_Titulo">Settings</sys:String>
     <sys:String x:Key="Cfg_Versao">Version</sys:String>

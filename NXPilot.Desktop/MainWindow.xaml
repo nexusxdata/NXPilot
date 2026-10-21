@@ -90,6 +90,8 @@
                     </Button>
                     <Button x:Name="WorkItemsButton" Content="{DynamicResource Main_WorkItems}" Style="{StaticResource NavButton}" Click="OnWorkItemsClick"/>
                     <Button x:Name="ExtensionsButton" Content="{DynamicResource Main_Extensoes}" Style="{StaticResource NavButton}" Click="OnExtensionsClick"/>
+                    <!-- Ferramentas: utilitários de apoio fora das tarefas (ex.: amostra de dados do Databricks). -->
+                    <Button x:Name="ToolsButton" Content="{DynamicResource Main_Ferramentas}" Style="{StaticResource NavButton}" Click="OnToolsClick"/>
                     <Button x:Name="SettingsButton" Content="{DynamicResource Main_Configurar}" Style="{StaticResource NavButton}" Click="OnSettingsClick"/>
 
                     <TextBlock Text="{DynamicResource Main_Agentes}" Style="{StaticResource SectionHeader}"/>

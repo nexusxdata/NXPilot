@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXPilot — licenciado sob a NXPilot License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -234,6 +234,28 @@ public partial class MainWindow : Window
     /// <summary>Extensões: Databricks SQL, Git (GitHub/Azure DevOps) e E-mail (Outlook/Gmail).</summary>
     private void OnExtensionsClick(object sender, RoutedEventArgs e) => new Views.ExtensionsWindow { Owner = this }.ShowDialog();
 
+    /// <summary>
+    /// Ferramentas: utilitários fora das tarefas e da configuração (sem IA). Hoje, a amostra de dados do
+    /// Databricks (só leitura, até 50 registros) — habilitada quando o Databricks está configurado.
+    /// </summary>
+    private void OnToolsClick(object sender, RoutedEventArgs e)
+    {
+        var connection = NXPilot.Integrations.DatabricksSettings.LoadConnection();
+        var sample = new MenuItem
+        {
+            Header = NxText.T("📊  Amostra de dados (Databricks)…", "📊  Data sample (Databricks)…", "📊  Muestra de datos (Databricks)…"),
+            IsEnabled = connection != null,
+            ToolTip = connection != null
+                ? NxText.T("Consulta de leitura com até 50 registros, na vertical ou horizontal; exporta para Excel.", "Read-only query with up to 50 rows, vertical or horizontal; exports to Excel.", "Consulta de lectura con hasta 50 registros, vertical u horizontal; exporta a Excel.")
+                : NxText.T("Configure o Databricks em Extensão MCP.", "Set up Databricks in MCP Extension.", "Configure Databricks en Extensión MCP."),
+        };
+        ToolTipService.SetShowOnDisabled(sample, true);
+        sample.Click += (_, _) => new Views.DatabricksQueryWindow(connection!) { Owner = this }.Show();
+        var menu = new ContextMenu { PlacementTarget = (UIElement)sender, Placement = System.Windows.Controls.Primitives.PlacementMode.Right };
+        menu.Items.Add(sample);
+        menu.IsOpen = true;
+    }
+
     /// <summary>Configurar: versão instalada, verificar atualização e voltar versão.</summary>
     private void OnSettingsClick(object sender, RoutedEventArgs e) => new Views.SettingsWindow { Owner = this }.ShowDialog();
 
@@ -313,6 +335,24 @@ public partial class MainWindow : Window
         await Task.Delay(800);
 
         // --window about|license|history|risks|workitems|newtask: captura o Sobre, a Licença (modo primeira execução), o Histórico, os riscos de todas as tarefas, os Work items ou a Nova tarefa.
+        // --window dbquery: Databricks → Amostra de dados, executando a consulta de NXPILOT_SHOT_SQL (só leitura).
+        if (ArgValue(args, "--window") == "dbquery" && NXPilot.Integrations.DatabricksSettings.LoadConnection() is { } dbConn)
+        {
+            var query = new Views.DatabricksQueryWindow(dbConn, Environment.GetEnvironmentVariable("NXPILOT_SHOT_SQL")) { Owner = this };
+            query.Show();
+            var running = query.RunAsync();
+            await Task.Delay(600); // durante a consulta: barra, tempo e Cancelar
+            SaveVisual((FrameworkElement)query.Content, query, shot.Replace(".png", "-rodando.png"));
+            await running;
+            await Task.Delay(800);
+            SaveVisual((FrameworkElement)query.Content, query, shot);
+            if (Environment.GetEnvironmentVariable("NXPILOT_SHOT_XLSX") is { Length: > 0 } xlsx && query.Result is { } res)
+                NXPilot.Office.XlsxTable.Build(xlsx, Views.DatabricksQueryWindow.ExportSheets(res, vertical: true, Environment.GetEnvironmentVariable("NXPILOT_SHOT_SQL") ?? "", Environment.GetEnvironmentVariable("NXPILOT_SHOT_SQL") ?? "", DateTime.Now, 1));
+            query.Close();
+            if (args.Contains("--exit")) Close();
+            return;
+        }
+
         if (ArgValue(args, "--window") is "about" or "license" or "history" or "risks" or "workitems" or "newtask" or "hooks" or "settings")
         {
             Window win = ArgValue(args, "--window") switch

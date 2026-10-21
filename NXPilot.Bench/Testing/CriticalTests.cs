@@ -313,6 +313,16 @@ public static class CriticalTests
             var crit = TaskPlanning.ParseVerification("""{"approved":true,"summary":"s","findings":[{"severity":"critical","file":"a","line":3,"message":"m"}]}""", "Codex");
             AssertFalse(crit.Approved, "Com crítico NUNCA aprovado, mesmo se o revisor disser approved=true.");
             AssertFalse(TaskPlanning.ParseVerification("resposta livre", "Codex").Approved, "Sem JSON: não aprovado.");
+            var withActions = TaskPlanning.VerificationPrompt("t", "a view existe no schema", "plano", "diff --git a/v.sql",
+                ["15:10 Databricks SQL: Schema — CREATE OR REPLACE VIEW sandbox_x.v AS SELECT 1"]);
+            AssertTrue(withActions.Contains("CREATE OR REPLACE VIEW sandbox_x.v") && withActions.Contains("databricks_sql"),
+                "O revisor recebe o que foi feito fora do repositório (e como conferir), não só o diff.");
+            AssertTrue(TaskPlanning.VerificationPrompt("t", "c", "p", "d").Contains("(nenhuma)") || TaskPlanning.VerificationPrompt("t", "c", "p", "d").Contains("(none)"),
+                "Sem ações externas: a seção diz que não houve nenhuma.");
+            var contested = TaskPlanning.VerificationPrompt("t", "c", "p", "d", null,
+                "- Rodada 1: [Critico] v.sql falta evidência\n  Executor (sem alterações): não procede — information_schema mostra a view criada");
+            AssertTrue(contested.Contains("information_schema mostra a view criada") && (contested.Contains("RODADAS ANTERIORES") || contested.Contains("PREVIOUS ROUNDS") || contested.Contains("RONDAS ANTERIORES")),
+                "O revisor recebe a contestação do executor e a instrução de conferir antes de repetir.");
             var failed = TaskPlanning.ParseVerification("", "Codex");
             AssertTrue(failed.ReviewerFailed && failed.Findings.Count == 0 && !failed.Approved, "Revisor sem resposta (erro/modelo recusado): falhou, SEM achado vazio para corrigir.");
             AssertFalse(TaskPlanning.ParseVerification("resposta livre", "Codex").ReviewerFailed, "Resposta em texto livre é revisão (vira achado com o texto), não falha.");
@@ -565,6 +575,29 @@ public static class CriticalTests
             AssertEqual((RiskLevel.Baixo, (string?)null), Eval("SELECT * FROM prd.gold.fato"), "Leitura de produção continua livre.");
             var off = GateSqlApprover.Evaluate(SqlStatementClassifier.Classify("CREATE TABLE prd.gold.t (id INT)"), new WriteSchemaPolicy("", "dev", "x"));
             AssertTrue(off.Risk.Level == RiskLevel.Alto && off.Blocked == null, "Sem schemas de gravação: nada muda (ALTO, você decide).");
+
+            // Consultar dados (tela da extensão): só leitura e no máximo 50 registros, sempre.
+            AssertEqual(("SELECT * FROM a.b.c\nLIMIT 50", (string?)null), SqlPreview.Prepare("SELECT * FROM a.b.c;"), "LIMIT 50 acrescentado (e ';' tirado).");
+            AssertEqual(("SELECT * FROM t ORDER BY x LIMIT 50", (string?)null), SqlPreview.Prepare("SELECT * FROM t ORDER BY x LIMIT 1000"), "LIMIT maior vira 50.");
+            AssertEqual(("SELECT * FROM t LIMIT 10", (string?)null), SqlPreview.Prepare("SELECT * FROM t LIMIT 10"), "LIMIT menor fica.");
+            AssertEqual(("SELECT * FROM t\nLIMIT 50", (string?)null), SqlPreview.Prepare("SELECT * FROM t -- amostra"), "Comentário no fim não engole o LIMIT.");
+            AssertTrue(SqlPreview.Prepare("WITH c AS (SELECT 1) SELECT * FROM c").Sql!.EndsWith("LIMIT 50"), "WITH também recebe LIMIT.");
+            AssertEqual(("SHOW TABLES IN a.b", (string?)null), SqlPreview.Prepare("SHOW TABLES IN a.b"), "SHOW roda como está (corte em 50 pelo MaxRows).");
+            AssertTrue(SqlPreview.Prepare("DROP TABLE t").Error != null && SqlPreview.Prepare("SELECT 1; SELECT 2").Error != null, "Escrita e várias instruções são recusadas.");
+
+            // Comentários do objeto de referência levados ao novo (view: na lista de colunas; tabela: COMMENT ON / ALTER COLUMN).
+            var refInfo = new ObjectComments("dev.gold.fato", "Fato de vendas d'água", [
+                new SqlColumn("id", 0, "int", "int", "Chave do pedido"),
+                new SqlColumn("valor", 1, "decimal", "decimal", @"Valor em R$ (com \ barra)"),
+                new SqlColumn("novo", 2, "string", "string")]);
+            var sqlOut = refInfo.Snippets("dev.sandbox_x.v_fato");
+            AssertContains("CREATE OR REPLACE VIEW dev.sandbox_x.v_fato (", sqlOut, "View: CREATE com a lista de colunas.");
+            AssertContains("`id` COMMENT 'Chave do pedido'", sqlOut, "Comentário da coluna na lista da view.");
+            AssertContains(@"COMMENT 'Fato de vendas d\'água'", sqlOut, "Comentário do objeto, com aspas escapadas.");
+            AssertContains(@"'Valor em R$ (com \\ barra)'", sqlOut, "Barra escapada.");
+            AssertContains("COMMENT ON TABLE dev.sandbox_x.v_fato IS", sqlOut, "Tabela: COMMENT ON.");
+            AssertContains("ALTER TABLE dev.sandbox_x.v_fato ALTER COLUMN `valor` COMMENT", sqlOut, "Tabela: ALTER COLUMN … COMMENT.");
+            AssertFalse(sqlOut.Contains("ALTER COLUMN `novo`"), "Coluna sem comentário não gera ALTER vazio.");
 
             // Pelo aprovador: bloqueado nem chega a perguntar.
             var asked = false;

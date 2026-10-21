@@ -27,6 +27,9 @@ public sealed class CodexAdapter(string? model = null, string? executablePath = 
     /// <summary>JSON Schema da resposta final (--output-schema); nulo = texto livre.</summary>
     public string? OutputSchema { get; init; }
 
+    /// <summary>MCP NXPilot para o revisor conferir sistemas externos (só leitura — na revisão o gate recusa o que grava).</summary>
+    public McpLaunch? Mcp { get; init; }
+
     /// <summary>PATH → instalador oficial (…\Programs\OpenAI\Codex\bin, usado também pelo NXData.AgentInstaller) → pasta do NXProject-Setup → codex.exe da extensão do VS Code (a mais nova).</summary>
     public static string? Locate()
     {
@@ -85,6 +88,8 @@ public sealed class CodexAdapter(string? model = null, string? executablePath = 
             psi.ArgumentList.Add(a);
         var m = request.Model ?? model;
         if (!string.IsNullOrWhiteSpace(m)) { psi.ArgumentList.Add("-m"); psi.ArgumentList.Add(m); }
+        // MCP NXPilot (o revisor confere sistemas externos, só leitura: na revisão o gate recusa o que grava).
+        foreach (var a in Mcp?.CodexOverrides() ?? []) psi.ArgumentList.Add(a);
         if (OutputSchema != null)
         {
             schemaPath = Path.Combine(Path.GetTempPath(), $"nxpilot-schema-{Guid.NewGuid():N}.json");

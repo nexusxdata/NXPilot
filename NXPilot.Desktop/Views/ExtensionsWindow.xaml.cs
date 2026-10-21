@@ -591,6 +591,16 @@ public partial class ExtensionsWindow : Window
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
+        // Databricks configurado exige os schemas de gravação (ex.: sandbox_*; "*" = todos) — vazio deixaria o agente sem limite claro.
+        if (DbHostBox.Text.Trim().Length > 0 && DbWriteSchemasBox.Text.Trim().Length == 0)
+        {
+            Tabs.SelectedItem = DatabricksTab; // a combo de extensões acompanha (OnTabChanged)
+            DbWriteSchemasBox.Focus();
+            Status(SaveStatus, T("Databricks: preencha os Schemas de gravação (ex.: sandbox_*). Para liberar todos, use *.",
+                "Databricks: fill in the Write schemas (e.g. sandbox_*). To allow all, use *.",
+                "Databricks: complete los Schemas de escritura (p. ej., sandbox_*). Para permitir todos, use *."), Brushes.Firebrick);
+            return;
+        }
         try
         {
             CollectDatabricks().Save();

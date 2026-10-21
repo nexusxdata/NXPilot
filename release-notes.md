@@ -15,6 +15,29 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**🛠 Ferramentas → Amostra de dados (Databricks)**
+
+- Item novo no menu, antes de Configurar. Consulta **só de leitura**, com no máximo **50 registros** (o `LIMIT 50` entra sempre) — para conferir dados, não para extrair.
+- **Vertical** (cada coluna numa linha, cada registro numa coluna, como o modelo do Power BI) ou horizontal; números à direita com separador e as casas do tipo, datas dd/mm/aaaa, Sim/Não; cada registro numa faixa de cor.
+- Enquanto roda: barra, tempo correndo e **Cancelar** (cancela no warehouse também).
+- **Exportar para Excel** no mesmo formato da tela, com números e datas como valores do Excel, cabeçalho com filtro e faixas por registro, e a aba **SQL** (consulta, o que rodou, data, registros e tempo).
+- **Recentes**: guarda só o SQL e quanto demorou da última vez — nunca os dados. Abre com a última consulta (ou os schemas do catálogo da conexão).
+
+**🗄 Databricks**
+
+- **Comentários**: ao criar uma view/tabela com base em outra, o agente leva o comentário do objeto e das colunas (`databricks_comments` devolve o SQL pronto); `databricks_describe_table` mostra os comentários.
+- **Schemas de gravação** passam a ser obrigatórios na configuração (use `*` para liberar todos).
+- Resultados de consultas do agente aparecem na tela, mas **não ficam gravados** no Histórico (o SQL fica).
+
+**🔍 Verificação cruzada mais justa**
+
+- O revisor recebe o que a tarefa fez fora do repositório (ex.: a view criada no Databricks) e as consultas usadas como evidência; o revisor Codex também consulta o MCP (só leitura).
+- Vê a contestação do executor nas rodadas anteriores e confere antes de repetir o achado; a correção automática para quando o executor contesta sem alterar nada.
+
+**🔔 Avisos**
+
+- "Plano pronto para aprovar" sai das notificações quando você aprova, descarta ou edita o plano.
+
 **📊 Power BI: criar PBI novo com pente fino, workspace e PBI de exemplo**
 
 - As ferramentas Power BI aparecem mesmo com o repositório vazio (com o Power BI Desktop instalado): o agente cria o projeto e depois valida e abre no Desktop, corrigindo até carregar sem erro.

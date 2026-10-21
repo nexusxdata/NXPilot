@@ -30,6 +30,7 @@ public static class McpServer
         "To CREATE work items (e.g. the Tasks of a User Story) use nxproject_create_items (it goes through NXProject: its fields and the Adm_NX rule, and the user approves) — never the DevOps/GitHub API directly; check nxproject_status first. " +
         "If the task cites an example Power BI report (.pbip/.pbix or its folder) and names a tab, call powerbi_style on it with that page and build the new report in that style " +
         "(powerbi_copy_theme, same page size, background, positions and formatting). " +
+        "Databricks: when you create a view or table based on a reference object, carry its comments (object and columns) — databricks_comments gives them and the ready SQL; comment new or renamed columns too. " +
         "Power BI: before CREATING a PBIP project call powerbi_info — it gives the workspace the user configured for new reports (use it in the parameters, never a placeholder); " +
         "after creating or editing a PBIP project, review it through these tools before saying the phase is done — powerbi_validate (fix every problem; " +
         "a report without its base theme needs powerbi_fix_report), then powerbi_capture to open it in Power BI Desktop and look at the image: an error dialog or a blank page " +

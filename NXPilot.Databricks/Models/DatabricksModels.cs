@@ -61,7 +61,34 @@ public sealed record DatabricksConnection
 /// <summary>Parâmetro nomeado (:nome no SQL). Value null = NULL; Type no formato do Databricks (INT, DECIMAL(10,2)…).</summary>
 public sealed record SqlParameter(string Name, string? Value, string? Type = null);
 
-public sealed record SqlColumn(string Name, int Position, string TypeName, string? TypeText);
+public sealed record SqlColumn(string Name, int Position, string TypeName, string? TypeText, string? Comment = null);
+
+/// <summary>Comentários de um objeto (tabela ou view): o do objeto e o de cada coluna.</summary>
+public sealed record ObjectComments(string FullName, string? Comment, IReadOnlyList<SqlColumn> Columns)
+{
+    /// <summary>Texto como literal SQL do Databricks ('...' com \' e \\ escapados).</summary>
+    public static string Literal(string text) => "'" + text.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
+
+    /// <summary>
+    /// SQL pronto para levar os comentários a um objeto novo: para VIEW, a lista de colunas com
+    /// COMMENT e o COMMENT da view (vão no CREATE VIEW); para TABELA, COMMENT ON e ALTER COLUMN.
+    /// </summary>
+    public string Snippets(string target)
+    {
+        var sb = new System.Text.StringBuilder();
+        var commented = Columns.Where(c => !string.IsNullOrWhiteSpace(c.Comment)).ToList();
+        sb.AppendLine("-- VIEW: coloque a lista de colunas e o COMMENT no CREATE VIEW (colunas novas/renomeadas: escreva o comentário delas)");
+        sb.AppendLine($"CREATE OR REPLACE VIEW {target} (");
+        sb.AppendLine(string.Join(",\n", Columns.Select(c => $"  `{c.Name.Replace("`", "``")}`" + (string.IsNullOrWhiteSpace(c.Comment) ? "" : $" COMMENT {Literal(c.Comment!)}"))));
+        sb.AppendLine(")" + (string.IsNullOrWhiteSpace(Comment) ? "" : $"\nCOMMENT {Literal(Comment!)}"));
+        sb.AppendLine("AS SELECT …;");
+        sb.AppendLine();
+        sb.AppendLine("-- TABELA: depois de criar");
+        if (!string.IsNullOrWhiteSpace(Comment)) sb.AppendLine($"COMMENT ON TABLE {target} IS {Literal(Comment!)};");
+        foreach (var c in commented) sb.AppendLine($"ALTER TABLE {target} ALTER COLUMN `{c.Name.Replace("`", "``")}` COMMENT {Literal(c.Comment!)};");
+        return sb.ToString();
+    }
+}
 
 /// <summary>Resultado de uma instrução: colunas, linhas (valores como texto, null = NULL) e se foi cortado.</summary>
 public sealed record SqlQueryResult(

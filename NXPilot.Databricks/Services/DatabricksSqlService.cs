@@ -99,9 +99,38 @@ public sealed class DatabricksSqlService(DatabricksSqlClient client, ISqlStateme
         {
             var name = r.Value(i, "col_name") ?? "";
             if (name.Length == 0 || name.StartsWith('#')) break; // "# Partition Information" e afins
-            cols.Add(new SqlColumn(name, cols.Count, r.Value(i, "data_type") ?? "", r.Value(i, "data_type")));
+            var comment = r.Value(i, "comment");
+            cols.Add(new SqlColumn(name, cols.Count, r.Value(i, "data_type") ?? "", r.Value(i, "data_type"), string.IsNullOrWhiteSpace(comment) ? null : comment));
         }
         return cols;
+    }
+
+    /// <summary>
+    /// Comentário do objeto e das colunas (DESCRIBE TABLE EXTENDED: colunas no topo; "Comment" na
+    /// parte "# Detailed Table Information"). Vale para tabela e view.
+    /// </summary>
+    public async Task<ObjectComments> CommentsAsync(string catalog, string schema, string table, CancellationToken ct = default)
+    {
+        var full = $"{Quote(catalog)}.{Quote(schema)}.{Quote(table)}";
+        var r = await QueryAsync($"DESCRIBE TABLE EXTENDED {full}", options: new SqlExecutionOptions { MaxRows = 5000 }, ct: ct);
+        var cols = new List<SqlColumn>();
+        string? tableComment = null;
+        var detailed = false;
+        for (var i = 0; i < r.Rows.Count; i++)
+        {
+            var name = r.Value(i, "col_name") ?? "";
+            if (name.StartsWith("# Detailed", StringComparison.OrdinalIgnoreCase)) { detailed = true; continue; }
+            if (detailed)
+            {
+                if (name.Equals("Comment", StringComparison.OrdinalIgnoreCase)) tableComment = r.Value(i, "data_type");
+                continue;
+            }
+            if (name.Length == 0 || name.StartsWith('#')) continue; // "# Partition Information"…
+            if (cols.Any(c => c.Name == name)) continue;            // colunas de partição repetidas
+            var comment = r.Value(i, "comment");
+            cols.Add(new SqlColumn(name, cols.Count, r.Value(i, "data_type") ?? "", r.Value(i, "data_type"), string.IsNullOrWhiteSpace(comment) ? null : comment));
+        }
+        return new ObjectComments($"{catalog}.{schema}.{table}", string.IsNullOrWhiteSpace(tableComment) ? null : tableComment, cols);
     }
 
     /// <summary>Identificador entre crases (crase interna dobrada) — nomes vindos da tela/agente não injetam SQL.</summary>

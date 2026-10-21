@@ -113,6 +113,16 @@ if (args.Length > 2 && args[0] == "--pbi-copy-theme")
     return 0;
 }
 
+// --db-comments <catálogo> <schema> <objeto> [destino]: comentários do objeto e o SQL para levá-los (databricks_comments), só leitura.
+if (args.Length > 3 && args[0] == "--db-comments" && OperatingSystem.IsWindows())
+{
+    using var svc = new NXPilot.Databricks.DatabricksSqlService(NXPilot.Integrations.DatabricksSettings.LoadConnection() ?? throw new InvalidOperationException("Databricks não configurado."));
+    var info = await svc.CommentsAsync(args[1], args[2], args[3]);
+    Console.WriteLine($"Objeto: {info.Comment ?? "(sem comentário)"} · colunas: {info.Columns.Count} · com comentário: {info.Columns.Count(c => c.Comment != null)}");
+    Console.WriteLine(info.Snippets(args.Length > 4 ? args[4] : "<destino>"));
+    return 0;
+}
+
 // --exec-sim <claude|codex> <prompt>: o agente em modo EXECUÇÃO (fora do plano), com o MCP real; o gate libera
 // MÉDIO como se o usuário aprovasse no painel (ALTO continua negado). Para testes autorizados de gravação.
 if (args.Length > 2 && args[0] == "--exec-sim" && OperatingSystem.IsWindows())

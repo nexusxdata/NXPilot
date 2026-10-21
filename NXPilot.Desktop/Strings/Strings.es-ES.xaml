@@ -243,7 +243,7 @@
     <sys:String x:Key="Ext_Catalogo">Catálogo predeterminado (opcional)</sys:String>
     <sys:String x:Key="Ext_Schema">Schema predeterminado (opcional)</sys:String>
     <sys:String x:Key="Ext_DbSchemasGravacao">Schemas de escritura (donde el agente puede crear y cambiar objetos)</sys:String>
-    <sys:String x:Key="Ext_DbSchemasGravacaoDica">Schema completo o con comodín, separados por coma — p. ej., sandbox_*, dev.sandbox_*. Escribir fuera de ellos se bloquea (protege la producción). Un nombre sin schema usa el catálogo/schema predeterminado de arriba. Vacío = toda escritura pide su aprobación.</sys:String>
+    <sys:String x:Key="Ext_DbSchemasGravacaoDica">Schema completo o con comodín, separados por coma — p. ej., sandbox_*, dev.sandbox_*. Escribir fuera de ellos se bloquea (protege la producción). Un nombre sin schema usa el catálogo/schema predeterminado de arriba. Obligatorio — use * para permitir todos (cada escritura sigue pasando por el gate).</sys:String>
     <sys:String x:Key="Ext_TokenDatabricks">Token (PAT) de Databricks</sys:String>
     <sys:String x:Key="Ext_DatabricksGate">SELECT, SHOW y DESCRIBE pasan solos. INSERT, UPDATE, DELETE, MERGE, DDL y GRANT requieren su aprobación.</sys:String>
     <sys:String x:Key="Ext_TestarDatabricks">Probar conexión</sys:String>
@@ -275,6 +275,7 @@
     <sys:String x:Key="Ext_JanelasListar">Listar ventanas abiertas</sys:String>
     <sys:String x:Key="Ext_JanelasCapturar">Capturar</sys:String>
     <sys:String x:Key="Ext_JanelasLer">Leer textos</sys:String>
+    <sys:String x:Key="Main_Ferramentas">🛠  Herramientas</sys:String>
     <sys:String x:Key="Main_Configurar">⚙  Configuración</sys:String>
     <sys:String x:Key="Cfg_Titulo">Configuración</sys:String>
     <sys:String x:Key="Cfg_Versao">Versión</sys:String>

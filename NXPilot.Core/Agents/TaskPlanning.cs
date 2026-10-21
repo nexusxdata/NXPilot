@@ -150,25 +150,55 @@ public static class TaskPlanning
            "message":{"type":"string"}}}}}}
     """;
 
-    public static string VerificationPrompt(string title, string criteria, string plan, string diff) => NxText.T(
-        "Você é o REVISOR de uma mudança feita por outro agente de código. Não execute comandos: tudo o que precisa está abaixo.\n" +
-        "Compare o diff com o plano aprovado e com os critérios de aceite. Aponte erros, riscos, coisas fora do plano e critérios não atendidos.\n" +
-        "Gravidade: critical = quebra, perda de dados, segurança ou critério de aceite não atendido; major = defeito real ou desvio relevante do plano; minor = melhoria.\n" +
-        "approved = true só se não houver achado critical. Escreva summary e message em português.\n" +
-        "Responda SOMENTE com JSON: {\"approved\":bool,\"summary\":\"...\",\"findings\":[{\"severity\":\"critical|major|minor\",\"file\":\"...\",\"line\":número ou null,\"message\":\"...\"}]}\n\n" +
-        $"TAREFA: {title}\n\nCRITÉRIOS DE ACEITE:\n{criteria}\n\nPLANO APROVADO:\n{Trim(plan, 6000)}\n\nDIFF:\n{Trim(diff, 30000)}",
-        "You are the REVIEWER of a change made by another coding agent. Do not run commands: everything you need is below.\n" +
-        "Compare the diff with the approved plan and the acceptance criteria. Point out bugs, risks, off-plan changes and unmet criteria.\n" +
-        "Severity: critical = breakage, data loss, security or unmet acceptance criterion; major = real defect or relevant deviation from the plan; minor = improvement.\n" +
-        "approved = true only if there is no critical finding. Write summary and message in English.\n" +
-        "Reply ONLY with JSON: {\"approved\":bool,\"summary\":\"...\",\"findings\":[{\"severity\":\"critical|major|minor\",\"file\":\"...\",\"line\":number or null,\"message\":\"...\"}]}\n\n" +
-        $"TASK: {title}\n\nACCEPTANCE CRITERIA:\n{criteria}\n\nAPPROVED PLAN:\n{Trim(plan, 6000)}\n\nDIFF:\n{Trim(diff, 30000)}",
-        "Usted es el REVISOR de un cambio hecho por otro agente de código. No ejecute comandos: todo lo que necesita está abajo.\n" +
-        "Compare el diff con el plan aprobado y con los criterios de aceptación. Señale errores, riesgos, cambios fuera del plan y criterios no cumplidos.\n" +
-        "Gravedad: critical = rotura, pérdida de datos, seguridad o criterio de aceptación no cumplido; major = defecto real o desviación relevante del plan; minor = mejora.\n" +
-        "approved = true solo si no hay ningún hallazgo critical. Escriba summary y message en español.\n" +
-        "Responda SOLO con JSON: {\"approved\":bool,\"summary\":\"...\",\"findings\":[{\"severity\":\"critical|major|minor\",\"file\":\"...\",\"line\":número o null,\"message\":\"...\"}]}\n\n" +
-        $"TAREA: {title}\n\nCRITERIOS DE ACEPTACIÓN:\n{criteria}\n\nPLAN APROBADO:\n{Trim(plan, 6000)}\n\nDIFF:\n{Trim(diff, 30000)}");
+    /// <summary>
+    /// Pedido ao revisor: diff + plano + critérios e, quando houver, as ações que a tarefa fez FORA do
+    /// repositório pelo MCP NXPilot (Databricks, DevOps, Power BI…) — o diff não mostra isso, e sem a
+    /// lista o revisor acusaria como "não feito" o que foi feito.
+    /// </summary>
+    public static string VerificationPrompt(string title, string criteria, string plan, string diff, IReadOnlyList<string>? externalActions = null,
+        string? previousRounds = null)
+    {
+        var actions = externalActions is { Count: > 0 } ? string.Join("\n", externalActions.Select(a => "- " + a)) : null;
+        // Rodadas anteriores: o que foi achado e como o executor respondeu (inclusive "não procede", com evidência).
+        var rounds = string.IsNullOrWhiteSpace(previousRounds) ? "" : NxText.T(
+            "\n\nRODADAS ANTERIORES (achados e a resposta do executor). Se o executor contestou um achado com evidência, CONFIRA a evidência (MCP, somente leitura) antes de repetir: " +
+            "repita o achado só se ele continuar valendo, com o motivo novo.\n" + previousRounds,
+            "\n\nPREVIOUS ROUNDS (findings and the executor's answer). If the executor disputed a finding with evidence, CHECK the evidence (MCP, read-only) before repeating it: " +
+            "repeat the finding only if it still holds, with the new reason.\n" + previousRounds,
+            "\n\nRONDAS ANTERIORES (hallazgos y la respuesta del ejecutor). Si el ejecutor refutó un hallazgo con evidencia, VERIFIQUE la evidencia (MCP, solo lectura) antes de repetirlo: " +
+            "repita el hallazgo solo si sigue valiendo, con el motivo nuevo.\n" + previousRounds);
+        return NxText.T(
+            "Você é o REVISOR de uma mudança feita por outro agente de código. Não altere nada.\n" +
+            "Compare o diff com o plano aprovado e com os critérios de aceite. Aponte erros, riscos, coisas fora do plano e critérios não atendidos.\n" +
+            "O diff só mostra os ARQUIVOS do repositório. O que a tarefa fez em sistemas externos (Databricks, DevOps, Power BI, e-mail…) está em AÇÕES FORA DO REPOSITÓRIO: considere feito o que está lá. " +
+            "Se você tiver as ferramentas MCP do NXPilot (somente leitura), confira antes de dizer que algo não existe (ex.: databricks_sql com SHOW, DESCRIBE ou SELECT). " +
+            "Nunca aponte como faltando algo só porque não aparece no diff.\n" +
+            "Gravidade: critical = quebra, perda de dados, segurança ou critério de aceite não atendido; major = defeito real ou desvio relevante do plano; minor = melhoria.\n" +
+            "approved = true só se não houver achado critical. Escreva summary e message em português.\n" +
+            "Responda SOMENTE com JSON: {\"approved\":bool,\"summary\":\"...\",\"findings\":[{\"severity\":\"critical|major|minor\",\"file\":\"...\",\"line\":número ou null,\"message\":\"...\"}]}\n\n" +
+            $"TAREFA: {title}\n\nCRITÉRIOS DE ACEITE:\n{criteria}\n\nPLANO APROVADO:\n{Trim(plan, 6000)}\n\n" +
+            $"AÇÕES FORA DO REPOSITÓRIO (executadas pelo MCP NXPilot, aprovadas pelo usuário):\n{actions ?? "(nenhuma)"}\n\nDIFF:\n{Trim(diff, 30000)}{rounds}",
+            "You are the REVIEWER of a change made by another coding agent. Do not change anything.\n" +
+            "Compare the diff with the approved plan and the acceptance criteria. Point out bugs, risks, off-plan changes and unmet criteria.\n" +
+            "The diff only shows the repository FILES. What the task did in external systems (Databricks, DevOps, Power BI, e-mail…) is in ACTIONS OUTSIDE THE REPOSITORY: treat what is listed there as done. " +
+            "If you have the NXPilot MCP tools (read-only), check before saying something does not exist (e.g. databricks_sql with SHOW, DESCRIBE or SELECT). " +
+            "Never report something as missing just because it is not in the diff.\n" +
+            "Severity: critical = breakage, data loss, security or unmet acceptance criterion; major = real defect or relevant deviation from the plan; minor = improvement.\n" +
+            "approved = true only if there is no critical finding. Write summary and message in English.\n" +
+            "Reply ONLY with JSON: {\"approved\":bool,\"summary\":\"...\",\"findings\":[{\"severity\":\"critical|major|minor\",\"file\":\"...\",\"line\":number or null,\"message\":\"...\"}]}\n\n" +
+            $"TASK: {title}\n\nACCEPTANCE CRITERIA:\n{criteria}\n\nAPPROVED PLAN:\n{Trim(plan, 6000)}\n\n" +
+            $"ACTIONS OUTSIDE THE REPOSITORY (run through the NXPilot MCP, approved by the user):\n{actions ?? "(none)"}\n\nDIFF:\n{Trim(diff, 30000)}{rounds}",
+            "Usted es el REVISOR de un cambio hecho por otro agente de código. No altere nada.\n" +
+            "Compare el diff con el plan aprobado y con los criterios de aceptación. Señale errores, riesgos, cambios fuera del plan y criterios no cumplidos.\n" +
+            "El diff solo muestra los ARCHIVOS del repositorio. Lo que la tarea hizo en sistemas externos (Databricks, DevOps, Power BI, e-mail…) está en ACCIONES FUERA DEL REPOSITORIO: considere hecho lo que figura allí. " +
+            "Si tiene las herramientas MCP de NXPilot (solo lectura), verifique antes de decir que algo no existe (p. ej., databricks_sql con SHOW, DESCRIBE o SELECT). " +
+            "Nunca señale algo como faltante solo porque no aparece en el diff.\n" +
+            "Gravedad: critical = rotura, pérdida de datos, seguridad o criterio de aceptación no cumplido; major = defecto real o desviación relevante del plan; minor = mejora.\n" +
+            "approved = true solo si no hay ningún hallazgo critical. Escriba summary y message en español.\n" +
+            "Responda SOLO con JSON: {\"approved\":bool,\"summary\":\"...\",\"findings\":[{\"severity\":\"critical|major|minor\",\"file\":\"...\",\"line\":número o null,\"message\":\"...\"}]}\n\n" +
+            $"TAREA: {title}\n\nCRITERIOS DE ACEPTACIÓN:\n{criteria}\n\nPLAN APROBADO:\n{Trim(plan, 6000)}\n\n" +
+            $"ACCIONES FUERA DEL REPOSITORIO (ejecutadas por el MCP de NXPilot, aprobadas por el usuario):\n{actions ?? "(ninguna)"}\n\nDIFF:\n{Trim(diff, 30000)}{rounds}");
+    }
 
     public static VerificationResult ParseVerification(string text, string reviewer)
     {

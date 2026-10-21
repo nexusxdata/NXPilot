@@ -291,7 +291,8 @@ public sealed partial class MainViewModel : ObservableObject
         RenderPhases(task);
         Artifacts.Add(new ArtifactItem("🗺", T($"Plano do agente · {task.Phases.Count} fase(s)", $"Agent plan · {task.Phases.Count} phase(s)", $"Plan del agente · {task.Phases.Count} fase(s)"), T("aguardando aprovação", "awaiting approval", "esperando aprobación")));
         SetAgent(ExecutorName, "Aguardando", T("plano pronto — aguardando você", "plan ready — waiting for you", "plan listo — esperando por usted"));
-        Notifications.Notify(NotificationKind.Task, T("Plano pronto para aprovar", "Plan ready for approval", "Plan listo para aprobar"), T($"{task.Title} · {task.Phases.Count} fase(s)", $"{task.Title} · {task.Phases.Count} phase(s)", $"{task.Title} · {task.Phases.Count} fase(s)"));
+        ResolveApprovalNotice(task); // um plano novo substitui o aviso do anterior
+        _approvalNotices[task.Id] = Notifications.Notify(NotificationKind.Task, T("Plano pronto para aprovar", "Plan ready for approval", "Plan listo para aprobar"), T($"{task.Title} · {task.Phases.Count} fase(s)", $"{task.Title} · {task.Phases.Count} phase(s)", $"{task.Title} · {task.Phases.Count} fase(s)"));
         Persist();
     }
 
@@ -486,6 +487,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (CurrentTask is not { CanEdit: true } task) return;
         if (task.State == TaskState.AwaitingApproval)
         {
+            ResolveApprovalNotice(task); // o plano que esperava aprovação sai, e o aviso dele também
             // Plano pronto e ainda não aprovado: sai, e o novo é pedido com o que você editou.
             task.Phases = new();
             task.PhaseStatus = new();
@@ -626,7 +628,14 @@ public sealed partial class MainViewModel : ObservableObject
         finally { task.RunningPhase = null; RenderPhases(task); } // a verificação aparece concluída na lista
 
         // Opção da tarefa: verificação reprovou com achados → corrige sozinho (até MaxAutoFixRounds rodadas).
-        if (task.Info.AutoFixFindings && task.Verification is { Approved: false, Findings.Count: > 0 } found
+        // Rodada anterior sem alteração: o executor contestou (ex.: "o achado não procede") — repetir sozinho só gasta tempo.
+        var contested = task.FixRounds.LastOrDefault() is { Finished: not null, Committed: false };
+        if (task.Info.AutoFixFindings && contested && task.Verification is { Approved: false, Findings.Count: > 0 })
+            AddLog("Gate", T("corrigir achados", "fix findings", "corregir hallazgos"),
+                T("Correção automática parada: na rodada anterior o executor não alterou nada (contestou o achado). Leia em Achados e correções e decida.",
+                  "Automatic fix stopped: in the previous round the executor changed nothing (it disputed the finding). Read Findings and fixes and decide.",
+                  "Corrección automática detenida: en la ronda anterior el ejecutor no cambió nada (refutó el hallazgo). Lea Hallazgos y correcciones y decida."));
+        else if (task.Info.AutoFixFindings && task.Verification is { Approved: false, Findings.Count: > 0 } found
             && task.FixRounds.Count(r => r.Automatic) < NewTaskInfo.MaxAutoFixRounds && task.Worktree is { } fixWt && Directory.Exists(fixWt))
         {
             var n = task.FixRounds.Count(r => r.Automatic) + 1;
@@ -659,7 +668,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         task.State = TaskState.Verifying;
         RenderPhases(task);
-        var prompt = TaskPlanning.VerificationPrompt(task.Title, task.Info.Criteria, task.PlanText, diff);
+        var prompt = TaskPlanning.VerificationPrompt(task.Title, task.Info.Criteria, task.PlanText, diff, ExternalActions(task), PreviousRounds(task));
 
         if (ChooseReviewer(task) is not { } choice)
         {
@@ -668,7 +677,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         // Os dois revisores rodam SOMENTE LEITURA numa sessão nova (Codex: sandbox read-only; Claude: modo plan).
         IAgentAdapter reviewer = choice.Reviewer == AgentKind.Codex
-            ? new CodexAdapter(ReviewerCodexModel(task)) { OutputSchema = TaskPlanning.VerificationSchema }
+            ? new CodexAdapter(ReviewerCodexModel(task)) { OutputSchema = TaskPlanning.VerificationSchema, Mcp = McpHost.Launch }
             : NewClaude();
         if (choice.SameAsExecutor)
             AddLog("Gate", "info", T($"Só o {reviewer.Name} está instalado — ele revisa numa sessão nova, somente leitura (com os dois agentes a revisão é cruzada).",
@@ -830,6 +839,9 @@ public sealed partial class MainViewModel : ObservableObject
         _taskCts = new CancellationTokenSource();
         AppendTerminal($"$ {adapter.Name} ({(request.Mode == AgentMode.Plan ? "read-only" : "execute")}) · {adapter.ExecutablePath ?? "?"}");
         var finalText = "";
+        // Resultados de consultas Databricks podem ter dados confidenciais: aparecem na tela, mas não vão
+        // para o terminal da fase gravado no Histórico (o SQL, sim — está no pedido e no Log).
+        var pendingDataResults = 0;
         try
         {
             await foreach (var ev in adapter.RunAsync(request, _taskCts.Token))
@@ -843,8 +855,19 @@ public sealed partial class MainViewModel : ObservableObject
                 {
                     case AgentEventKind.Started: AppendTerminal("[init] " + ev.Text); break;
                     case AgentEventKind.Text: AppendTerminal(ev.Text); finalText = ev.Text; break;
-                    case AgentEventKind.ToolUse: AppendTerminal("→ " + ev.Text); break;
-                    case AgentEventKind.ToolResult: AppendTerminal((ev.IsError ? "✗ " : "  ") + ev.Text); break;
+                    case AgentEventKind.ToolUse:
+                        if (ev.ToolName?.Contains("databricks_", StringComparison.OrdinalIgnoreCase) == true) pendingDataResults++;
+                        AppendTerminal("→ " + ev.Text);
+                        break;
+                    case AgentEventKind.ToolResult:
+                        var shown = (ev.IsError ? "✗ " : "  ") + ev.Text;
+                        if (pendingDataResults > 0)
+                        {
+                            pendingDataResults--;
+                            AppendTerminal(shown, persisted: (ev.IsError ? "✗ " : "  ") + T("(resultado da consulta Databricks — não gravado no Histórico)", "(Databricks query result — not saved in History)", "(resultado de la consulta Databricks — no se guarda en el Historial)"));
+                        }
+                        else AppendTerminal(shown);
+                        break;
                     case AgentEventKind.Stderr:
                         AppendTerminal("[aviso] " + ev.Text);
                         if (ev.ToolName == AgentLogin.Tool) AddLog(adapter.Name, "login", ev.Text); // fica no Histórico da tarefa
@@ -868,6 +891,22 @@ public sealed partial class MainViewModel : ObservableObject
         }
         return finalText;
     }
+
+    /// <summary>
+    /// O que a tarefa fez fora do repositório pelo MCP NXPilot e você liberou (aprovado ou por regra):
+    /// SQL que grava no Databricks, work items criados, mensagens… O diff não mostra; o revisor precisa saber.
+    /// </summary>
+    private static List<string> ExternalActions(TaskSession task) => task.Risks
+        .Where(r => r.Action.StartsWith("Databricks SQL", StringComparison.Ordinal) || r.Action.Contains("MCP nxpilot", StringComparison.Ordinal))
+        .Where(r => r.Outcome is "approved" or "rule"                                   // o que mudou algo (você liberou)
+                    || (r.Outcome == "auto" && r.Action.Contains("databricks_sql", StringComparison.Ordinal))) // consultas: evidência
+        .Select(r => $"{r.Time:HH:mm} {(r.Outcome == "auto" ? T("(consulta) ", "(query) ", "(consulta) ") : "")}{(r.Action.Length > 400 ? r.Action[..400] + "…" : r.Action)}")
+        .Distinct().TakeLast(40).ToList();
+
+    /// <summary>Rodadas de correção anteriores para o revisor: achados enviados e a resposta do executor.</summary>
+    private static string? PreviousRounds(TaskSession task) => task.FixRounds.Count == 0 ? null : string.Join("\n", task.FixRounds.Select(r =>
+        $"- {T("Rodada", "Round", "Ronda")} {r.Number}: " + string.Join("; ", r.Before.Findings.Select(f => $"[{f.Severity}] {f.File} {Trim(f.Message, 200)}")) +
+        $"\n  {T("Executor", "Executor", "Ejecutor")} ({(r.Committed ? T("alterou arquivos", "changed files", "cambió archivos") : T("sem alterações", "no changes", "sin cambios"))}): {Trim(r.Summary, 1500)}"));
 
     /// <summary>
     /// Modelo do Codex revisor: o da tarefa; sem ele, o testado com o NXPilot — o padrão do config.toml
@@ -1162,13 +1201,14 @@ public sealed partial class MainViewModel : ObservableObject
         if (i >= 0) Artifacts[i] = Artifacts[i] with { Subtitle = status };
     }
 
-    private void AppendTerminal(string text)
+    /// <param name="persisted">O que vai para o terminal da fase (gravado no Histórico), quando difere do que aparece na tela.</param>
+    private void AppendTerminal(string text, string? persisted = null)
     {
         _terminal.AppendLine(text);
         OnPropertyChanged(nameof(TerminalText));
         if (CurrentTask is { RunningPhase: { } phase } task)
         {
-            task.AppendPhaseTerminal(phase, text);
+            task.AppendPhaseTerminal(phase, persisted ?? text);
             if (SelectedPhase?.Number == phase) OnPropertyChanged(nameof(SelectedPhaseTerminal));
         }
     }
