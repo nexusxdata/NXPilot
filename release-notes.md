@@ -23,7 +23,7 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 - Claude Code sem a opção `--permission-prompts` (que garante que só o gate libera as ações) não roda: a mensagem mostra a versão, o executável e como atualizar.
 - Claude ou Codex que falham por não conhecer uma opção ou comando do NXPilot mostram o mesmo pedido para atualizar.
-- **NXPilot-Setup:** com versão nova disponível, o botão do Claude Code e do Codex vira **Atualizar** e mostra a versão.
+- **NXPilot-Setup:** com versão nova disponível, o botão do Claude Code e do Codex vira **Atualizar** e mostra a versão. Já atualizado, o botão fica **✓ Atualizado** e desabilitado (volta a habilitar se a instalação deu erro).
 
 **✎ Editar e tentar novamente**
 

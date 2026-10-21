@@ -10,6 +10,7 @@
     <sys:String x:Key="Setup_1InstalarONxpilot">2 · Instalar o NXPilot</sys:String>
     <sys:String x:Key="Setup_Instalar">Instalar</sys:String>
     <sys:String x:Key="Setup_AtualizarAgente">Atualizar</sys:String>
+    <sys:String x:Key="Setup_AgenteAtualizado">✓ Atualizado</sys:String>
     <sys:String x:Key="Setup_2ClassificadorDeRisco">4 · Classificador de risco ONNX (recomendado)</sys:String>
     <sys:String x:Key="Setup_ModeloAllMinilmL6">Modelo all-MiniLM-L6-v2 (~90 MB) que classifica cada ação dos agentes em milissegundos, na CPU — não precisa de GPU. Sem ele o NXPilot usa só regras.</sys:String>
     <sys:String x:Key="Setup_BaixarModelo">Baixar modelo</sys:String>
@@ -25,7 +26,7 @@
     <sys:String x:Key="Setup_ModoInterno">Automática (recomendada)</sys:String>
     <sys:String x:Key="Setup_ModoScript">Script oficial</sys:String>
     <sys:String x:Key="Setup_Versao">Versão</sys:String>
-    <sys:String x:Key="Setup_NotaAgentes">Automática: na área do usuário, sem administrador e sem script. Depois de instalar, entre na sua conta rodando claude ou codex uma vez num terminal.</sys:String>
+    <sys:String x:Key="Setup_NotaAgentes">Automática: na área do usuário, sem administrador e sem script. Depois de instalar, o NXPilot abre o login do agente no navegador na primeira tarefa, se precisar.</sys:String>
     <sys:String x:Key="Setup_ModoInternoTip">Instalação automática na área do usuário (sem administrador): o Setup baixa do site oficial, confere o SHA-256 e instala sem rodar script — use esta se o antivírus bloquear o PowerShell.</sys:String>
     <sys:String x:Key="Setup_ModoScriptTip">Roda o instalador oficial (Anthropic / OpenAI) numa janela do PowerShell. Alguns antivírus bloqueiam — nesse caso use a Automática.</sys:String>
     <sys:String x:Key="Setup_CopiarTip">Copia o comando oficial para instalar manualmente (cole no PowerShell).</sys:String>

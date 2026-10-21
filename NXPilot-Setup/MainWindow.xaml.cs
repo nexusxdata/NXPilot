@@ -407,30 +407,46 @@ public partial class MainWindow : Window
     {
         foreach (var (cli, status, name, button) in new[] { (NXData.AgentInstaller.AgentCli.ClaudeCode, ClaudeStatus, "claude", ClaudeInstallButton), (NXData.AgentInstaller.AgentCli.Codex, CodexStatus, "codex", CodexInstallButton) })
         {
+            var check = ++_agentCheck[(int)cli]; // só a conferência mais recente mexe no botão
             button.SetResourceReference(ContentProperty, "Setup_Instalar");
+            button.IsEnabled = true;
             if (NXData.AgentInstaller.AgentLocator.Find(cli, _agentOptions) is { } found)
             {
                 status.Text = T($"✓ {found.Version ?? "instalado"} ({found.Source})", $"✓ {found.Version ?? "installed"} ({SourceEn(found.Source)})", $"✓ {found.Version ?? "instalado"} ({SourceEs(found.Source)})");
                 status.Foreground = Brushes.Green;
-                if (found.Version != null) _ = CheckAgentUpdateAsync(cli, found.Version, status, button);
+                if (found.Version != null) _ = CheckAgentUpdateAsync(cli, check, found.Version, status, button);
             }
             else _ = CheckWslAsync(name, status);
         }
     }
 
+    private readonly int[] _agentCheck = new int[2];
+
+    /// <summary>Instalar/atualizar deu erro: o botão continua habilitado para tentar de novo.</summary>
+    private readonly HashSet<NXData.AgentInstaller.AgentCli> _agentFailed = new();
+
     /// <summary>
-    /// Versão escolhida (testada ou última) mais nova que a instalada: o botão vira "Atualizar"
-    /// e o status mostra a versão disponível. Sem internet, fica como está.
+    /// Compara a instalada com a versão escolhida (testada ou última): mais nova disponível =
+    /// "Atualizar" habilitado; já atualizado = "Atualizado" desabilitado (salvo se a última
+    /// tentativa deu erro). Sem internet, o botão fica habilitado (não dá para comparar).
     /// </summary>
-    private async Task CheckAgentUpdateAsync(NXData.AgentInstaller.AgentCli cli, string installed, TextBlock status, Button button)
+    private async Task CheckAgentUpdateAsync(NXData.AgentInstaller.AgentCli cli, int check, string installed, TextBlock status, Button button)
     {
         try
         {
             var (target, _) = await _agents.ResolveVersionAsync(cli, SelectedVersion);
-            if (ParseVersion(target) is not { } t || ParseVersion(installed) is not { } i || t <= i) return;
-            button.SetResourceReference(ContentProperty, "Setup_AtualizarAgente");
-            status.Text += T($" · {target} disponível", $" · {target} available", $" · {target} disponible");
-            status.Foreground = Brushes.DarkOrange;
+            if (check != _agentCheck[(int)cli] || ParseVersion(target) is not { } t || ParseVersion(installed) is not { } i) return;
+            if (t > i)
+            {
+                button.SetResourceReference(ContentProperty, "Setup_AtualizarAgente");
+                status.Text += T($" · {target} disponível", $" · {target} available", $" · {target} disponible");
+                status.Foreground = Brushes.DarkOrange;
+            }
+            else if (!_agentFailed.Contains(cli))
+            {
+                button.SetResourceReference(ContentProperty, "Setup_AgenteAtualizado");
+                button.IsEnabled = false;
+            }
         }
         catch { /* sem internet ou serviço fora: não dá para comparar */ }
     }
@@ -480,19 +496,17 @@ public partial class MainWindow : Window
         try
         {
             var r = await _agents.InstallAsync(cli, SelectedMode, SelectedVersion, new Progress<string>(m => AgentProgress.Text = m));
-            AgentProgress.Text = r.Message + (r.FellBackToLatest ? "" : T(" Entre na sua conta rodando o agente uma vez num terminal.", " Sign in by running the agent once in a terminal.", " Inicie sesión ejecutando el agente una vez en una terminal."));
+            _agentFailed.Remove(cli);
+            AgentProgress.Text = r.Message + (r.FellBackToLatest ? "" : T(" Sem login, o NXPilot abre o login no navegador na primeira tarefa.", " If not signed in, NXPilot opens the sign-in page in the browser on the first task.", " Sin inicio de sesión, NXPilot abre el inicio de sesión en el navegador en la primera tarea."));
         }
         catch (Exception ex)
         {
+            _agentFailed.Add(cli);
             AgentProgress.Text = "";
             ShowError((cli == NXData.AgentInstaller.AgentCli.ClaudeCode ? "Claude Code: " : "Codex: ") + ex.Message +
                       (SelectedMode == NXData.AgentInstaller.InstallMode.Script ? T(" Tente a instalação Automática.", " Try the Automatic install.", " Pruebe la instalación Automática.") : ""));
         }
-        finally
-        {
-            ClaudeInstallButton.IsEnabled = CodexInstallButton.IsEnabled = true;
-            RefreshAgents();
-        }
+        finally { RefreshAgents(); } // decide habilitado/desabilitado de cada botão
     }
 
     private async Task CheckWslAsync(string cli, TextBlock status)
