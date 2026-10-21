@@ -77,6 +77,21 @@ if (args.Length > 1 && args[0] is "--mail-login" or "--mail" && OperatingSystem.
     return await MailTestAsync(args[0] == "--mail-login", args[1], args.Length > 2 ? args[2] : null);
 
 // Teste de ponta a ponta com o Claude Code real: NXPilot.Bench.exe --agent-test [modelo]
+// --codex-plan-sim <id> <projeto> <título> <intenção>: o plano da tarefa como o app pede (planejador Basic), com o Codex real e o MCP real.
+if (args.Length > 4 && args[0] == "--codex-plan-sim" && OperatingSystem.IsWindows())
+{
+    var citations = new List<NXPilot.Planning.Citation> { NXPilot.Planning.TaskCitations.ForWorkItem([], "User Story", int.Parse(args[1]), args[3], args[2], $"https://dev/{args[1]}") };
+    var intent = args[4] + "\n\n" + citations[0].Marker + NXPilot.Planning.TaskCitations.Legend(citations) + "\n\n" +
+        "Os work items citados ([story01], [task01], [epic01]…) vêm do Azure DevOps, não do repositório: leia cada um — e o que está abaixo dele — com a ferramenta MCP workitems_tree (id e project na legenda acima; open_only=true para só o pendente) antes de planejar.";
+    var planPrompt = NXPilot.Agents.TaskPlanning.PlanPrompt(args[3], intent, "(não informados)");
+    Console.WriteLine("---- prompt do plano ----\n" + planPrompt + "\n-------------------------");
+    return await CodexMcpTestAsync(int.Parse(args[1]), args[2], planPrompt);
+}
+
+// --codex-mcp-test <id> [projeto]: o Codex real, em modo plano, com o MCP NXPilot real (ferramentas do Core) — diagnóstico.
+if (args.Length > 1 && args[0] == "--codex-mcp-test" && OperatingSystem.IsWindows())
+    return await CodexMcpTestAsync(int.Parse(args[1]), args.Length > 2 ? args[2] : null);
+
 if (args.Length > 0 && args[0] == "--agent-test")
     return await AgentTestAsync(args.Length > 1 ? args[1] : "haiku");
 
@@ -217,6 +232,51 @@ static async Task WhatsAppContractAsync(List<string> failures)
 
 // Repositório descartável → worktree → plano (modo plan) → execução (--resume) → diff.
 // O gate deste teste usa só as regras: ALTO é negado, o resto é liberado e registrado.
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+static async Task<int> CodexMcpTestAsync(int workItemId, string? project, string? fullPrompt = null)
+{
+    var wt = Path.Combine(Path.GetTempPath(), "nx-codex-mcp-" + DateTime.Now.ToString("HHmmss"));
+    Directory.CreateDirectory(wt);
+    File.WriteAllText(Path.Combine(wt, "README.md"), "# teste\n");
+    var bridge = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\NXPilot.Desktop\bin\Release\net10.0-windows\NxPilot.exe"));
+    Console.WriteLine($"Worktree: {wt}\nPonte MCP: {bridge} (existe: {File.Exists(bridge)})");
+
+    var mcpPipe = "NXPilot.Mcp.test." + Environment.ProcessId;
+    var host = new NXPilot.Mcp.NxToolHost(NXPilot.Mcp.CoreTools.All());
+    var calls = new List<string>();
+    var ctx = new NXPilot.Mcp.ToolContext
+    {
+        Worktree = wt, ReadOnlyPhase = true,
+        Approve = (action, risk, _) => { lock (calls) calls.Add($"  [mcp gate] {action} → {risk.Level}"); return Task.FromResult(risk.Level != RiskLevel.Alto); },
+    };
+    using var cts = new CancellationTokenSource();
+    _ = NXPilot.Mcp.McpPipe.ServeAsync(mcpPipe, async (req, ct) =>
+    {
+        lock (calls) calls.Add($"  [mcp] {req["method"]} {req["params"]?["name"]}");
+        return await host.HandleAsync(req, ctx, ct);
+    }, cts.Token);
+
+    var rules = new RuleRiskClassifier();
+    using var codex = new NXPilot.Agents.CodexAppServerAdapter(async req =>
+    {
+        var r = await rules.ClassifyAsync(req.Action);
+        lock (calls) calls.Add($"  [gate] {req.Action} → {r.Level}");
+        return new NXPilot.Agents.GateResponse(r.Level != RiskLevel.Alto, r.Level.ToString());
+    }) { Mcp = new NXPilot.Agents.McpLaunch(bridge, mcpPipe) };
+    Console.WriteLine($"Codex: {codex.ExecutablePath ?? "NÃO ENCONTRADO"}\n");
+
+    var prompt = fullPrompt ?? $"Use the MCP tool workitems_tree (id {workItemId}{(project != null ? $", project \"{project}\"" : "")}, open_only=true) and list the first 5 items (id, type, title, state). " +
+                 "Then run the shell command `git --version` and show its output. Do not change any file. Answer briefly.";
+    await foreach (var ev in codex.RunAsync(new NXPilot.Agents.AgentRequest(prompt, wt, NXPilot.Agents.AgentMode.Plan, Model: Environment.GetEnvironmentVariable("NX_CODEX_MODEL") ?? "gpt-5.6-terra")))
+    {
+        Console.WriteLine($"  {ev.Kind,-10} {ev.Text.Replace('\n', ' ')[..Math.Min(ev.Text.Length, 220)]}");
+        lock (calls) { calls.ForEach(Console.WriteLine); calls.Clear(); }
+    }
+    lock (calls) calls.ForEach(Console.WriteLine);
+    cts.Cancel();
+    return 0;
+}
+
 static async Task<int> AgentTestAsync(string model)
 {
     var repo = Path.Combine(Path.GetTempPath(), "nxpilot-agent-test-" + DateTime.Now.ToString("HHmmss"));

@@ -34,10 +34,17 @@ public sealed record NewTaskInfo(string RepoPath, string Title, string Intent, s
     /// Intenção para o prompt: com work item vinculado, diz ao agente qual é e como ler o item e a
     /// hierarquia dele (workitems_tree) — os dados vêm do DevOps, não do repositório.
     /// </summary>
-    public string IntentForAgent => WorkItem is not { } w ? Intent : Intent + "\n\n" + NXPilot.NxText.T(
+    public string IntentForAgent => WorkItemsHint(WorkItem is not { } w ? Intent : Intent + "\n\n" + NXPilot.NxText.T(
         $"WORK ITEM VINCULADO: {w.Label} ({w.Source}, projeto {w.Project}) — {w.Url}\nOs dados dele (e de tudo abaixo na hierarquia: Epic, Feature, Story, Task) vêm do Azure DevOps, não do repositório: leia com a ferramenta MCP workitems_tree (id {w.Id}, project \"{w.Project}\"; open_only=true para só o que está pendente) antes de planejar.",
         $"LINKED WORK ITEM: {w.Label} ({w.Source}, project {w.Project}) — {w.Url}\nIts data (and everything below it: Epic, Feature, Story, Task) comes from Azure DevOps, not from the repository: read it with the MCP tool workitems_tree (id {w.Id}, project \"{w.Project}\"; open_only=true for pending items only) before planning.",
-        $"WORK ITEM VINCULADO: {w.Label} ({w.Source}, proyecto {w.Project}) — {w.Url}\nSus datos (y todo lo que está debajo: Epic, Feature, Story, Task) vienen de Azure DevOps, no del repositorio: léalos con la herramienta MCP workitems_tree (id {w.Id}, project \"{w.Project}\"; open_only=true para solo lo pendiente) antes de planificar.");
+        $"WORK ITEM VINCULADO: {w.Label} ({w.Source}, proyecto {w.Project}) — {w.Url}\nSus datos (y todo lo que está debajo: Epic, Feature, Story, Task) vienen de Azure DevOps, no del repositorio: léalos con la herramienta MCP workitems_tree (id {w.Id}, project \"{w.Project}\"; open_only=true para solo lo pendiente) antes de planificar."));
+
+    /// <summary>Com work items citados ([story01], [task01]…): diz de onde vêm os dados e como ler cada um.</summary>
+    private static string WorkItemsHint(string intent) => !intent.Contains(NXPilot.Planning.TaskCitations.WorkItemToolHint, StringComparison.Ordinal) ? intent
+        : intent + "\n\n" + NXPilot.NxText.T(
+            "Os work items citados ([story01], [task01], [epic01]…) vêm do Azure DevOps, não do repositório: leia cada um — e o que está abaixo dele — com a ferramenta MCP workitems_tree (id e project na legenda acima; open_only=true para só o pendente) antes de planejar.",
+            "The cited work items ([story01], [task01], [epic01]…) come from Azure DevOps, not from the repository: read each one — and what is below it — with the MCP tool workitems_tree (id and project in the legend above; open_only=true for pending items only) before planning.",
+            "Los work items citados ([story01], [task01], [epic01]…) vienen de Azure DevOps, no del repositorio: lea cada uno — y lo que está debajo — con la herramienta MCP workitems_tree (id y project en la leyenda de arriba; open_only=true para solo lo pendiente) antes de planificar.");
 }
 
 /// <summary>Registro salvo no Histórico (%LOCALAPPDATA%\NXPilot\tasks\&lt;id&gt;.json).</summary>
@@ -66,6 +73,7 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
         OnPropertyChanged(nameof(Info));
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(ApproveLabel));
+        OnPropertyChanged(nameof(StateLabel)); // o agente pode ter mudado na edição
     }
     public DateTime CreatedAt { get; init; } = DateTime.Now;
 
@@ -163,7 +171,7 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     public string StateLabel => State switch
     {
         TaskState.Preparing => T("Preparando o worktree…", "Preparing the worktree…", "Preparando el worktree…"),
-        TaskState.Planning => T("Claude Code está planejando (somente leitura)…", "Claude Code is planning (read-only)…", "Claude Code está planificando (solo lectura)…"),
+        TaskState.Planning => T($"{ExecutorName} está planejando (somente leitura)…", $"{ExecutorName} is planning (read-only)…", $"{ExecutorName} está planificando (solo lectura)…"),
         TaskState.AwaitingApproval when Info.AsTemplate => T($"Plano do hook pronto ({Phases.Count} fase(s)) — aprove para a execução de teste (os riscos que você aprovar nela ficam pré-aprovados)", $"Hook plan ready ({Phases.Count} phase(s)) — approve for the test run (the risks you approve in it become pre-approved)", $"Plan del hook listo ({Phases.Count} fase(s)) — apruebe para la ejecución de prueba (los riesgos que apruebe quedan preaprobados)"),
         TaskState.Done when Info.AsTemplate => T("Execução de teste concluída — confira e clique em ⚡ Armar hook (modo escuta)", "Test run done — check it and click ⚡ Arm hook (listening mode)", "Ejecución de prueba concluida — revísela y haga clic en ⚡ Armar hook (modo escucha)"),
         TaskState.AwaitingApproval => T($"Plano pronto ({Phases.Count} fase(s)) — aguardando a sua aprovação", $"Plan ready ({Phases.Count} phase(s)) — waiting for your approval", $"Plan listo ({Phases.Count} fase(s)) — esperando su aprobación"),
@@ -178,6 +186,9 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
         TaskState.Stopped => T("Interrompida por você", "Stopped by you", "Interrumpida por usted"),
         _ => State.ToString()
     };
+
+    /// <summary>Nome do agente que executa ESTA tarefa (o escolhido na Nova tarefa ou na edição).</summary>
+    public string ExecutorName => Info.Executor == ExecutorKind.Codex ? "Codex" : "Claude Code";
 
     /// <summary>Atualiza os textos calculados (troca de idioma, mudança de fase).</summary>
     public void RefreshTexts()

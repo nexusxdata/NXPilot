@@ -15,6 +15,22 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**📎 Work items citados na tarefa, como anexos — vários de uma vez**
+
+- Na lista de Work items, marque ☐ **um ou mais itens de qualquer nível** (Project, EPIC, EPIC_GROUP, Feature, Story, Task). As marcas continuam ao trocar o Work Item Project, o projeto ou o estado — dá para juntar a Story nova e a encerrada de referência. **"Criar tarefa com N itens"**.
+- Cada item vira uma citação na Nova tarefa: **[story01]**, **[story02]**, **[task01]**, **[epic01]**… A legenda diz ao agente como ler cada um (`workitems_tree`). Ex.: "crie as tasks da [story01] tendo como base as da [story02]".
+- Filtro de **Estado**: Abertas, Em execução, Fechadas ou Todas (os pais ficam para dar contexto).
+
+**🛑 Plano que não existe não é aprovado**
+
+- Se o agente não consegue propor fases (falta dado, ferramenta ou acesso), a tarefa fica **Falhou** com o motivo — sem "Aprovar plano e executar"; ficam Tentar novamente e ✎ Editar e refazer o plano.
+
+**🤖 Codex**
+
+- O modelo testado (**gpt-5.6-terra**) sempre aparece e vem escolhido, mesmo se a lista da conta não carregar; modelo que a conta não aceita volta para o testado.
+- Sem login no Claude Code (que precisa de assinatura), a Nova tarefa já vem com o **Codex** (funciona com a conta ChatGPT).
+- O card diz o agente certo ("Codex está planejando…").
+
 **🌳 Work items: árvore do Work Item Project e tarefa vinculada**
 
 - Na lista de Work items (Azure DevOps), **Mostrar**: "Só as minhas · abertas" ou **"Todas as abertas · hierarquia do Work Item Project"** — uma árvore Project → EPIC/EPIC_GROUP → Feature → Story → Task, com ▶/▼ (ou setas → ←), Expandir tudo/Recolher e a quantidade de itens abaixo de cada um. Pais já fechados ficam na árvore quando têm filhos pendentes.

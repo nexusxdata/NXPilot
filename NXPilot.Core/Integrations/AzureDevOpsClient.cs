@@ -78,10 +78,10 @@ public sealed class AzureDevOpsClient(DevOpsConnection connection) : IDisposable
     /// Itens atribuídos a mim e ainda abertos (Story, Bug, Task), mais recentes primeiro. Com
     /// <paramref name="within"/>, só os que estão nesse conjunto (os descendentes de um work item Project).
     /// </summary>
-    public async Task<IReadOnlyList<WorkItem>> MyOpenWorkItemsAsync(int top = 50, ISet<int>? within = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<WorkItem>> MyOpenWorkItemsAsync(int top = 50, ISet<int>? within = null, CancellationToken ct = default, bool includeClosed = false)
     {
         var wiql = "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.AssignedTo] = @Me " +
-                   $"AND [System.State] NOT IN {OpenStates} " +
+                   (includeClosed ? "" : $"AND [System.State] NOT IN {OpenStates} ") +
                    "AND [System.WorkItemType] IN ('User Story','Product Backlog Item','Bug','Task','Requirement') ORDER BY [System.ChangedDate] DESC";
         // Com filtro, pede mais ids (só ids, é leve) para sobrar o suficiente depois de filtrar.
         var ids = (await WiqlIdsAsync(wiql, within == null ? top : 1000, ct)).Where(id => within == null || within.Contains(id)).Take(top).ToList();
@@ -221,6 +221,10 @@ public sealed class AzureDevOpsClient(DevOpsConnection connection) : IDisposable
 
     private static string AssignedName(JsonElement fields) =>
         fields.TryGetProperty("System.AssignedTo", out var a) && a.ValueKind == JsonValueKind.Object && a.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : "";
+
+    /// <summary>Em execução (não só aberta): Active, In Progress, Committed, Doing…</summary>
+    public static bool IsInProgress(string state) =>
+        state is "Active" or "In Progress" or "Committed" or "Doing" or "Ativo" or "Em andamento" or "Em execução" or "Em Andamento";
 
     public static bool IsClosed(string state) =>
         state is "Closed" or "Done" or "Removed" or "Resolved" or "Concluído" or "Fechado" or "Removido";

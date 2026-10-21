@@ -142,6 +142,9 @@ public sealed class WorkItemSettings
     /// <summary>Lista de Work items do DevOps: "mine" (minhas abertas) ou "tree" (hierarquia do Work Item Project).</summary>
     public string LastDevOpsScope { get; set; } = "mine";
 
+    /// <summary>Filtro de estado da tela de Work items: "open", "doing", "closed" ou "all".</summary>
+    public string LastStateFilter { get; set; } = "open";
+
     /// <summary>Última issue Project escolhida no GitHub (0 = todas; nulo = começa na raiz do NXProject).</summary>
     public int? LastGitHubRootIssue { get; set; }
 

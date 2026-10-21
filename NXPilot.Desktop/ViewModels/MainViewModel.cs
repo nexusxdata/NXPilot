@@ -232,6 +232,16 @@ public sealed partial class MainViewModel : ObservableObject
             Model: info.Executor == ExecutorKind.Codex ? info.CodexModel : info.Model));
         if (task.State != TaskState.Planning) return; // falhou ou foi interrompida
 
+        // Sem plano executável (bloqueado, sem fases): não vai para "aprovar e executar".
+        if (Planner is NXPilot.Planning.BasicAgentPlanner && TaskPlanning.PlanBlockedReason(plan) is { } blocked)
+        {
+            task.PlanText = TaskPlanning.HumanPlan(plan);
+            Fail(task, T($"O agente não propôs um plano: {blocked}. Veja o texto abaixo, ajuste com ✎ Editar e refazer o plano ou use Tentar novamente.",
+                         $"The agent did not propose a plan: {blocked}. See the text below, adjust with ✎ Edit and redo the plan, or use Try again.",
+                         $"El agente no propuso un plan: {blocked}. Vea el texto abajo, ajuste con ✎ Editar y rehacer el plan o use Intentar de nuevo."));
+            return;
+        }
+
         var outcome = await Planner.ReadPlanAsync(plan);
         task.Phases = outcome.Phases.ToList();
         task.PhaseStatus = task.Phases.Select(_ => "Pendente").ToList();

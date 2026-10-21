@@ -28,7 +28,37 @@ public static class TaskCitations
 {
     public const string FolderKind = "folder", FileKind = "file";
 
-    private static readonly string[] Headers = ["Arquivos e pastas citados:", "Cited files and folders:", "Archivos y carpetas citados:"];
+    // Os 3 primeiros são os de hoje; os outros, de tarefas antigas (clonar reconhece as duas).
+    private static readonly string[] Headers = ["Citados (arquivos, pastas e work items):", "Cited (files, folders and work items):", "Citados (archivos, carpetas y work items):",
+        "Arquivos e pastas citados:", "Cited files and folders:", "Archivos y carpetas citados:"];
+
+    /// <summary>Marca da legenda que diz ao agente como ler o work item (e reconhece a citação de work item).</summary>
+    public const string WorkItemToolHint = "workitems_tree id=";
+
+    /// <summary>
+    /// Work item citado como um anexo: [story01], [task01], [epic01], [feature01], [project01], [bug01].
+    /// Na legenda vai o tipo, o id, o título e como ler (workitems_tree id=… project="…").
+    /// </summary>
+    public static Citation ForWorkItem(IEnumerable<Citation> existing, string type, int id, string title, string? project, string url)
+    {
+        var kind = WorkItemKind(type);
+        var clean = title.Replace("`", "'").Replace("\r", " ").Replace("\n", " ").Trim();
+        var display = project is { Length: > 0 }
+            ? $"{type} #{id} · {clean} — {WorkItemToolHint}{id} project=\"{project}\""
+            : $"{type} #{id} · {clean}";
+        return new Citation(kind, NextNumber(existing, kind), display, url);
+    }
+
+    /// <summary>Tipo do work item → tipo do marcador ("User Story" → story, "EPIC_GROUP" → epicgroup).</summary>
+    public static string WorkItemKind(string type)
+    {
+        var t = type.Trim().ToLowerInvariant();
+        if (t is "user story" or "product backlog item" or "requirement" or "story") return "story";
+        var slug = new string(t.Where(char.IsAsciiLetterOrDigit).ToArray());
+        return slug.Length is > 0 and <= 12 ? slug : "workitem";
+    }
+
+    public static bool IsWorkItem(Citation c) => c.Display.Contains(WorkItemToolHint, StringComparison.Ordinal);
 
     // Tipo + 2 dígitos no fim ("mp301" = mp3 nº 01).
     private static readonly Regex LegendLine = new(@"^\[([a-z0-9]+)(\d{2})\] `([^`]+)`$");

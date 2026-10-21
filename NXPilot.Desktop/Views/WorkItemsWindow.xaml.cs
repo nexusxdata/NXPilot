@@ -25,6 +25,9 @@ public partial class WorkItemsWindow : Window
 
     public WorkItem? Selected { get; private set; }
 
+    /// <summary>Itens marcados (☐) — ou o selecionado, se nenhum foi marcado — com o projeto DevOps (nulo no GitHub). Viram citações na Nova tarefa.</summary>
+    public List<(WorkItem Item, string? Project)> SelectedItems { get; } = new();
+
     /// <summary>Vínculo do item escolhido (DevOps: origem, projeto, id) — vai para a tarefa e para o prompt do agente.</summary>
     public WorkItemLink? SelectedLink { get; private set; }
 
@@ -47,6 +50,10 @@ public partial class WorkItemsWindow : Window
         public string AssignedTo => Item.AssignedTo;
         public Thickness Indent => new(Depth * 18, 0, 0, 0);
         public bool HasChildren => Children.Count > 0;
+
+        private bool _checked;
+        /// <summary>Marcado para a tarefa (vários itens viram várias citações).</summary>
+        public bool Checked { get => _checked; set => SetProperty(ref _checked, value); }
 
         private bool _expanded;
         public bool Expanded
@@ -114,6 +121,13 @@ public partial class WorkItemsWindow : Window
         }
     }
 
+    private void OnClearMarksClick(object sender, RoutedEventArgs e)
+    {
+        _marked.Clear();
+        foreach (var r in _allRows) r.Checked = false;
+        UpdateCreateButton();
+    }
+
     private void OnExpandAllClick(object sender, RoutedEventArgs e)
     {
         foreach (var r in _allRows) r.Expanded = true;
@@ -127,6 +141,60 @@ public partial class WorkItemsWindow : Window
     }
 
     private const string MineScope = "mine", TreeScope = "tree";
+    private string StateFilter => (StateBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "open";
+
+    private bool MatchesState(string state) => StateFilter switch
+    {
+        "doing" => AzureDevOpsClient.IsInProgress(state),
+        "closed" => AzureDevOpsClient.IsClosed(state),
+        "all" => true,
+        _ => !AzureDevOpsClient.IsClosed(state),
+    };
+
+    /// <summary>Árvore filtrada pelo estado: ficam o que casa e os pais dele (mesmo de outro estado), e a raiz.</summary>
+    private List<WorkItemNode> FilterTree(IReadOnlyList<WorkItemNode> nodes)
+    {
+        if (nodes.Count == 0) return new();
+        var byId = nodes.GroupBy(n => n.Id).ToDictionary(g => g.Key, g => g.First());
+        var keep = new HashSet<int> { nodes[0].Id };
+        foreach (var n in nodes.Where(n => MatchesState(n.State)))
+            for (var cur = n.Id; cur != 0 && keep.Add(cur); cur = byId.TryGetValue(cur, out var x) ? x.ParentId : 0) { }
+        return nodes.Where(n => keep.Contains(n.Id)).ToList();
+    }
+
+    private void OnStateFilterChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_filling || StateBox == null) return;
+        Remember(s => s.LastStateFilter = StateFilter);
+        _ = LoadItemsAsync();
+    }
+
+    /// <summary>
+    /// Marcados (☐) na janela inteira, pela chave origem|projeto|id: continuam marcados ao trocar
+    /// o Work Item Project, o projeto ou o filtro de estado — dá para juntar a Story nova e a
+    /// encerrada de referência mesmo que estejam em lugares diferentes.
+    /// </summary>
+    private readonly Dictionary<string, (WorkItem Item, string? Project)> _marked = new();
+
+    private string MarkKey(WorkItem w) => $"{Source}|{_linkProject}|{w.Id}";
+
+    private void OnRowChecked(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ItemRow.Checked) || sender is not ItemRow row) return;
+        if (row.Checked) _marked[MarkKey(row.Item)] = (row.Item, _linkProject);
+        else _marked.Remove(MarkKey(row.Item));
+        UpdateCreateButton();
+    }
+
+    private void UpdateCreateButton()
+    {
+        var n = _marked.Count;
+        CreateButton.Content = n > 1 ? T($"Criar tarefa com {n} itens ▶", $"Create task with {n} items ▶", $"Crear tarea con {n} elementos ▶")
+            : T("Criar tarefa a partir deste item ▶", "Create task from this item ▶", "Crear tarea a partir de este elemento ▶");
+        CreateButton.IsEnabled = n > 0 || Grid.SelectedItem is ItemRow;
+        MarkedText.Text = n > 0 ? T($"{n} marcado(s): ", $"{n} checked: ", $"{n} marcado(s): ") + string.Join(", ", _marked.Values.Select(m => $"#{m.Item.Id}")) : "";
+        ClearMarksButton.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
     private string Scope => (ScopeBox.SelectedItem as ComboBoxItem)?.Tag as string ?? MineScope;
 
     public WorkItemsWindow()
@@ -146,14 +214,21 @@ public partial class WorkItemsWindow : Window
         CreateButton.Content = T("Criar tarefa a partir deste item ▶", "Create task from this item ▶", "Crear tarea a partir de este elemento ▶");
         CloseButton.Content = T("Fechar", "Close", "Cerrar");
         ExpandAllButton.Content = T("⊞ Expandir tudo", "⊞ Expand all", "⊞ Expandir todo");
+        ClearMarksButton.Content = T("limpar", "clear", "limpiar");
         CollapseAllButton.Content = T("⊟ Recolher", "⊟ Collapse", "⊟ Contraer");
-        ScopeBox.Items.Add(new ComboBoxItem { Content = T("Só as minhas · abertas (Story, Bug, Task)", "Only mine · open (Story, Bug, Task)", "Solo las mías · abiertas (Story, Bug, Task)"), Tag = MineScope });
-        ScopeBox.Items.Add(new ComboBoxItem { Content = T("Todas as abertas · hierarquia do Work Item Project", "All open · Project work item hierarchy", "Todas las abiertas · jerarquía del Work Item Project"), Tag = TreeScope });
+        ScopeBox.Items.Add(new ComboBoxItem { Content = T("Só as minhas (Story, Bug, Task)", "Only mine (Story, Bug, Task)", "Solo las mías (Story, Bug, Task)"), Tag = MineScope });
+        ScopeBox.Items.Add(new ComboBoxItem { Content = T("Todas · hierarquia do Work Item Project", "All · Project work item hierarchy", "Todas · jerarquía del Work Item Project"), Tag = TreeScope });
+        StateBox.Items.Add(new ComboBoxItem { Content = T("Abertas", "Open", "Abiertas"), Tag = "open", ToolTip = T("Tudo o que não está fechado (novas e em execução)", "Everything not closed (new and in progress)", "Todo lo que no está cerrado (nuevas y en ejecución)") });
+        StateBox.Items.Add(new ComboBoxItem { Content = T("Em execução", "In progress", "En ejecución"), Tag = "doing", ToolTip = "Active · In Progress · Committed · Doing" });
+        StateBox.Items.Add(new ComboBoxItem { Content = T("Fechadas", "Closed", "Cerradas"), Tag = "closed", ToolTip = "Closed · Done · Resolved · Removed" });
+        StateBox.Items.Add(new ComboBoxItem { Content = T("Todas", "All", "Todas"), Tag = "all" });
+        ColCheck.Header = "☐";
         ScopeBox.ToolTip = T("Hierarquia: o Work Item Project escolhido e tudo o que está pendente abaixo dele (Epic, Feature, Story, Task) — de qualquer pessoa. Qualquer um vira a tarefa, com o vínculo.",
             "Hierarchy: the chosen Project work item and everything pending below it (Epic, Feature, Story, Task) — anyone's. Any of them becomes the task, with the link.",
             "Jerarquía: el Work Item Project elegido y todo lo pendiente debajo (Epic, Feature, Story, Task) — de cualquier persona. Cualquiera se convierte en la tarea, con el vínculo.");
         _filling = true;
         ScopeBox.SelectedIndex = _settings.LastDevOpsScope == TreeScope ? 1 : 0;
+        StateBox.SelectedItem = StateBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == _settings.LastStateFilter) ?? StateBox.Items[0];
         _filling = false;
         Loaded += async (_, _) => await ReloadAllAsync();
     }
@@ -221,7 +296,7 @@ public partial class WorkItemsWindow : Window
         _filling = true;
         RootBox.Items.Clear();
         RootBox.Visibility = Visibility.Collapsed;
-        ScopeBox.Visibility = Source == DevOpsSource ? Visibility.Visible : Visibility.Collapsed;
+        ScopeBox.Visibility = StateBox.Visibility = Source == DevOpsSource ? Visibility.Visible : Visibility.Collapsed;
         try
         {
             if (Source == DevOpsSource && _settings.DevOps() is { } ado && ProjectTag is string project)
@@ -357,9 +432,9 @@ public partial class WorkItemsWindow : Window
                     var root = RootBox.SelectedItem is ComboBoxItem { Tag: int id and > 0 } rootItem ? (Id: id, Name: rootItem.Content as string) : (Id: 0, Name: null);
                     RootBox.ToolTip = root.Name ?? T("Work item Project (o projeto executado)", "Project work item (the project being run)", "Work item Project (el proyecto ejecutado)"); // nome longo fica cortado na caixa
                     var where = root.Name ?? project;
-                    SubHeading.Text = T($"Itens abertos atribuídos a você em {where} · {Via(ado.Origin)}, somente leitura.",
-                                        $"Open items assigned to you in {where} · {Via(ado.Origin)}, read-only.",
-                                        $"Elementos abiertos asignados a usted en {where} · {Via(ado.Origin)}, solo lectura.");
+                    SubHeading.Text = T($"Itens atribuídos a você em {where}, no estado escolhido · {Via(ado.Origin)}, somente leitura. Marque ☐ um ou mais: cada um vira uma citação na tarefa.",
+                                        $"Items assigned to you in {where}, in the chosen state · {Via(ado.Origin)}, read-only. Check ☐ one or more: each becomes a citation in the task.",
+                                        $"Elementos asignados a usted en {where}, en el estado elegido · {Via(ado.Origin)}, solo lectura. Marque ☐ uno o más: cada uno se convierte en una cita en la tarea.");
                     OpenWebButton.Content = T("Abrir no DevOps", "Open in DevOps", "Abrir en DevOps");
                     StatusText.Text = T("Consultando o Azure DevOps…", "Querying Azure DevOps…", "Consultando Azure DevOps…");
                     using var client = new AzureDevOpsClient(ado.Connection with { Project = project });
@@ -371,17 +446,18 @@ public partial class WorkItemsWindow : Window
                             StatusText.Text = "";
                             return;
                         }
-                        SubHeading.Text = T($"{where}: o item e tudo o que está pendente abaixo dele, de qualquer pessoa · {Via(ado.Origin)}, somente leitura. A tarefa fica vinculada ao item escolhido.",
-                                            $"{where}: the item and everything pending below it, anyone's · {Via(ado.Origin)}, read-only. The task stays linked to the chosen item.",
-                                            $"{where}: el elemento y todo lo pendiente debajo, de cualquier persona · {Via(ado.Origin)}, solo lectura. La tarea queda vinculada al elemento elegido.");
-                        items = (await client.TreeAsync(root.Id, openOnly: true, max: 1000))
+                        SubHeading.Text = T($"{where}: o item e o que está abaixo dele no estado escolhido, de qualquer pessoa · {Via(ado.Origin)}, somente leitura. Marque ☐ um ou mais itens: cada um vira uma citação na tarefa.",
+                                            $"{where}: the item and what is below it in the chosen state, anyone's · {Via(ado.Origin)}, read-only. Check ☐ one or more items: each becomes a citation in the task.",
+                                            $"{where}: el elemento y lo que está debajo en el estado elegido, de cualquier persona · {Via(ado.Origin)}, solo lectura. Marque ☐ uno o más elementos: cada uno se convierte en una cita en la tarea.");
+                        items = FilterTree(await client.TreeAsync(root.Id, openOnly: false, max: 2000))
                             .Select(n => new ItemRow(n.ToWorkItem(), n.Depth, n.RemainingWork, n.ParentId)).ToList();
                     }
                     else
                     {
                         // Work item Project escolhido: só o que está debaixo dele (Epic → Feature → Story → Task).
                         var within = root.Id > 0 ? await client.DescendantIdsAsync(root.Id) : null;
-                        items = (await client.MyOpenWorkItemsAsync(within: within)).Select(w => new ItemRow(w)).ToList();
+                        items = (await client.MyOpenWorkItemsAsync(within: within, includeClosed: StateFilter is "closed" or "all"))
+                            .Where(w => MatchesState(w.State)).Select(w => new ItemRow(w)).ToList();
                     }
                     _linkProject = project;
                     break;
@@ -411,7 +487,13 @@ public partial class WorkItemsWindow : Window
                     return;
             }
             _allRows = LinkTree(items.ToList());
+            foreach (var r in _allRows)
+            {
+                r.Checked = _marked.ContainsKey(MarkKey(r.Item)); // marcado antes de recarregar continua marcado
+                r.PropertyChanged += OnRowChecked;
+            }
             ShowRows();
+            UpdateCreateButton();
             StatusText.Text = T($"{items.Count} item(ns).", $"{items.Count} item(s).", $"{items.Count} elemento(s).")
                 + (_allRows.Any(r => r.HasChildren) ? T(" ▶ abre os filhos (ou seta →); ← fecha.", " ▶ opens the children (or → key); ← closes.", " ▶ abre los hijos (o flecha →); ← cierra.") : "");
         }
@@ -422,7 +504,8 @@ public partial class WorkItemsWindow : Window
     {
         var row = Grid.SelectedItem as ItemRow;
         var w = row?.Item;
-        CreateButton.IsEnabled = OpenWebButton.IsEnabled = w != null;
+        OpenWebButton.IsEnabled = w != null;
+        CreateButton.IsEnabled = w != null || _marked.Count > 0;
         DetailTitle.Text = w == null ? "" : (w.Id > 0 ? $"{w.Type} #{w.Id} · {w.Title}" : w.Title)
             + (row is { AssignedTo.Length: > 0 } ? $"\n{row.AssignedTo}" : "") + (row?.Remaining is { } h ? T($" · {h:0.#} h restantes", $" · {h:0.#} h remaining", $" · {h:0.#} h restantes") : "");
         DetailDescription.Text = w == null ? "" : w.Description.Length > 0 ? w.Description : T("(sem descrição)", "(no description)", "(sin descripción)");
@@ -451,7 +534,10 @@ public partial class WorkItemsWindow : Window
 
     private void OnCreateClick(object sender, RoutedEventArgs e)
     {
-        if (Grid.SelectedItem is not ItemRow { Item: var w }) return;
+        if (_marked.Count > 0) SelectedItems.AddRange(_marked.Values);
+        else if (Grid.SelectedItem is ItemRow current) SelectedItems.Add((current.Item, _linkProject));
+        if (SelectedItems.Count == 0) return;
+        var w = SelectedItems[0].Item;
         Selected = w;
         SelectedLink = _linkProject is { } project && w.Id > 0 ? new WorkItemLink("Azure DevOps", project, w.Id, w.Type, w.Title, w.Url) : null;
         Close();

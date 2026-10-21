@@ -990,6 +990,28 @@ public static class CriticalTests
             }
         }),
 
+        new("Work items citados: marcador pelo tipo (story01, story02, task01, epicgroup01), legenda com workitems_tree, volta ao clonar, legenda antiga ainda lida", () =>
+        {
+            var list = new List<Citation>();
+            void Add(string type, int id, string title) => list.Add(TaskCitations.ForWorkItem(list, type, id, title, "Soluções - Suprimentos", $"https://dev/x/{id}"));
+            Add("User Story", 1053309, "Cargas `Bronze`");
+            Add("User Story", 1056568, "Replicação");
+            Add("Task", 1103239, "Analise TK13");
+            Add("EPIC_GROUP", 900001, "Grupo");
+            AssertEqual("[story01],[story02],[task01],[epicgroup01]", string.Join(",", list.Select(c => c.Marker)), "Marcador pelo tipo, numerado por tipo.");
+            AssertTrue(list.All(TaskCitations.IsWorkItem), "Reconhecidas como work item.");
+            var legend = TaskCitations.Legend(list);
+            AssertContains("workitems_tree id=1053309 project=\"Soluções - Suprimentos\"", legend, "Legenda diz como ler (id e projeto).");
+            AssertFalse(legend.Contains('`' + "Bronze"), "Crase do título não quebra a legenda.");
+            var (text, back) = TaskCitations.SplitLegend("Crie as tasks da [story01] como as da [story02]." + legend);
+            AssertEqual("Crie as tasks da [story01] como as da [story02].", text, "Clonar: o texto volta sem a legenda.");
+            AssertEqual(4, back.Count, "Clonar: as 4 citações voltam.");
+            AssertEqual("[epicgroup01],[story01],[story02],[task01]", string.Join(",", back.Select(c => c.Marker)), "Clonar: marcadores preservados (legenda agrupada por tipo).");
+            var (oldText, oldBack) = TaskCitations.SplitLegend("Atualizar [xlsx01]\n\nArquivos e pastas citados:\n[xlsx01] `q2.xlsx`");
+            AssertEqual(1, oldBack.Count, "Legenda antiga (só arquivos) continua reconhecida.");
+            AssertEqual("Atualizar [xlsx01]", oldText, "Legenda antiga sai do texto.");
+            return Task.CompletedTask;
+        }),
         new("Citações da Nova tarefa: marcador por tipo (xlsx01, folder01), legenda, volta ao clonar, tirar renumera o tipo", () =>
         {
             AssertEqual("xlsx", TaskCitations.KindOf(@"C:\a\q2.XLSX", false), "Extensão em minúsculas.");

@@ -31,17 +31,23 @@ public static class TaskPlanning
         "Analise o repositório e proponha um plano de implementação objetivo, dividido em fases pequenas " +
         "(1 a 4 fases; cada fase deve deixar o projeto funcionando). Não altere nada agora.\n\n" +
         "Escreva o plano para uma pessoa ler e, NO FINAL, inclua um bloco ```json exatamente neste formato:\n" +
-        "{\"phases\":[{\"title\":\"...\",\"files\":[{\"path\":\"caminho/relativo\",\"change\":\"new|modify|delete\",\"why\":\"...\"}]}]}",
+        "{\"phases\":[{\"title\":\"...\",\"files\":[{\"path\":\"caminho/relativo\",\"change\":\"new|modify|delete\",\"why\":\"...\"}]}]}\n\n" +
+        "Se NÃO conseguir propor um plano confiável (faltam dados, uma ferramenta ou acesso), não invente fases: explique o motivo e termine com " +
+        "```json {\"phases\":[],\"blocked\":\"o motivo, em uma frase\"} ```",
         $"Task: {title}\n\nIntent:\n{intent}\n\nAcceptance criteria:\n{criteria}\n\n" +
         "Analyze the repository and propose a concise implementation plan, split into small phases " +
         "(1 to 4 phases; each phase must leave the project working). Do not change anything now.\n\n" +
         "Write the plan for a person to read and, AT THE END, include a ```json block exactly in this format:\n" +
-        "{\"phases\":[{\"title\":\"...\",\"files\":[{\"path\":\"relative/path\",\"change\":\"new|modify|delete\",\"why\":\"...\"}]}]}",
+        "{\"phases\":[{\"title\":\"...\",\"files\":[{\"path\":\"relative/path\",\"change\":\"new|modify|delete\",\"why\":\"...\"}]}]}\n\n" +
+        "If you CANNOT propose a reliable plan (missing data, a tool or access), do not invent phases: explain why and end with " +
+        "```json {\"phases\":[],\"blocked\":\"the reason, in one sentence\"} ```",
         $"Tarea: {title}\n\nIntención:\n{intent}\n\nCriterios de aceptación:\n{criteria}\n\n" +
         "Analice el repositorio y proponga un plan de implementación objetivo, dividido en fases pequeñas " +
         "(de 1 a 4 fases; cada fase debe dejar el proyecto funcionando). No modifique nada ahora.\n\n" +
         "Escriba el plan para que una persona lo lea y, AL FINAL, incluya un bloque ```json exactamente en este formato:\n" +
-        "{\"phases\":[{\"title\":\"...\",\"files\":[{\"path\":\"ruta/relativa\",\"change\":\"new|modify|delete\",\"why\":\"...\"}]}]}");
+        "{\"phases\":[{\"title\":\"...\",\"files\":[{\"path\":\"ruta/relativa\",\"change\":\"new|modify|delete\",\"why\":\"...\"}]}]}\n\n" +
+        "Si NO puede proponer un plan confiable (faltan datos, una herramienta o acceso), no invente fases: explique el motivo y termine con " +
+        "```json {\"phases\":[],\"blocked\":\"el motivo, en una frase\"} ```");
 
     public static string PhasePrompt(PlannedPhase phase, int total) => NxText.T(
         $"Plano aprovado. Execute agora SOMENTE a Fase {phase.Number} de {total}: {phase.Title}. " +
@@ -68,6 +74,31 @@ public static class TaskPlanning
             $"La verificación cruzada ({v.Reviewer}) NO aprobó el resultado. Resumen: {v.Summary}\nHallazgos:\n{list}\n\n" +
             "Analice cada hallazgo en el código de este directorio. Corrija los que proceden, con el menor cambio posible, y verifique que la corrección funciona. " +
             "Si alguno no procede, no cambie nada por él y explique por qué. No rehaga el resto de la tarea. Al terminar, resuma hallazgo por hallazgo lo que hizo.");
+    }
+
+    /// <summary>
+    /// O agente NÃO entregou um plano executável: disse que está bloqueado ("blocked"), mandou
+    /// fases vazias ou não mandou o bloco de fases. Devolve o motivo (para a tela); nulo = plano ok.
+    /// Nesse caso a tarefa não deve ir para "aprovar e executar".
+    /// </summary>
+    public static string? PlanBlockedReason(string planText)
+    {
+        var json = LastJsonBlock(planText);
+        if (json == null)
+            return NxText.T("o agente não devolveu as fases do plano", "the agent did not return the plan phases", "el agente no devolvió las fases del plan");
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("blocked", out var b) && b.ValueKind == JsonValueKind.String && b.GetString() is { Length: > 0 } reason) return reason;
+            if (!root.TryGetProperty("phases", out var phases) || phases.ValueKind != JsonValueKind.Array || phases.GetArrayLength() == 0)
+                return NxText.T("o plano veio sem fases", "the plan came without phases", "el plan vino sin fases");
+            return null;
+        }
+        catch (JsonException)
+        {
+            return NxText.T("as fases do plano vieram em formato inválido", "the plan phases came in an invalid format", "las fases del plan vinieron en un formato inválido");
+        }
     }
 
     /// <summary>Fases do bloco ```json no fim do plano; sem bloco válido, uma fase única.</summary>

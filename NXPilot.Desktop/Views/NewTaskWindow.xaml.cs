@@ -24,12 +24,39 @@ public partial class NewTaskWindow : Window
     public NewTaskInfo? Result { get; private set; }
 
     /// <summary>Pré-preenchida a partir de um work item do Azure DevOps ou do GitHub Projects (título, descrição, critérios).</summary>
-    public NewTaskWindow(NXPilot.Integrations.WorkItem item, NXPilot.Integrations.WorkItemLink? link = null) : this()
+    public NewTaskWindow(NXPilot.Integrations.WorkItem item, NXPilot.Integrations.WorkItemLink? link = null)
+        : this([(item, link?.Project)]) { }
+
+    /// <summary>
+    /// A partir de um ou mais work items (de qualquer nível): cada um vira citação, como um anexo
+    /// ([story01], [task01]…). Com um só, título, descrição e critérios vêm dele; com vários, a
+    /// intenção começa com os marcadores para você escrever o que fazer com eles.
+    /// </summary>
+    public NewTaskWindow(IReadOnlyList<(NXPilot.Integrations.WorkItem Item, string? Project)> items) : this()
     {
-        TitleBox.Text = item.Id > 0 ? $"#{item.Id} · {item.Title}" : item.Title; // rascunho do GitHub não tem número
-        IntentBox.Text = item.Description.Length > 0 ? item.Description : item.Title;
-        CriteriaBox.Text = item.AcceptanceCriteria;
-        SetWorkItem(link);
+        var markers = new List<string>();
+        foreach (var (w, project) in items)
+        {
+            if (w.Id <= 0) continue; // rascunho do GitHub: sem número, sem citação
+            var c = NXPilot.Planning.TaskCitations.ForWorkItem(_citations, w.Type, w.Id, w.Title, project, w.Url);
+            _citations.Add(c);
+            markers.Add(c.Marker);
+        }
+        RefreshCitations();
+        if (items.Count == 1)
+        {
+            var w = items[0].Item;
+            TitleBox.Text = w.Id > 0 ? $"#{w.Id} · {w.Title}" : w.Title; // rascunho do GitHub não tem número
+            IntentBox.Text = (w.Description.Length > 0 ? w.Description : w.Title) + (markers.Count > 0 ? "\n\n" + markers[0] : "");
+            CriteriaBox.Text = w.AcceptanceCriteria;
+        }
+        else
+        {
+            TitleBox.Text = string.Join(" · ", items.Take(3).Select(i => $"#{i.Item.Id}")) + (items.Count > 3 ? $" (+{items.Count - 3})" : "");
+            IntentBox.Text = string.Join(", ", markers) + ": ";
+            Loaded += (_, _) => { IntentBox.Focus(); IntentBox.CaretIndex = IntentBox.Text.Length; };
+        }
+        Title = T($"Nova tarefa · {items.Count} work item(s) citado(s)", $"New task · {items.Count} cited work item(s)", $"Nueva tarea · {items.Count} work item(s) citado(s)");
     }
 
     /// <summary>Work item vinculado (vai para o prompt e para o Histórico); nulo = tarefa sem vínculo.</summary>
@@ -72,6 +99,7 @@ public partial class NewTaskWindow : Window
     public NewTaskWindow(NewTaskInfo current, bool editing) : this(current)
     {
         if (!editing) return;
+        _editing = true;
         foreach (var c in new Control[] { TaskModeBox, VersioningBox, RepoBox, SubjectBox, SummarySubjectBox }) c.IsEnabled = false;
         CreateButton.SetResourceReference(ContentProperty, "Task_SalvarETentar");
         Title = T("Editar tarefa e tentar novamente", "Edit task and try again", "Editar tarea e intentar de nuevo");
@@ -83,7 +111,9 @@ public partial class NewTaskWindow : Window
         MaxHeight = SystemParameters.WorkArea.Height - 40;
         var s = AppSettings.Load();
         RepoBox.Text = s.LastRepo ?? "";
-        CodexModelBox.Text = s.CodexModel ?? "";
+        // Antes da consulta à conta (e se ela falhar), o modelo testado já está na lista e escolhido.
+        CodexModelBox.ItemsSource = NXPilot.Agents.CodexAppServerAdapter.TestedModels.ToList();
+        CodexModelBox.Text = s.CodexModel is { Length: > 0 } saved ? saved : NXPilot.Agents.CodexAppServerAdapter.TestedModels[0];
         Select(ModelBox, s.LastModel ?? "");
         Select(ReviewerBox, s.Reviewer ?? nameof(ReviewerKind.Codex));
         Select(VersioningBox, s.Versioning ?? nameof(VersioningMode.Local));
@@ -113,6 +143,7 @@ public partial class NewTaskWindow : Window
 
         Loaded += async (_, _) =>
         {
+            await PreferCodexWithoutClaudeLoginAsync();
             (SelectedVersioning == VersioningMode.Git && RepoBox.Text.Length == 0 ? RepoBox : TitleBox).Focus();
             await LoadCodexModelsAsync();
             UpdateSummary();
@@ -128,10 +159,14 @@ public partial class NewTaskWindow : Window
         var tested = string.Join(", ", NXPilot.Agents.CodexAppServerAdapter.TestedModels);
         CodexModelHint.Text = T("Consultando os modelos da sua conta no Codex…", "Querying your account's Codex models…", "Consultando los modelos de Codex de su cuenta…");
         var models = await NXPilot.Agents.CodexAppServerAdapter.ListModelsAsync();
-        var typed = CodexModelBox.Text;
-        CodexModelBox.ItemsSource = models.Select(m => m.Id).ToList();
-        if (typed.Length == 0)
-            CodexModelBox.Text = models.FirstOrDefault(m => m.Tested)?.Id ?? models.FirstOrDefault(m => m.IsDefault)?.Id ?? "";
+        var typed = CodexModelBox.Text.Trim();
+        // Testados primeiro (sempre na lista, mesmo fora da resposta da conta); depois os da conta.
+        CodexModelBox.ItemsSource = NXPilot.Agents.CodexAppServerAdapter.TestedModels
+            .Concat(models.Select(m => m.Id)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        // Vazio, ou um modelo que a conta não aceita (ex.: o padrão do config.toml): volta para o testado.
+        if (typed.Length == 0 || (models.Count > 0 && !models.Any(m => string.Equals(m.Id, typed, StringComparison.OrdinalIgnoreCase))
+                                  && !NXPilot.Agents.CodexAppServerAdapter.TestedModels.Contains(typed, StringComparer.OrdinalIgnoreCase)))
+            CodexModelBox.Text = NXPilot.Agents.CodexAppServerAdapter.TestedModels[0];
         CodexModelHint.Text = models.Count == 0
             ? T($"Não deu para listar (Codex instalado e logado?). Testado com o NXPilot: {tested}.", $"Could not list models (is Codex installed and signed in?). Tested with NXPilot: {tested}.", $"No se pudieron listar los modelos (¿Codex está instalado y con sesión iniciada?). Probado con NXPilot: {tested}.")
             : T($"{models.Count} modelo(s) da sua conta · testado com o NXPilot: {string.Join(", ", models.Where(m => m.Tested).Select(m => m.Id + " ✓").DefaultIfEmpty(tested + " (não está na sua lista)"))}",
@@ -140,6 +175,29 @@ public partial class NewTaskWindow : Window
     }
 
     private readonly bool _claudeInstalled, _codexInstalled;
+
+    /// <summary>
+    /// Claude Code sem login (precisa de assinatura paga) e Codex instalado (funciona com a conta
+    /// ChatGPT, inclusive gratuita): a tarefa já vem com o Codex. Dá para escolher o Claude — ao
+    /// rodar, o NXPilot abre o login dele no navegador.
+    /// </summary>
+    private async Task PreferCodexWithoutClaudeLoginAsync()
+    {
+        if (!_claudeInstalled || !_codexInstalled || NXPilot.Agents.ClaudeCodeAdapter.Locate() is not { } claude) return;
+        bool? logged;
+        try { logged = await NXPilot.Agents.AgentLogin.IsLoggedInAsync(claude: true, claude, CancellationToken.None); }
+        catch { return; }
+        if (logged != false) return;
+        AgentClaudeItem.Content = "Claude Code" + T(" — sem login", " — not signed in", " — sin inicio de sesión");
+        if (SelectedExecutor != ExecutorKind.Claude || _editing) return;
+        Select(AgentBox, nameof(ExecutorKind.Codex));
+        AgentHint.Text = T("O Claude Code está sem login (ele precisa de assinatura): a tarefa vai com o Codex, que funciona com a sua conta ChatGPT. Se preferir o Claude, escolha acima — o login abre no navegador ao rodar.",
+                           "Claude Code is not signed in (it needs a subscription): the task goes with Codex, which works with your ChatGPT account. If you prefer Claude, pick it above — sign-in opens in the browser when it runs.",
+                           "Claude Code no tiene sesión iniciada (necesita suscripción): la tarea va con Codex, que funciona con su cuenta ChatGPT. Si prefiere Claude, elíjalo arriba — el inicio de sesión se abre en el navegador al ejecutar.");
+    }
+
+    /// <summary>Editando uma tarefa: o agente escolhido nela não é trocado sozinho.</summary>
+    private bool _editing;
 
     // ------------------------------------------------------------ texto: limites e contadores
 
@@ -406,6 +464,8 @@ public partial class NewTaskWindow : Window
         UpdateSummary();
         if (NXAgenticSelected) { AgentHint.Text = NXAgenticUnderConstruction; return; }
         var codex = SelectedExecutor == ExecutorKind.Codex;
+        ModelBox.IsEnabled = !codex; // o modelo do Claude só vale com o Claude executando (o do Codex fica abaixo)
+        ModelBox.ToolTip = codex ? T("Modelo do Claude Code — com o Codex executando, vale o \"Modelo do Codex\" abaixo.", "Claude Code model — with Codex executing, the \"Codex model\" below applies.", "Modelo de Claude Code — con Codex ejecutando, vale el \"Modelo de Codex\" de abajo.") : null;
         var name = codex ? "Codex" : "Claude Code";
         var hint = T($"O {name} executa sob o mesmo gate: cada comando e arquivo passa pela cascata e pelas suas decisões.",
                      $"{name} runs under the same gate: every command and file goes through the cascade and your decisions.",

@@ -120,7 +120,7 @@ public partial class MainWindow : Window
     {
         var list = new Views.WorkItemsWindow { Owner = this };
         list.ShowDialog();
-        if (list.Selected is { } item) await StartNewTaskAsync(new Views.NewTaskWindow(item, list.SelectedLink) { Owner = this });
+        if (list.SelectedItems.Count > 0) await StartNewTaskAsync(new Views.NewTaskWindow(list.SelectedItems) { Owner = this });
     }
 
     /// <summary>Nova tarefa: assistente → plano do Claude Code na aba Plano (nada é escrito antes de aprovar).</summary>
