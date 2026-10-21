@@ -17,8 +17,12 @@ namespace NXPilot.Integrations;
 public sealed record WorkItem(int Id, string Type, string Title, string State, string Description, string AcceptanceCriteria, string Url, string AssignedTo = "");
 
 /// <summary>Um item da hierarquia (TreeAsync): nível 0 = o item escolhido.</summary>
+/// <param name="CompletedWork">Horas trabalhadas (Completed Work).</param>
+/// <param name="CurrentHours">HH Atual do NXProject (estimativa atual, campo HH_Atual_float), quando existe.</param>
+/// <param name="Created">Data de criação: separa as tasks do plano original das que entraram depois.</param>
 public sealed record WorkItemNode(int Id, int ParentId, int Depth, string Type, string Title, string State, string AssignedTo,
-    double? RemainingWork, double? OriginalEstimate, string Iteration, string Description, string AcceptanceCriteria, string Url)
+    double? RemainingWork, double? OriginalEstimate, string Iteration, string Description, string AcceptanceCriteria, string Url,
+    double? CompletedWork = null, double? CurrentHours = null, DateTime? Created = null)
 {
     public WorkItem ToWorkItem() => new(Id, Type, Title, State, Description, AcceptanceCriteria, Url, AssignedTo);
 }
@@ -171,15 +175,15 @@ public sealed class AzureDevOpsClient(DevOpsConnection connection) : IDisposable
         }
         Walk(rootId, 0, 0);
 
-        const string fields = "System.Id,System.WorkItemType,System.Title,System.State,System.AssignedTo,System.IterationPath," +
-                              "Microsoft.VSTS.Scheduling.RemainingWork,Microsoft.VSTS.Scheduling.OriginalEstimate,System.Description,Microsoft.VSTS.Common.AcceptanceCriteria";
+        // Todos os campos: os de horas do NXProject (HH_Atual_float…) são personalizados e pedir um campo
+        // que não existe no processo derruba a consulta inteira.
         var byId = new Dictionary<int, JsonElement>();
         var docs = new List<JsonDocument>();
         try
         {
             foreach (var chunk in order.Select(o => o.Id).Chunk(200))
             {
-                using var r = await _http.GetAsync($"{connection.OrganizationUrl}/_apis/wit/workitems?ids={string.Join(',', chunk)}&fields={fields}&errorPolicy=omit&api-version=7.1", ct);
+                using var r = await _http.GetAsync($"{connection.OrganizationUrl}/_apis/wit/workitems?ids={string.Join(',', chunk)}&errorPolicy=omit&api-version=7.1", ct);
                 await EnsureOk(r, ct);
                 var doc = JsonDocument.Parse(await r.Content.ReadAsStringAsync(ct));
                 docs.Add(doc);
@@ -205,13 +209,19 @@ public sealed class AzureDevOpsClient(DevOpsConnection connection) : IDisposable
                 if (!byId.TryGetValue(id, out var f)) continue;
                 string F(string name) => f.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
                 double? N(string name) => f.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+                // Campo personalizado pelo fim do nome (Custom.HH_Atual_Float, Custom.HH_Original_float…), sem diferenciar maiúsculas.
+                double? Custom(string suffix) => f.EnumerateObject().Where(p => p.Name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.Number)
+                    .Select(p => (double?)p.Value.GetDouble()).FirstOrDefault();
+                DateTime? created = f.TryGetProperty("System.CreatedDate", out var cd) && cd.ValueKind == JsonValueKind.String && cd.TryGetDateTime(out var cdt) ? cdt : null;
                 var state = F("System.State");
                 if (keep != null && !keep.Contains(id)) continue;
                 var assigned = f.TryGetProperty("System.AssignedTo", out var a) && a.ValueKind == JsonValueKind.Object && a.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : "";
                 result.Add(new WorkItemNode(id, parent, depth, F("System.WorkItemType"), F("System.Title"), state, assigned,
-                    N("Microsoft.VSTS.Scheduling.RemainingWork"), N("Microsoft.VSTS.Scheduling.OriginalEstimate"), F("System.IterationPath"),
+                    N("Microsoft.VSTS.Scheduling.RemainingWork") ?? Custom("HH_Restante_float"),
+                    N("Microsoft.VSTS.Scheduling.OriginalEstimate") ?? Custom("HH_Original_float"), F("System.IterationPath"),
                     PlainText(F("System.Description")), PlainText(F("Microsoft.VSTS.Common.AcceptanceCriteria")),
-                    $"{connection.OrganizationUrl}/{project}/_workitems/edit/{id}"));
+                    $"{connection.OrganizationUrl}/{project}/_workitems/edit/{id}",
+                    N("Microsoft.VSTS.Scheduling.CompletedWork"), Custom("HH_Atual_float"), created));
                 if (result.Count >= max) break;
             }
             return result;

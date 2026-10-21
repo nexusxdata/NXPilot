@@ -82,6 +82,23 @@ if (args.Length > 1 && args[0] is "--mail-login" or "--mail" && OperatingSystem.
 if (args.Length > 4 && args[0] == "--plan-sim" && OperatingSystem.IsWindows())
     return await PlanSimAsync(args[1], args[2], args[3], args.Skip(4).Select(int.Parse).ToList());
 
+// --wi-hours <projeto> <id> [id…]: campos de horas (Scheduling e HH_*) de cada item, só nomes e números. Diagnóstico.
+if (args.Length > 2 && args[0] == "--wi-hours" && OperatingSystem.IsWindows())
+{
+    var conn = (NXPilot.Integrations.WorkItemSettings.Load().DevOps() ?? throw new InvalidOperationException("DevOps não configurado.")).Connection with { Project = args[1] };
+    using var http = new HttpClient();
+    http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(":" + conn.Pat)));
+    foreach (var id in args.Skip(2))
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(await http.GetStringAsync($"{conn.OrganizationUrl}/_apis/wit/workitems/{id}?api-version=7.1"));
+        var f = doc.RootElement.GetProperty("fields");
+        var hours = f.EnumerateObject().Where(x => x.Value.ValueKind == System.Text.Json.JsonValueKind.Number &&
+            (x.Name.Contains("Scheduling") || x.Name.Contains("HH", StringComparison.OrdinalIgnoreCase) || x.Name.Contains("Estim", StringComparison.OrdinalIgnoreCase)));
+        Console.WriteLine($"#{id} {f.GetProperty("System.WorkItemType")} {f.GetProperty("System.State")}: " + string.Join(", ", hours.Select(x => $"{x.Name}={x.Value}")));
+    }
+    return 0;
+}
+
 // --exec-sim <claude|codex> <prompt>: o agente em modo EXECUÇÃO (fora do plano), com o MCP real; o gate libera
 // MÉDIO como se o usuário aprovasse no painel (ALTO continua negado). Para testes autorizados de gravação.
 if (args.Length > 2 && args[0] == "--exec-sim" && OperatingSystem.IsWindows())
@@ -92,7 +109,7 @@ if (args.Length > 4 && args[0] == "--codex-plan-sim" && OperatingSystem.IsWindow
 {
     var citations = new List<NXPilot.Planning.Citation> { NXPilot.Planning.TaskCitations.ForWorkItem([], "User Story", int.Parse(args[1]), args[3], args[2], $"https://dev/{args[1]}") };
     var intent = args[4] + "\n\n" + citations[0].Marker + NXPilot.Planning.TaskCitations.Legend(citations) + "\n\n" +
-        "Os work items citados ([story01], [task01], [epic01]…) vêm do Azure DevOps, não do repositório: leia cada um — e o que está abaixo dele — com a ferramenta MCP workitems_tree (id e project na legenda acima) antes de planejar. Item de referência (ex.: uma story encerrada usada como modelo): leia TUDO, sem open_only — as tasks fechadas dele são o modelo. open_only=true só para ver o que falta no item a trabalhar. Se a tarefa for criar ou organizar work items (ex.: criar as tasks de uma story com base em outra), o entregável são os itens no DevOps/GitHub, não código: o plano é uma fase que cria os itens com a ferramenta MCP nxproject_create_items (com \"files\": []) — confira antes com nxproject_status se o usuário pode gravar ali. No plano, proponha a lista (tipo, título, horas, responsável). O repositório pode estar vazio.";
+        NXPilot.Planning.TaskCitations.WorkItemsGuidance();
     var planPrompt = NXPilot.Agents.TaskPlanning.PlanPrompt(args[3], intent, "(não informados)");
     Console.WriteLine("---- prompt do plano ----\n" + planPrompt + "\n-------------------------");
     return await CodexMcpTestAsync(int.Parse(args[1]), args[2], planPrompt);
@@ -257,7 +274,7 @@ static async Task<int> PlanSimAsync(string agent, string project, string intentT
         }
     var title = string.Join(" · ", ids.Select(i => $"#{i}"));
     var intent = intentText + NXPilot.Planning.TaskCitations.Legend(citations) + "\n\n" +
-        "Os work items citados ([story01], [task01], [epic01]…) vêm do Azure DevOps, não do repositório: leia cada um — e o que está abaixo dele — com a ferramenta MCP workitems_tree (id e project na legenda acima) antes de planejar. Item de referência (ex.: uma story encerrada usada como modelo): leia TUDO, sem open_only — as tasks fechadas dele são o modelo. open_only=true só para ver o que falta no item a trabalhar. Se a tarefa for criar ou organizar work items (ex.: criar as tasks de uma story com base em outra), o entregável são os itens no DevOps/GitHub, não código: o plano é uma fase que cria os itens com a ferramenta MCP nxproject_create_items (com \"files\": []) — confira antes com nxproject_status se o usuário pode gravar ali. No plano, proponha a lista (tipo, título, horas, responsável). O repositório pode estar vazio.";
+        NXPilot.Planning.TaskCitations.WorkItemsGuidance();
     var planPrompt = execute ? execPrompt! : NXPilot.Planning.PlanRules.Apply(NXPilot.Agents.TaskPlanning.PlanPrompt(title, intent, "(não informados)"),
         NXPilot.Planning.PlanRules.Default(agent.StartsWith("codex", StringComparison.OrdinalIgnoreCase)));
     Console.WriteLine("---- prompt do plano ----\n" + planPrompt + "\n-------------------------");

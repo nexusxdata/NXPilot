@@ -15,6 +15,11 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**⏱ Work items: horas completas e aviso quando a referência cresceu**
+
+- `workitems_tree` agora mostra, por item, a estimativa original, as horas trabalhadas, a estimativa atual (HH Atual do NXProject), o restante e a data de criação.
+- Quando a estimativa atual passou da original (ex.: Story de 22 h que terminou com 31 h), a ferramenta aponta as tasks que entraram depois do plano original. No plano, o agente avisa com os números e lista essas tasks para você decidir se entram; as tasks novas levam a estimativa original.
+
 **🖱 Duplo clique só sobre a linha**
 
 - Na lista de Work items, no Histórico e nas Tarefas modelo, dois cliques na barra de rolagem, no cabeçalho ou no vazio não abrem mais nada (antes criavam a tarefa, abriam o histórico ou disparavam a tarefa modelo).

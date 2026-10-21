@@ -1065,6 +1065,26 @@ public static class CriticalTests
             }
         }),
 
+        new("Work items: referência que cresceu (HH Atual > original) é apontada com as tasks que entraram depois; sem crescimento, sem aviso", () =>
+        {
+            if (!OperatingSystem.IsWindows()) return Task.CompletedTask;
+            DateTime D(int day) => new(2026, 1, day);
+            NXPilot.Integrations.WorkItemNode N(int id, int parent, int depth, double? orig, double? done, DateTime created, double? current = null) =>
+                new(id, parent, depth, depth == 0 ? "User Story" : "Task", $"t{id}", "Closed", "", null, orig, "", "", "", "", done, current, created);
+            static string H(double? h) => h?.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) ?? "";
+            var grew = new List<NXPilot.Integrations.WorkItemNode> {
+                N(1, 0, 0, 22, null, D(1), current: 31),
+                N(2, 1, 1, 4, 4, D(1)), N(3, 1, 1, 8, 8, D(1)), N(4, 1, 1, 4, 2, D(1)), N(5, 1, 1, 6, 6, D(1)),
+                N(6, 1, 1, 1, 1, D(5)), N(7, 1, 1, 8, 0, D(9)) };
+            var text = NXPilot.Mcp.CoreTools.HoursSummary(grew, H);
+            AssertTrue(text.Contains("GREW") && text.Contains("31") && text.Contains("22") && text.Contains("by 9 h"), "cresceu 22 → 31 (+9) deve ser apontado: " + text);
+            AssertTrue(text.Contains("#6") && text.Contains("#7") && !text.Contains("#2 ") && !text.Contains("#5 "), "só as tasks posteriores ao plano original: " + text);
+            AssertTrue(text.Contains("ORIGINAL estimate"), "lembra que as novas levam a estimativa original");
+            var same = grew.Take(6).Select((n, i) => i == 0 ? n with { CurrentHours = 22 } : n).ToList();
+            AssertTrue(!NXPilot.Mcp.CoreTools.HoursSummary(same, H).Contains("GREW"), "sem crescimento não há aviso");
+            AssertTrue(NXPilot.Mcp.CoreTools.HoursSummary(new List<NXPilot.Integrations.WorkItemNode> { new(1, 0, 0, "Story", "s", "New", "", null, null, "", "", "", "") }, H) == "", "sem horas, sem resumo");
+            return Task.CompletedTask;
+        }),
         new("Work items citados: marcador pelo tipo (story01, story02, task01, epicgroup01), legenda com workitems_tree, volta ao clonar, legenda antiga ainda lida", () =>
         {
             var list = new List<Citation>();

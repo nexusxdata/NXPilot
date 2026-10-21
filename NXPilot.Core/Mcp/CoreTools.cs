@@ -599,7 +599,8 @@ public static class CoreTools
             Name = "workitems_tree", Extension = "Work items", ReadOnly = true,
             Available = _ => WorkItemSettings.Load() is var wis && (wis.DevOps() != null || wis.GitHub() != null),
             Description = "Read a work item — Azure DevOps (source devops, default) or a GitHub Projects issue (source gitproject, id = issue number) — and everything below it in the hierarchy, in tree order: " +
-                          "level, id, type, title, state, assigned to, remaining/original hours and iteration; the root comes with description and acceptance criteria. " +
+                          "level, id, type, title, state, assigned to, hours (original estimate, completed, current estimate = NXProject HH Atual, remaining), created date and iteration; " +
+                          "the root comes with description, acceptance criteria and an hours summary (original vs current; items created after the original plan). " +
                           "Use it for the work item linked to the task (e.g. to list pending tasks). open_only=true drops closed items.",
             Schema = NxTool.ParseSchema("""
                 {"type":"object","required":["id"],"properties":{
@@ -641,12 +642,48 @@ public static class CoreTools
         var sb = new StringBuilder($"# {root.Type} #{root.Id} · {root.Title}\nProject: {project} · State: {root.State} · {root.Url}\n");
         if (root.Description.Length > 0) sb.Append("\nDescription:\n").Append(Trim(root.Description, 2000)).Append('\n');
         if (root.AcceptanceCriteria.Length > 0) sb.Append("\nAcceptance criteria:\n").Append(Trim(root.AcceptanceCriteria, 1500)).Append('\n');
-        sb.Append("\n| Level | Id | Type | Title | State | Assigned to | Remaining h | Original h | Iteration |\n|---|---|---|---|---|---|---|---|---|\n");
         static string H(double? h) => h is { } v ? v.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : "";
+        sb.Append(HoursSummary(nodes, H));
+        sb.Append("\n| Level | Id | Type | Title | State | Assigned to | Original h | Completed h | Current h | Remaining h | Created | Iteration |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n");
         foreach (var n in nodes)
-            sb.Append($"| {n.Depth} | {n.Id} | {n.Type} | {new string('·', n.Depth * 2)}{n.Title.Replace("|", "\\|")} | {n.State} | {n.AssignedTo} | {H(n.RemainingWork)} | {H(n.OriginalEstimate)} | {n.Iteration} |\n");
+            sb.Append($"| {n.Depth} | {n.Id} | {n.Type} | {new string('·', n.Depth * 2)}{n.Title.Replace("|", "\\|")} | {n.State} | {n.AssignedTo} | {H(n.OriginalEstimate)} | {H(n.CompletedWork)} | {H(n.CurrentHours)} | {H(n.RemainingWork)} | {n.Created:yyyy-MM-dd} | {n.Iteration} |\n");
         sb.Append("\nBy state: ").Append(string.Join(", ", nodes.Skip(1).GroupBy(n => n.State).Select(g => $"{g.Key} {g.Count()}")));
         sb.Append(" · By type: ").Append(string.Join(", ", nodes.Skip(1).GroupBy(n => n.Type).Select(g => $"{g.Key} {g.Count()}")));
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Horas da raiz: estimativa original × atual (HH Atual) e o que os filhos somam. Quando a atual passou da
+    /// original, aponta os itens criados depois do plano original — numa referência que cresceu, o agente
+    /// precisa avisar o usuário em vez de copiar só o plano original sem dizer nada.
+    /// </summary>
+    public static string HoursSummary(IReadOnlyList<WorkItemNode> nodes, Func<double?, string> h)
+    {
+        var root = nodes[0];
+        var leaves = nodes.Skip(1).Where(n => !nodes.Any(c => c.ParentId == n.Id)).ToList();
+        if (root.OriginalEstimate is null && root.CurrentHours is null && leaves.All(l => l.OriginalEstimate is null && l.CompletedWork is null)) return "";
+        double Sum(Func<WorkItemNode, double?> f) => leaves.Sum(l => f(l) ?? 0);
+        var sb = new StringBuilder("\nHours: ");
+        sb.Append($"root original {h(root.OriginalEstimate)} · root current (HH Atual) {h(root.CurrentHours)} · root remaining {h(root.RemainingWork)}");
+        sb.Append($" · {leaves.Count} leaf items: original sum {h(Sum(l => l.OriginalEstimate))}, completed sum {h(Sum(l => l.CompletedWork))}\n");
+        var original = root.OriginalEstimate ?? 0;
+        var current = root.CurrentHours ?? Math.Max(Sum(l => l.OriginalEstimate), Sum(l => l.CompletedWork));
+        if (original > 0 && current > original + 0.01)
+        {
+            // Plano original = as folhas mais antigas cuja estimativa soma a original; o resto entrou depois.
+            var ordered = leaves.OrderBy(l => l.Created ?? DateTime.MaxValue).ThenBy(l => l.Id).ToList();
+            double acc = 0; var later = new List<WorkItemNode>();
+            foreach (var l in ordered)
+            {
+                if (acc + 0.01 < original) acc += l.OriginalEstimate ?? 0;
+                else later.Add(l);
+            }
+            sb.Append($"⚠ GREW: the current estimate ({h(current)} h) is above the original ({h(original)} h) by {h(current - original)} h.");
+            if (later.Count > 0)
+                sb.Append($" Items created after the original plan ({later.Count}, {h(later.Sum(l => l.OriginalEstimate ?? 0))} h estimated): " +
+                          string.Join("; ", later.Select(l => $"#{l.Id} {l.Title} ({h(l.OriginalEstimate)} h)")) + ".");
+            sb.Append(" When this item is a reference/model, tell the user in the plan and let them decide which of these to include (new items take the ORIGINAL estimate, not completed hours).\n");
+        }
         return sb.ToString();
     }
 
