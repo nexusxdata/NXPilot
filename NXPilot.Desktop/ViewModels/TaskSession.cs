@@ -35,6 +35,12 @@ public sealed record NewTaskInfo(string RepoPath, string Title, string Intent, s
     public const int MaxAutoFixRounds = 2;
 
     /// <summary>
+    /// Frases que a pessoa usou na janela de figuras da tarefa clonada (na ordem): a janela já abre com elas,
+    /// em vez da busca do agente — quem acertou a frase não precisa editar de novo.
+    /// </summary>
+    public IReadOnlyList<string>? ImageQueries { get; init; }
+
+    /// <summary>
     /// Intenção para o prompt: com work item vinculado, diz ao agente qual é e como ler o item e a
     /// hierarquia dele (workitems_tree) — os dados vêm do DevOps, não do repositório.
     /// </summary>
@@ -147,6 +153,9 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
 
     /// <summary>Quanto a execução deve levar (pelo histórico), mostrado antes de aprovar o plano; nulo sem histórico suficiente.</summary>
     public string? EstimateText { get; set; }
+
+    /// <summary>Quantas frases de <see cref="NewTaskInfo.ImageQueries"/> a janela de figuras já usou nesta execução.</summary>
+    public int ImageQueryIndex { get; set; }
 
     public bool CanApprove => State == TaskState.AwaitingApproval;
     public bool CanDiscard => State == TaskState.AwaitingApproval;

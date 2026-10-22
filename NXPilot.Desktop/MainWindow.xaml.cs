@@ -104,7 +104,17 @@ public partial class MainWindow : Window
             await Vm.LoadTaskAsync(record);
         }
         else if (dialog.ToClone is { } clone)
-            await StartNewTaskAsync(new Views.NewTaskWindow(clone.Info) { Owner = this });
+            await StartNewTaskAsync(new Views.NewTaskWindow(clone.Info with { ImageQueries = ImageQueriesOf(clone) }) { Owner = this });
+    }
+
+    /// <summary>Frases da busca de figuras que a pessoa usou na tarefa (log "Frase da busca de figuras → …"), na ordem.</summary>
+    private static IReadOnlyList<string>? ImageQueriesOf(TaskRecord r)
+    {
+        string[] prefixes = ["Frase da busca de figuras → ", "Picture search phrase → ", "Frase de búsqueda de imágenes → "];
+        var list = r.Log.OrderBy(l => l.Time)
+            .Select(l => prefixes.FirstOrDefault(l.Message.StartsWith) is { } p ? l.Message[p.Length..].Trim() : null)
+            .OfType<string>().Where(q => q.Length > 0).ToList();
+        return list.Count > 0 ? list : r.Info.ImageQueries; // clone de um clone que não chegou a abrir a janela
     }
 
     /// <summary>Falhou antes do plano: abre a tarefa para editar (pode trocar o agente) e tenta de novo.</summary>

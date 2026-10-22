@@ -111,6 +111,10 @@ public sealed partial class DecisionItem(string agent, string action, string con
     /// <summary>"Aprovar semelhantes" e "aprovar médio e baixo" só aparecem fora do risco ALTO.</summary>
     public bool CanUseTaskRules => Level is RiskLevel.Baixo or RiskLevel.Medio;
     [ObservableProperty] private string _riskDetail = NxText.T("aguardando classificador…", "waiting for the classifier…", "esperando al clasificador…");
+
+    /// <summary>O pedido numa frase para quem não é técnico (o que quer fazer e por que o risco é esse).</summary>
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasPlain))] private string _plain = "";
+    public bool HasPlain => Plain.Length > 0;
 }
 
 public sealed record BenchmarkRow(string Engine, string Load, double AverageMs, string Average, string P95, string Accuracy,

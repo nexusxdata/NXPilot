@@ -761,8 +761,12 @@
                                                 <TextBlock DockPanel.Dock="Right" Text="{Binding TimeText}" Style="{StaticResource Muted}"/>
                                                 <TextBlock Text="{Binding Agent}" FontWeight="SemiBold"/>
                                             </DockPanel>
+                                            <!-- Primeiro, em linguagem simples (o que quer e por que o risco é esse); o comando técnico vem abaixo, menor. -->
+                                            <TextBlock Text="{Binding Plain}" TextWrapping="Wrap" FontSize="13" Margin="0,6,0,0"
+                                                       Visibility="{Binding HasPlain, Converter={StaticResource BoolToVis}}"/>
                                             <Border Background="{StaticResource BackgroundBrush}" CornerRadius="3" Padding="6,4" Margin="0,6,0,0">
-                                                <TextBlock Text="{Binding Action}" FontFamily="{StaticResource MonoFont}" FontSize="12" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding Action}" FontFamily="{StaticResource MonoFont}" FontSize="11" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource SecondaryTextBrush}"/>
                                             </Border>
                                             <TextBlock Text="{Binding Context}" Style="{StaticResource Muted}" Margin="0,6,0,0"/>
                                             <Border Style="{StaticResource Badge}" Margin="0,8,0,0" Background="{Binding Level, Converter={StaticResource Semantic}}">

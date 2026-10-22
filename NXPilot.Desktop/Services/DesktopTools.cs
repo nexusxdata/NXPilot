@@ -23,6 +23,8 @@ namespace NXPilot.Desktop.Services;
 public static class DesktopTools
 {
     /// <summary>Linha do log para imagem da pessoa copiada para a pasta de imagens: "… → caminho".</summary>
+    public static string ImageQueryLogPrefix => NxText.T("Frase da busca de figuras → ", "Picture search phrase → ", "Frase de búsqueda de imágenes → ");
+
     public static string OwnImageLogPrefix => NxText.T("Imagem própria guardada na pasta de imagens → ", "Own image kept in the images folder → ", "Imagen propia guardada en la carpeta de imágenes → ");
 
     private static readonly Lazy<bool> HasPowerPoint = new(() => Type.GetTypeFromProgID("PowerPoint.Application") != null);
@@ -196,12 +198,13 @@ public static class DesktopTools
             Risk = (_, _) => NxTool.Low(NxText.T("a pessoa escolhe as figuras; salva no worktree", "the user picks the pictures; saves in the worktree", "la persona elige las imágenes; guarda en el worktree")),
             Run = async (a, c, ct) =>
             {
-                var query = Str(a, "query") ?? throw new ArgumentException("query");
+                var query = c.NextImageQuery?.Invoke() ?? Str(a, "query") ?? throw new ArgumentException("query");
                 var picked = await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     var win = new Views.ImagePickerWindow(query, Str(a, "purpose") ?? "", Math.Clamp(Int(a, "count") ?? 12, 4, 30))
                         { Owner = System.Windows.Application.Current.MainWindow };
                     var ok = win.ShowDialog() == true;
+                    if (ok && win.UsedQuery.Length > 0) c.UserChoice?.Invoke(ImageQueryLogPrefix + win.UsedQuery); // o clone reabre com ela
                     // Cópias das imagens da pessoa na pasta de imagens: ficam no log da tarefa (a remoção definitiva apaga).
                     foreach (var copied in win.CopiedToFolder)
                         c.UserChoice?.Invoke(OwnImageLogPrefix + copied);

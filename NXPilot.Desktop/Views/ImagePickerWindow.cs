@@ -32,6 +32,9 @@ public sealed class ImagePickerWindow : Window
     /// <summary>Imagens da pessoa que ESTA escolha copiou para a pasta de imagens (saem junto se a tarefa for removida de vez).</summary>
     public List<string> CopiedToFolder { get; } = new();
 
+    /// <summary>A frase da busca como estava ao fechar (a pessoa pode ter editado).</summary>
+    public string UsedQuery => _query.Text.Trim();
+
     public ImagePickerWindow(string query, string purpose, int count)
     {
         _count = count;

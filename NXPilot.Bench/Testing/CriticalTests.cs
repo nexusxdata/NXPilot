@@ -261,6 +261,26 @@ public static class CriticalTests
             AssertTrue(ReviewerChoice.Choose(AgentKind.Codex, AgentKind.Codex, _ => false) == null, "Nenhum instalado: sem revisor.");
             return Task.CompletedTask;
         }),
+        new("Aprovação em linguagem simples: o que o agente quer e por que o risco é esse nível", () =>
+        {
+            var old = NXPilot.NxText.Language;
+            NXPilot.NxText.Language = NXPilot.NxText.Portuguese;
+            try
+            {
+                AssertContains("quer apagar arquivos", NXPilot.Risk.PlainRisk.Explain("Bash: rm -rf build", RiskLevel.Alto), "rm = apagar.");
+                AssertContains("O risco é alto porque o que é apagado pode não voltar", NXPilot.Risk.PlainRisk.Explain("Bash: Remove-Item x -Recurse", RiskLevel.Alto), "Motivo do apagar.");
+                AssertContains("enviar o código para o servidor", NXPilot.Risk.PlainRisk.Explain("Bash: git push origin main", RiskLevel.Alto), "git push = enviar.");
+                AssertContains("risco é baixo porque só lê", NXPilot.Risk.PlainRisk.Explain("Bash: git status", RiskLevel.Baixo), "git status só lê.");
+                AssertContains("instalar um programa", NXPilot.Risk.PlainRisk.Explain("Bash: pip install requests", RiskLevel.Medio), "pip install.");
+                AssertContains("rodar um programa ou script", NXPilot.Risk.PlainRisk.Explain("Bash: python gerar.py", RiskLevel.Medio), "python = script.");
+                AssertContains("apresentação de PowerPoint", NXPilot.Risk.PlainRisk.Explain("MCP nxpilot pptx_build: {}", RiskLevel.Baixo), "Ferramenta MCP pelo prefixo.");
+                AssertContains("fora da pasta da tarefa", NXPilot.Risk.PlainRisk.Explain(@"Write: C:\outro\a.txt", RiskLevel.Alto, @"C:\wt"), "Arquivo fora do worktree.");
+                AssertContains("versão anterior é guardada", NXPilot.Risk.PlainRisk.Explain(@"Write: C:\wt\a.txt", RiskLevel.Medio, @"C:\wt"), "Arquivo dentro do worktree.");
+                AssertContains("rodar um comando", NXPilot.Risk.PlainRisk.Explain("Bash: xyzzy --foo", RiskLevel.Medio), "Desconhecido: frase genérica.");
+            }
+            finally { NXPilot.NxText.Language = old; }
+            return Task.CompletedTask;
+        }),
         new("Planejador Basic (Community) = plano de sempre, pela fachada IAgentPlanner", async () =>
         {
             IAgentPlanner basic = new BasicAgentPlanner();

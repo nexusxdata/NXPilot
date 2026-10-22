@@ -59,6 +59,9 @@ public sealed class ToolContext
     /// <summary>Registra uma escolha feita pela pessoa numa janela do NXPilot (ex.: as figuras) — vai ao log e é evidência para o revisor.</summary>
     public Action<string>? UserChoice { get; init; }
 
+    /// <summary>Próxima frase de busca de figuras que a pessoa usou na tarefa clonada (nula = usa a do agente).</summary>
+    public Func<string?>? NextImageQuery { get; init; }
+
     /// <summary>Caminho relativo ao worktree (ou absoluto), normalizado.</summary>
     public string Resolve(string path) => Path.GetFullPath(Path.IsPathRooted(path) ? path : Path.Combine(Worktree, path));
 

@@ -62,6 +62,9 @@ public partial class NewTaskWindow : Window
     /// <summary>Work item vinculado (vai para o prompt e para o Histórico); nulo = tarefa sem vínculo.</summary>
     private NXPilot.Integrations.WorkItemLink? _workItem;
 
+    /// <summary>Frases da busca de figuras vindas da tarefa clonada (a janela de figuras abre com elas).</summary>
+    private IReadOnlyList<string>? _imageQueries;
+
     private void SetWorkItem(NXPilot.Integrations.WorkItemLink? link)
     {
         _workItem = link;
@@ -75,6 +78,7 @@ public partial class NewTaskWindow : Window
     public NewTaskWindow(NewTaskInfo clone) : this()
     {
         TitleBox.Text = clone.Title;
+        _imageQueries = clone.ImageQueries;
         var (intent, citations) = NXPilot.Planning.TaskCitations.SplitLegend(clone.Intent);
         IntentBox.Text = intent;
         foreach (var c in citations) _citations.Add(c); // a legenda volta como lista
@@ -684,7 +688,7 @@ public partial class NewTaskWindow : Window
             CriteriaBox.Text.Trim().Length > 0 ? CriteriaBox.Text.Trim() : T("(não informados)", "(not provided)", "(no informado)"),
             model.Length > 0 ? model : null, reviewer, codexModel.Length > 0 ? codexModel : null, executor, versioning,
             subject?.Name, subject?.Path, AsTemplate: IsHookMode, WorkItem: _workItem,
-            AutoFixFindings: AutoFixBox.IsChecked == true && reviewer != ReviewerKind.None);
+            AutoFixFindings: AutoFixBox.IsChecked == true && reviewer != ReviewerKind.None) { ImageQueries = _imageQueries };
         DialogResult = true;
     }
 }

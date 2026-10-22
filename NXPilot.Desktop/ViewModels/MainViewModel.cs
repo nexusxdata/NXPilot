@@ -1092,6 +1092,7 @@ public sealed partial class MainViewModel : ObservableObject
                     .Select(c => c.FullPath).Where(p => Path.IsPathRooted(p)).ToList(),
                 Approve = async (action, risk, _) => (await DecideAsync(ExecutorName, action, risk, wt)).Allow,
                 UserChoice = text => _ = OnUi(() => AddLog(T("Você", "You", "Usted"), ChoiceKind, text)),
+                NextImageQuery = () => task.Info.ImageQueries is { } q && task.ImageQueryIndex < q.Count ? q[task.ImageQueryIndex++] : null,
             }
             : null);
 
@@ -1128,6 +1129,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var d = new DecisionItem(agent, action, CurrentTask?.Title ?? "") { Response = response, Scripts = ScriptReferences.Find(action, worktree) };
             d.Level = r.Level;
+            d.Plain = PlainRisk.Explain(action, r.Level, worktree);
             d.RiskDetail = $"{r.Confidence:P0} · {AiLabViewModel.ShortEngine(r.Engine)} · {BenchmarkRow.FormatMs(r.Elapsed.TotalMilliseconds)}" + (r.Reason != null ? $"\n{r.Reason}" : "");
             PendingDecisions.Insert(0, d);
             AddLog(agent, T("pedido", "request", "solicitud"), $"{action} → {r.Level}");
@@ -1405,6 +1407,7 @@ public sealed partial class MainViewModel : ObservableObject
         var gate = _gate;
         var r = await Task.Run(() => gate.ClassifyAsync(d.Action));
         d.Level = r.Level;
+        d.Plain = PlainRisk.Explain(d.Action, r.Level, CurrentTask?.Worktree);
         d.RiskDetail = $"{r.Confidence:P0} · {AiLabViewModel.ShortEngine(r.Engine)} · {BenchmarkRow.FormatMs(r.Elapsed.TotalMilliseconds)}"
                        + (r.Reason != null ? $"\n{r.Reason}" : "");
         AddLog(d.Agent, T("risco", "risk", "riesgo"), $"{d.Action} → {r.Level} ({r.Confidence:P0}, {BenchmarkRow.FormatMs(r.Elapsed.TotalMilliseconds)})");
