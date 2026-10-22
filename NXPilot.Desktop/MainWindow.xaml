@@ -114,6 +114,30 @@
                                         <StackPanel>
                                             <DockPanel>
                                                 <TextBlock DockPanel.Dock="Right" Text="{Binding Activity.Elapsed}" Style="{StaticResource Muted}" Margin="8,0,0,0"/>
+                                                <!-- Versão nova do agente: triângulo amarelo; o clique pergunta se quer atualizar (mesma rotina do Setup). -->
+                                                <Button DockPanel.Dock="Right" Margin="6,0,0,0" Padding="0" Cursor="Hand" Background="Transparent" BorderThickness="0"
+                                                        Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVis}}" ToolTip="{Binding UpdateTip}"
+                                                        Command="{Binding DataContext.UpdateAgentCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}">
+                                                    <Grid Width="15" Height="13">
+                                                        <Path Data="M 7.5,0 L 15,13 L 0,13 Z" Fill="#F2B705" Stroke="#B58900" StrokeThickness="0.8"/>
+                                                        <TextBlock Text="!" FontWeight="Bold" FontSize="10" Foreground="#3A2E00" HorizontalAlignment="Center" Margin="0,1.5,0,0"/>
+                                                    </Grid>
+                                                </Button>
+                                                <!-- Círculo girando enquanto a atualização roda (some ao terminar). -->
+                                                <Path DockPanel.Dock="Right" Margin="6,1,0,0" Width="14" Height="14" Stretch="None" RenderTransformOrigin="0.5,0.5"
+                                                      Data="M 7,1 A 6,6 0 1 1 1,7" Stroke="{StaticResource PrimaryBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                      Visibility="{Binding IsUpdating, Converter={StaticResource BoolToVis}}" ToolTip="{Binding UpdateProgress}">
+                                                    <Path.RenderTransform><RotateTransform/></Path.RenderTransform>
+                                                    <Path.Triggers>
+                                                        <EventTrigger RoutedEvent="Loaded">
+                                                            <BeginStoryboard>
+                                                                <Storyboard RepeatBehavior="Forever">
+                                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)" From="0" To="360" Duration="0:0:1"/>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </EventTrigger>
+                                                    </Path.Triggers>
+                                                </Path>
                                                 <TextBlock Text="{Binding Title}" FontWeight="SemiBold">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
@@ -127,6 +151,9 @@
                                                 </TextBlock>
                                             </DockPanel>
                                             <TextBlock Text="{Binding Hint}" Style="{StaticResource Muted}" TextWrapping="Wrap"/>
+                                            <!-- Atualizando o agente: a etapa (baixando, conferindo o SHA-256, instalando); o círculo gira ao lado do nome. -->
+                                            <TextBlock Text="{Binding UpdateProgress}" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"
+                                                       Visibility="{Binding IsUpdating, Converter={StaticResource BoolToVis}}"/>
                                             <!-- O que está fazendo agora: bolinha com a cor do estado, tarefa/fase e subagentes. -->
                                             <StackPanel Visibility="{Binding HasActivity, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0">
                                                 <DockPanel>

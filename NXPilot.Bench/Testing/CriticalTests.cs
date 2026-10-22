@@ -1077,7 +1077,7 @@ public static class CriticalTests
             AssertTrue(bad.Validate().Any(p => p.Contains("tecla")), "Tecla Delete não é permitida.");
         }),
 
-        new("Agentes: instalação interna confere o SHA-256; versão testada que sumiu cai para a última; pacote completo do Codex; remover só o oficial e mantém o login", async () =>
+        new("Agentes: instalação interna confere o SHA-256; versão testada que sumiu cai para a última; pacote completo do Codex; remover só o oficial e mantém o login; aviso de versão nova", async () =>
         {
             var root = Path.Combine(Path.GetTempPath(), "nx-agents-" + Guid.NewGuid().ToString("N")[..8]);
             try
@@ -1164,6 +1164,11 @@ public static class CriticalTests
                 AssertFalse(Directory.Exists(options.CodexStandaloneRoot), "Pacotes do Codex removidos.");
                 AssertTrue(File.Exists(Path.Combine(options.UserProfile, ".claude", "settings.json")) && File.Exists(Path.Combine(options.CodexHome, "auth.json")), "Login e configurações mantidos.");
                 await AssertThrowsAsync<NXData.AgentInstaller.AgentInstallException>(() => installer.UninstallAsync(NXData.AgentInstaller.AgentCli.Codex), "Nada nas pastas oficiais: não remove nada.");
+
+                // Aviso de versão nova no app (triângulo amarelo): compara só a parte numérica.
+                AssertTrue(NXPilot.Agents.AgentUpdates.IsNewer("0.163.0", "0.162.0-alpha.17.2"), "0.163.0 é mais nova que 0.162 alpha.");
+                AssertFalse(NXPilot.Agents.AgentUpdates.IsNewer("2.1.306", "2.1.306"), "Mesma versão: sem aviso.");
+                AssertFalse(NXPilot.Agents.AgentUpdates.IsNewer("lixo", "2.1.306"), "Versão ilegível: sem aviso.");
             }
             finally
             {

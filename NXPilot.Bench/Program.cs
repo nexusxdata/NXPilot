@@ -131,6 +131,33 @@ if (args.Length > 1 && args[0] == "--img-search")
     return 0;
 }
 
+// --agent-uninstall <claude|codex>: a mesma rotina da 🗑 do Setup (só as pastas oficiais; login fica). Diagnóstico.
+if (args.Length > 1 && args[0] == "--agent-uninstall")
+{
+    var cli = args[1] == "claude" ? NXData.AgentInstaller.AgentCli.ClaudeCode : NXData.AgentInstaller.AgentCli.Codex;
+    var installer = new NXData.AgentInstaller.AgentInstaller(new NXData.AgentInstaller.AgentInstallOptions());
+    Console.WriteLine(installer.CanUninstall(cli) ? await installer.UninstallAsync(cli) : "Nada nas pastas oficiais.");
+    Console.WriteLine($"Agora o NXPilot acha: {NXData.AgentInstaller.AgentLocator.Find(cli)?.Path ?? "(nenhum)"} ({NXData.AgentInstaller.AgentLocator.Find(cli)?.Version})");
+    return 0;
+}
+
+// --agent-check: o que o triângulo amarelo da barra lateral enxerga (versão instalada x última). Diagnóstico.
+if (args.Length > 0 && args[0] == "--agent-check")
+{
+    foreach (var kind in new[] { NXPilot.Agents.AgentKind.Claude, NXPilot.Agents.AgentKind.Codex })
+    {
+        var cli = kind == NXPilot.Agents.AgentKind.Claude ? NXData.AgentInstaller.AgentCli.ClaudeCode : NXData.AgentInstaller.AgentCli.Codex;
+        var found = NXData.AgentInstaller.AgentLocator.Find(cli);
+        try
+        {
+            var (latest, _) = await new NXData.AgentInstaller.AgentInstaller(new NXData.AgentInstaller.AgentInstallOptions()).ResolveVersionAsync(cli, NXData.AgentInstaller.VersionChoice.Latest);
+            Console.WriteLine($"{kind}: instalada {found?.Version} ({found?.Source}) · última {latest} · aviso: {await NXPilot.Agents.AgentUpdates.CheckAsync(kind) is not null}");
+        }
+        catch (Exception ex) { Console.WriteLine($"{kind}: instalada {found?.Version} · erro ao ver a última: {ex.Message}"); }
+    }
+    return 0;
+}
+
 // --exec-sim <claude|codex> <prompt>: o agente em modo EXECUÇÃO (fora do plano), com o MCP real; o gate libera
 // MÉDIO como se o usuário aprovasse no painel (ALTO continua negado). Para testes autorizados de gravação.
 if (args.Length > 2 && args[0] == "--exec-sim" && OperatingSystem.IsWindows())

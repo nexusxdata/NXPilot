@@ -965,8 +965,96 @@ public sealed partial class MainViewModel : ObservableObject
 
     public async Task RefreshAgentLoginsAsync()
     {
-        await Task.WhenAll(RefreshSignedOutAsync(AgentKind.Claude), RefreshSignedOutAsync(AgentKind.Codex));
+        await Task.WhenAll(RefreshSignedOutAsync(AgentKind.Claude), RefreshSignedOutAsync(AgentKind.Codex), RefreshUpdatesAsync());
         ShowAgentLogins();
+    }
+
+    /// <summary>Versões novas dos agentes (fachada AgentUpdates); confere no máximo uma vez por hora.</summary>
+    private readonly Dictionary<AgentKind, AgentUpdates.Available> _agentUpdates = new();
+    private DateTime _updatesCheckedAt = DateTime.MinValue;
+
+    /// <summary>"Agora não" no triângulo amarelo: some até a próxima vez que o NXPilot abrir.</summary>
+    private readonly HashSet<AgentKind> _updateDismissed = new();
+    /// <summary>Agente sendo atualizado → etapa atual (aparece na linha dele, com a barra).</summary>
+    private readonly Dictionary<AgentKind, string> _updating = new();
+
+    private async Task RefreshUpdatesAsync(bool force = false)
+    {
+        if (!force && DateTime.Now - _updatesCheckedAt < TimeSpan.FromHours(1)) return;
+        _updatesCheckedAt = DateTime.Now;
+        var found = await Task.WhenAll(AgentUpdates.CheckAsync(AgentKind.Claude), AgentUpdates.CheckAsync(AgentKind.Codex));
+        _agentUpdates.Clear();
+        foreach (var a in found.OfType<AgentUpdates.Available>()) _agentUpdates[a.Kind] = a;
+    }
+
+    private string? UpdateTipFor(AgentKind kind) =>
+        _agentUpdates.TryGetValue(kind, out var u) && !_updateDismissed.Contains(kind)
+            ? T($"Versão nova do {AgentName(kind)}: {u.Latest} (instalada {u.Installed}). Clique para atualizar.",
+                $"New {AgentName(kind)} version: {u.Latest} (installed {u.Installed}). Click to update.",
+                $"Nueva versión de {AgentName(kind)}: {u.Latest} (instalada {u.Installed}). Haga clic para actualizar.")
+            : null;
+
+    /// <summary>
+    /// Triângulo amarelo: pergunta se quer atualizar e roda a mesma rotina do Setup (AgentUpdates). "Não" esconde
+    /// o aviso até a próxima abertura do NXPilot. Com tarefa rodando, espera — o agente está em uso.
+    /// </summary>
+    [RelayCommand]
+    private async Task UpdateAgent(AgentLoginItem? item)
+    {
+        if (item?.Kind is not { } kind || !_agentUpdates.TryGetValue(kind, out var u) || _updating.ContainsKey(kind)) return;
+        var owner = Application.Current.MainWindow;
+        if (Busy)
+        {
+            MessageBox.Show(owner, T($"Há uma tarefa em andamento usando os agentes. Atualize o {AgentName(kind)} quando ela terminar.",
+                $"A task is running with the agents. Update {AgentName(kind)} when it finishes.",
+                $"Hay una tarea en curso usando los agentes. Actualice {AgentName(kind)} cuando termine."), "NXPilot", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var vsCode = u.Source == "extensão do VS Code"
+            ? T("\n\nO que você tem hoje veio da extensão do VS Code: o NXPilot instala a versão oficial e passa a usá-la (a da extensão continua).",
+                "\n\nThe one you have came from the VS Code extension: NXPilot installs the official version and uses it from now on (the extension's stays).",
+                "\n\nEl que tiene vino de la extensión de VS Code: NXPilot instala la versión oficial y pasa a usarla (la de la extensión sigue).")
+            : "";
+        if (MessageBox.Show(owner, T($"Atualizar o {AgentName(kind)} de {u.Installed} para {u.Latest}?{vsCode}",
+                $"Update {AgentName(kind)} from {u.Installed} to {u.Latest}?{vsCode}",
+                $"¿Actualizar {AgentName(kind)} de {u.Installed} a {u.Latest}?{vsCode}"),
+                "NXPilot", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes) != MessageBoxResult.Yes)
+        {
+            _updateDismissed.Add(kind); // some até a próxima vez que o NXPilot abrir
+            ShowAgentLogins();
+            return;
+        }
+        _updating[kind] = T("Preparando a atualização…", "Preparing the update…", "Preparando la actualización…");
+        ShowAgentLogins();
+        AddLog(T("Você", "You", "Usted"), T("atualizar", "update", "actualizar"), T($"Atualizando o {AgentName(kind)} para {u.Latest}…", $"Updating {AgentName(kind)} to {u.Latest}…", $"Actualizando {AgentName(kind)} a {u.Latest}…"));
+        try
+        {
+            var r = await AgentUpdates.UpdateAsync(kind, new Progress<string>(m =>
+            {
+                _updating[kind] = m; // etapa na linha do agente
+                ShowAgentLogins();
+                AddLog(AgentName(kind), T("atualizar", "update", "actualizar"), m);
+            }));
+            AddLog(AgentName(kind), T("atualizar", "update", "actualizar"), r.Message);
+            _agentUpdates.Remove(kind);
+            _updating.Remove(kind);
+            ShowAgentLogins();
+            MessageBox.Show(owner, T($"{AgentName(kind)} atualizado para {r.Version}. As próximas tarefas já usam esta versão.",
+                $"{AgentName(kind)} updated to {r.Version}. The next tasks already use this version.",
+                $"{AgentName(kind)} actualizado a {r.Version}. Las próximas tareas ya usan esta versión."), "NXPilot", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            AddLog(AgentName(kind), T("erro", "error", "error"), T("Não foi possível atualizar: ", "Could not update: ", "No se pudo actualizar: ") + ex.Message);
+            MessageBox.Show(owner, T("Não foi possível atualizar: ", "Could not update: ", "No se pudo actualizar: ") + ex.Message, "NXPilot", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _updating.Remove(kind);
+            await RefreshUpdatesAsync(force: true);
+            await RefreshSignedOutAsync(kind);
+            ShowAgentLogins();
+        }
     }
 
     private void ShowAgentLogins()
@@ -979,8 +1067,9 @@ public sealed partial class MainViewModel : ObservableObject
             if (!_signedOut.TryGetValue(kind, out var outNow)) continue; // não instalado ou não deu para saber
             AgentLogins.Add(outNow
                 ? new AgentLoginItem(kind, "out", AgentName(kind),
-                    T("Sem login — clique para entrar", "Not signed in — click to sign in", "Sin inicio de sesión — haga clic para entrar"), ActivityOf(AgentName(kind)))
-                : new AgentLoginItem(kind, "in", AgentName(kind), T("Login ativo", "Signed in", "Sesión iniciada"), ActivityOf(AgentName(kind))));
+                    T("Sem login — clique para entrar", "Not signed in — click to sign in", "Sin inicio de sesión — haga clic para entrar"), ActivityOf(AgentName(kind)), UpdateTipFor(kind))
+                : new AgentLoginItem(kind, "in", AgentName(kind), T("Login ativo", "Signed in", "Sesión iniciada"), ActivityOf(AgentName(kind)), UpdateTipFor(kind)));
+            if (_updating.TryGetValue(kind, out var step)) AgentLogins[^1] = AgentLogins[^1] with { UpdateProgress = step };
         }
         AgentLogins.Add(new AgentLoginItem(null, "build", "NXAgentic", T("Em construção", "Under construction", "En construcción"), ActivityOf("NXAgentic")));
         // Atividade de quem não tem linha de login (ex.: login ainda não conferido).
