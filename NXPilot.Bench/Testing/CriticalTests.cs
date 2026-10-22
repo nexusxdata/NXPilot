@@ -276,7 +276,8 @@ public static class CriticalTests
                 AssertContains("apresentação de PowerPoint", NXPilot.Risk.PlainRisk.Explain("MCP nxpilot pptx_build: {}", RiskLevel.Baixo), "Ferramenta MCP pelo prefixo.");
                 AssertContains("fora da pasta da tarefa", NXPilot.Risk.PlainRisk.Explain(@"Write: C:\outro\a.txt", RiskLevel.Alto, @"C:\wt"), "Arquivo fora do worktree.");
                 AssertContains("versão anterior é guardada", NXPilot.Risk.PlainRisk.Explain(@"Write: C:\wt\a.txt", RiskLevel.Medio, @"C:\wt"), "Arquivo dentro do worktree.");
-                AssertContains("rodar um comando", NXPilot.Risk.PlainRisk.Explain("Bash: xyzzy --foo", RiskLevel.Medio), "Desconhecido: frase genérica.");
+                AssertEqual("O agente quer rodar um comando no seu computador.", NXPilot.Risk.PlainRisk.Explain("Bash: xyzzy --foo", RiskLevel.Medio),
+                    "Desconhecido: só o que é — sem nível nem porquê (o nível fica no selo; não assusta com \"não sei\").");
             }
             finally { NXPilot.NxText.Language = old; }
             return Task.CompletedTask;

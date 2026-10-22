@@ -70,12 +70,14 @@ public static class PlainRisk
     ];
 
     /// <summary>
-    /// Uma frase simples para o pedido. <paramref name="worktree"/> diz o que é "a pasta da tarefa" (arquivo fora dela pesa mais).
+    /// Uma frase simples para o pedido; comando que as regras não reconhecem fica só com o "o que" (sem nível nem "porquê").
+    /// <paramref name="worktree"/> diz o que é "a pasta da tarefa" (arquivo fora dela pesa mais).
     /// </summary>
     public static string Explain(string action, RiskLevel level, string? worktree = null)
     {
         var (tool, body) = Split(action);
-        string[] what, why;
+        string[] what;
+        string[]? why;
 
         if (tool.StartsWith("MCP", StringComparison.OrdinalIgnoreCase) || tool.StartsWith("mcp__", StringComparison.OrdinalIgnoreCase))
         {
@@ -117,9 +119,10 @@ public static class PlainRisk
         }
         else
         {
+            // Comando que as regras não reconhecem: diz só o que é, sem nível nem "porquê" (um "não sei" assusta mais do que ajuda).
             var kind = Commands.FirstOrDefault(k => k.Match.IsMatch(body));
             what = kind?.What ?? ["rodar um comando", "run a command", "ejecutar un comando"];
-            why = kind?.Why ?? ["não foi possível saber o que o comando faz", "it was not possible to tell what the command does", "no fue posible saber qué hace el comando"];
+            why = kind?.Why;
         }
 
         var levelText = level switch
@@ -128,6 +131,12 @@ public static class PlainRisk
             RiskLevel.Medio => NxText.T("médio", "medium", "medio"),
             _ => NxText.T("alto", "high", "alto"),
         };
+        // Sem regra para o comando: só o que ele é. O nível fica no selo do cartão (vem do classificador),
+        // sem frase que explique um risco que as regras não sabem justificar.
+        if (why == null)
+            return NxText.T($"O agente quer {what[0]} no seu computador.",
+                            $"The agent wants to {what[1]} on your computer.",
+                            $"El agente quiere {what[2]} en su computadora.");
         return NxText.T($"O agente quer {what[0]} no seu computador. O risco é {levelText} porque {why[0]}.",
                         $"The agent wants to {what[1]} on your computer. The risk is {levelText} because {why[1]}.",
                         $"El agente quiere {what[2]} en su computadora. El riesgo es {levelText} porque {why[2]}.");
