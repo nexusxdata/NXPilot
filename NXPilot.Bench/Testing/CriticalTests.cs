@@ -1077,7 +1077,7 @@ public static class CriticalTests
             AssertTrue(bad.Validate().Any(p => p.Contains("tecla")), "Tecla Delete não é permitida.");
         }),
 
-        new("Agentes: instalação interna confere o SHA-256; versão testada que sumiu cai para a última; pacote completo do Codex", async () =>
+        new("Agentes: instalação interna confere o SHA-256; versão testada que sumiu cai para a última; pacote completo do Codex; remover só o oficial e mantém o login", async () =>
         {
             var root = Path.Combine(Path.GetTempPath(), "nx-agents-" + Guid.NewGuid().ToString("N")[..8]);
             try
@@ -1149,6 +1149,21 @@ public static class CriticalTests
 
                 AssertContains("CODEX_RELEASE='0.162.0'", installer.ScriptCommand(NXData.AgentInstaller.AgentCli.Codex, "0.162.0"), "Script oficial do Codex com versão.");
                 AssertEqual("irm https://claude.ai/install.ps1 | iex", installer.ScriptCommand(NXData.AgentInstaller.AgentCli.ClaudeCode), "Script oficial do Claude.");
+
+                // 🗑 Remover: só o que está nas pastas oficiais; login e configurações ficam.
+                Directory.CreateDirectory(options.ClaudeLocalBin);
+                File.WriteAllBytes(Path.Combine(options.ClaudeLocalBin, "claude.exe"), exe);          // o "claude install" falso não cria o lançador
+                Directory.CreateDirectory(Path.Combine(options.UserProfile, ".local", "share", "claude", "versions"));
+                File.WriteAllText(Path.Combine(options.UserProfile, ".claude", "settings.json"), "{}");
+                File.WriteAllText(Path.Combine(options.CodexHome, "auth.json"), "{}");
+                AssertTrue(installer.CanUninstall(NXData.AgentInstaller.AgentCli.ClaudeCode) && installer.CanUninstall(NXData.AgentInstaller.AgentCli.Codex), "Instalados nas pastas oficiais: dá para remover.");
+                await installer.UninstallAsync(NXData.AgentInstaller.AgentCli.ClaudeCode);
+                await installer.UninstallAsync(NXData.AgentInstaller.AgentCli.Codex);
+                AssertFalse(installer.CanUninstall(NXData.AgentInstaller.AgentCli.ClaudeCode) || installer.CanUninstall(NXData.AgentInstaller.AgentCli.Codex), "Removidos.");
+                AssertFalse(Directory.Exists(Path.Combine(options.UserProfile, ".local", "share", "claude")), "Versões do Claude removidas.");
+                AssertFalse(Directory.Exists(options.CodexStandaloneRoot), "Pacotes do Codex removidos.");
+                AssertTrue(File.Exists(Path.Combine(options.UserProfile, ".claude", "settings.json")) && File.Exists(Path.Combine(options.CodexHome, "auth.json")), "Login e configurações mantidos.");
+                await AssertThrowsAsync<NXData.AgentInstaller.AgentInstallException>(() => installer.UninstallAsync(NXData.AgentInstaller.AgentCli.Codex), "Nada nas pastas oficiais: não remove nada.");
             }
             finally
             {
@@ -1272,7 +1287,7 @@ public static class CriticalTests
             AssertTrue(new TeamsSettings().AcceptsSubject(@"C:\qualquer"), "Lista vazia = todos.");
         }),
 
-        new("IA Local e ONNX (NXData.AgentInstaller): backend AVX2 extraído, modelo conferido por SHA-256, SHA errado não instala, reinstalar não baixa", async () =>
+        new("IA Local e ONNX (NXData.AgentInstaller): backend AVX2 extraído, modelo conferido por SHA-256, SHA errado não instala, reinstalar não baixa, remover só o que é da IA Local", async () =>
         {
             var root = Path.Combine(Path.GetTempPath(), "nx-localai-" + Guid.NewGuid().ToString("N")[..8]);
             try
@@ -1328,6 +1343,13 @@ public static class CriticalTests
                 Directory.CreateDirectory(Path.Combine(root, "appdata", "NXProject.Community"));
                 File.WriteAllText(Path.Combine(root, "appdata", "NXProject.Community", "local-ai.json"), JsonSerializer.Serialize(new { ResourcesFolder = folder }));
                 AssertEqual(folder, installer.ResolveFolder(), "Pasta do local-ai.json do NXProject.");
+
+                // 🗑 Remover: só o que o instalador põe na pasta; arquivo de outra pessoa fica (e a pasta com ele).
+                File.WriteAllText(Path.Combine(folder, "minhas-notas.txt"), "da pessoa");
+                installer.Uninstall(folder);
+                AssertFalse(installer.Check(folder).BackendPresent || installer.Check(folder).ModelPresent, "Backend e modelo removidos.");
+                AssertFalse(File.Exists(Path.Combine(folder, "ggml.dll")) || File.Exists(Path.Combine(folder, "backend-version.txt")), "DLLs e registros do backend removidos.");
+                AssertTrue(File.Exists(Path.Combine(folder, "minhas-notas.txt")), "Arquivo que não é da IA Local fica.");
 
                 // ONNX: vocab + modelo; o que já existe não é baixado de novo.
                 var onnxHttp = new BinaryHttp(url => url.EndsWith("vocab.txt") ? (Encoding.ASCII.GetBytes("[PAD]"), null) : url.EndsWith("model.onnx") ? (new byte[2048], null) : null);

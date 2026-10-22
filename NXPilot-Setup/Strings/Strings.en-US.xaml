@@ -11,6 +11,8 @@
     <sys:String x:Key="Setup_Instalar">Install</sys:String>
     <sys:String x:Key="Setup_AtualizarAgente">Update</sys:String>
     <sys:String x:Key="Setup_AgenteAtualizado">✓ Up to date</sys:String>
+    <sys:String x:Key="Setup_RemoverAgenteTip">Remove this agent from the computer (asks first; your sign-in is kept)</sys:String>
+    <sys:String x:Key="Setup_RemoverIaLocalTip">Remove the Local AI from the computer (asks first; NXProject uses the same one)</sys:String>
     <sys:String x:Key="Setup_2ClassificadorDeRisco">4 · ONNX risk classifier (recommended)</sys:String>
     <sys:String x:Key="Setup_ModeloAllMinilmL6">all-MiniLM-L6-v2 model (~90 MB) that classifies each agent action in milliseconds, on the CPU — no GPU needed. Without it NXPilot uses rules only.</sys:String>
     <sys:String x:Key="Setup_BaixarModelo">Download model</sys:String>

@@ -11,6 +11,8 @@
     <sys:String x:Key="Setup_Instalar">Instalar</sys:String>
     <sys:String x:Key="Setup_AtualizarAgente">Atualizar</sys:String>
     <sys:String x:Key="Setup_AgenteAtualizado">✓ Atualizado</sys:String>
+    <sys:String x:Key="Setup_RemoverAgenteTip">Remover este agente do computador (pergunta antes; seu login é mantido)</sys:String>
+    <sys:String x:Key="Setup_RemoverIaLocalTip">Remover a IA Local do computador (pergunta antes; o NXProject usa a mesma)</sys:String>
     <sys:String x:Key="Setup_2ClassificadorDeRisco">4 · Classificador de risco ONNX (recomendado)</sys:String>
     <sys:String x:Key="Setup_ModeloAllMinilmL6">Modelo all-MiniLM-L6-v2 (~90 MB) que classifica cada ação dos agentes em milissegundos, na CPU — não precisa de GPU. Sem ele o NXPilot usa só regras.</sys:String>
     <sys:String x:Key="Setup_BaixarModelo">Baixar modelo</sys:String>

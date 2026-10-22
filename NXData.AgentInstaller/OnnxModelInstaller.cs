@@ -24,6 +24,21 @@ public sealed class OnnxModelInstaller(string? root = null, HttpMessageHandler? 
 
     public bool IsInstalled => File.Exists(ModelPath) && File.Exists(VocabPath);
 
+    /// <summary>Remove o modelo e o vocabulário (e a pasta, se ficar vazia). Com o NXPilot aberto, o modelo está em uso.</summary>
+    public void Uninstall()
+    {
+        try
+        {
+            foreach (var f in new[] { ModelPath, VocabPath, ModelPath + ".part", VocabPath + ".part" })
+                if (File.Exists(f)) File.Delete(f);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new IOException($"Não foi possível remover o modelo ONNX: está em uso. Feche o NXPilot e tente de novo. ({ex.Message})", ex);
+        }
+        if (Directory.Exists(Folder) && !Directory.EnumerateFileSystemEntries(Folder).Any()) Directory.Delete(Folder);
+    }
+
     /// <summary>Baixa o que falta (vocab e modelo); o que já existe fica.</summary>
     public async Task InstallAsync(IProgress<LocalAiProgress>? progress = null, CancellationToken ct = default)
     {

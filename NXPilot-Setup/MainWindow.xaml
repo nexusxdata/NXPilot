@@ -61,7 +61,11 @@
                                     <Run x:Name="AppPathRun"/>
                                     <Hyperlink Click="OnOpenAppFolder"><Run Text="{DynamicResource Setup_AbrirPasta}"/></Hyperlink>
                                 </TextBlock>
-                                <Button x:Name="Step1Button" Content="{DynamicResource Setup_Instalar}" Width="220" Style="{StaticResource StepButton}" Click="OnStep1Click"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="Step1Button" Content="{DynamicResource Setup_Instalar}" Width="220" Style="{StaticResource StepButton}" Click="OnStep1Click"/>
+                                    <!-- 🗑 remover o NXPilot (pergunta antes; os dados — tarefas, histórico, configurações — só se você quiser). -->
+                                    <Button x:Name="AppRemoveButton" Content="🗑" Padding="10,4" Margin="8,0,0,0" Visibility="Collapsed" Click="OnRemoveAppClick"/>
+                                </StackPanel>
                                 <!-- Porcentagem por cima da barra: no fim mostra 100%, para ficar claro que acabou. -->
                                 <Grid x:Name="Step1ProgressPanel" Margin="0,10,0,0">
                                     <ProgressBar x:Name="Step1Progress" Height="18" Minimum="0" Maximum="100"/>
@@ -120,6 +124,8 @@
                                         <TextBlock Text="Claude Code" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                     </DockPanel>
                                     <DockPanel Margin="0,0,0,12">
+                                        <!-- 🗑 remover (só o que está nas pastas do instalador oficial); pergunta antes. -->
+                                        <Button x:Name="ClaudeRemoveButton" DockPanel.Dock="Right" Tag="claude" Content="🗑" Padding="8,2" Margin="6,0,0,0" Visibility="Collapsed" ToolTip="{DynamicResource Setup_RemoverAgenteTip}" Click="OnRemoveAgentClick"/>
                                         <Button x:Name="ClaudeInstallButton" DockPanel.Dock="Right" Content="{DynamicResource Setup_Instalar}" Padding="10,2" Margin="6,0,0,0" Tag="claude" ToolTip="{DynamicResource Setup_InstalarAgenteTip}" Click="OnInstallAgentClick"/>
                                         <Button DockPanel.Dock="Right" Content="{DynamicResource Setup_Copiar}" Padding="10,2" Margin="6,0,0,0" Tag="claude" ToolTip="{DynamicResource Setup_CopiarTip}" Click="OnCopyCommand"/>
                                         <TextBox x:Name="ClaudeCommand" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="11" Padding="4,3" BorderBrush="#DDE1E6"/>
@@ -130,6 +136,7 @@
                                         <TextBlock Text="Codex" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                     </DockPanel>
                                     <DockPanel Margin="0,0,0,8">
+                                        <Button x:Name="CodexRemoveButton" DockPanel.Dock="Right" Tag="codex" Content="🗑" Padding="8,2" Margin="6,0,0,0" Visibility="Collapsed" ToolTip="{DynamicResource Setup_RemoverAgenteTip}" Click="OnRemoveAgentClick"/>
                                         <Button x:Name="CodexInstallButton" DockPanel.Dock="Right" Content="{DynamicResource Setup_Instalar}" Padding="10,2" Margin="6,0,0,0" Tag="codex" ToolTip="{DynamicResource Setup_InstalarAgenteTip}" Click="OnInstallAgentClick"/>
                                         <Button DockPanel.Dock="Right" Content="{DynamicResource Setup_Copiar}" Padding="10,2" Margin="6,0,0,0" Tag="codex" ToolTip="{DynamicResource Setup_CopiarTip}" Click="OnCopyCommand"/>
                                         <TextBox x:Name="CodexCommand" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="11" Padding="4,3" BorderBrush="#DDE1E6"/>
@@ -153,7 +160,10 @@
                                         <Run x:Name="OnnxPathRun"/>
                                         <Hyperlink Click="OnOpenOnnxFolder"><Run Text="{DynamicResource Setup_AbrirPasta}"/></Hyperlink>
                                     </TextBlock>
-                                    <Button x:Name="Step2Button" Content="{DynamicResource Setup_BaixarModelo}" Width="220" Style="{StaticResource StepButton}" Click="OnStep2Click"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button x:Name="Step2Button" Content="{DynamicResource Setup_BaixarModelo}" Width="220" Style="{StaticResource StepButton}" Click="OnStep2Click"/>
+                                        <Button x:Name="OnnxRemoveButton" Content="🗑" Padding="10,4" Margin="8,0,0,0" Visibility="Collapsed" Click="OnRemoveOnnxClick"/>
+                                    </StackPanel>
                                     <TextBlock x:Name="Step2ProgressText" FontSize="11" Foreground="#555" Margin="0,8,0,0"/>
                                 </StackPanel>
                             </Border>
@@ -171,6 +181,7 @@
                                     <StackPanel x:Name="LlamaInstallPanel">
                                         <StackPanel Orientation="Horizontal">
                                             <Button x:Name="LlamaInstallButton" Content="{DynamicResource Setup_InstalarIaLocal}" Width="220" Style="{StaticResource StepButton}" Click="OnInstallLlamaClick"/>
+                                            <Button x:Name="LlamaRemoveButton" Content="🗑" Padding="10,4" Margin="8,0,0,0" Visibility="Collapsed" ToolTip="{DynamicResource Setup_RemoverIaLocalTip}" Click="OnRemoveLlamaClick"/>
                                             <Button x:Name="LlamaCancelButton" Content="{DynamicResource Setup_Cancelar}" Padding="12,4" Margin="8,0,0,0" Visibility="Collapsed" Click="OnCancelLlamaClick"/>
                                         </StackPanel>
                                         <!-- Porcentagem por cima da barra: no fim mostra 100%, para ficar claro que acabou. -->

@@ -269,6 +269,82 @@ public sealed class AgentInstaller(AgentInstallOptions? options = null, HttpMess
             throw new AgentInstallException($"Não foi possível criar a junção {link} → {target}: {err.Trim()}");
     }
 
+    // ---------------------------------------------------------------- Remover
+
+    /// <summary>
+    /// Só o que está nas pastas do instalador oficial (onde este pacote também instala) pode ser removido aqui.
+    /// Cópia do npm/PATH, a pasta antiga do NXProject e o binário da extensão do VS Code não são nossos.
+    /// </summary>
+    public bool CanUninstall(AgentCli cli) => File.Exists(OfficialExe(cli));
+
+    private string OfficialExe(AgentCli cli) => cli == AgentCli.ClaudeCode
+        ? Path.Combine(_o.ClaudeLocalBin, "claude.exe")
+        : Path.Combine(_o.CodexVisibleBin, "codex.exe");
+
+    /// <summary>
+    /// Remove o agente das pastas oficiais (direito de quem instalou). O login e as configurações da pessoa
+    /// (~/.claude, ~/.codex) ficam — reinstalar volta como estava. Em uso (agente aberto) dá erro claro.
+    /// </summary>
+    public Task<string> UninstallAsync(AgentCli cli, CancellationToken ct = default) => Task.Run(() =>
+    {
+        var name = cli == AgentCli.ClaudeCode ? "Claude Code" : "Codex";
+        if (!CanUninstall(cli)) throw new AgentInstallException($"{name} não está nas pastas do instalador oficial — nada a remover aqui.");
+        try
+        {
+            if (cli == AgentCli.ClaudeCode)
+            {
+                File.Delete(OfficialExe(cli));                                                  // lançador em ~/.local/bin
+                DeleteDir(Path.Combine(_o.UserProfile, ".local", "share", "claude"));            // versões baixadas
+                if (Directory.Exists(_o.ClaudeLocalBin) && !Directory.EnumerateFileSystemEntries(_o.ClaudeLocalBin).Any())
+                {
+                    Directory.Delete(_o.ClaudeLocalBin);
+                    if (_o.UpdateUserPath) RemoveFromUserPath(_o.ClaudeLocalBin);               // ~/.local/bin pode ser de outros programas
+                }
+            }
+            else
+            {
+                DeleteDir(_o.CodexVisibleBin);                                                   // junção (ou pasta) …\OpenAI\Codexin
+                DeleteDir(_o.CodexStandaloneRoot);                                               // pacotes em ~/.codex/packages/standalone
+                foreach (var dir in new[] { Path.GetDirectoryName(_o.CodexVisibleBin)!, Path.GetDirectoryName(Path.GetDirectoryName(_o.CodexVisibleBin)!)! })
+                    if (Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir);
+                if (_o.UpdateUserPath) RemoveFromUserPath(_o.CodexVisibleBin);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new AgentInstallException($"Não foi possível remover o {name}: algum arquivo está em uso. Feche o NXPilot, o NXProject, o VS Code e os terminais que usam o {name} e tente de novo. ({ex.Message})", ex);
+        }
+        return $"{name} removido. Seu login e suas configurações foram mantidos (reinstalar volta como estava).";
+    }, ct);
+
+    /// <summary>
+    /// Junção: apaga só o link (nunca o destino). Pasta real: primeiro as junções de dentro (ex.: "current"
+    /// do Codex — apagar recursivo por cima delas dá "acesso negado"), depois o resto, sem atributo somente leitura.
+    /// </summary>
+    private static void DeleteDir(string dir)
+    {
+        var info = new DirectoryInfo(dir);
+        if (!info.Exists) return;
+        if (info.Attributes.HasFlag(FileAttributes.ReparsePoint)) { info.Delete(); return; }
+        foreach (var sub in info.EnumerateDirectories())
+            DeleteDir(sub.FullName);
+        foreach (var file in info.EnumerateFiles())
+        {
+            file.Attributes = FileAttributes.Normal;
+            file.Delete();
+        }
+        info.Delete();
+    }
+
+    /// <summary>Tira a pasta do PATH do usuário (HKCU).</summary>
+    public static void RemoveFromUserPath(string dir)
+    {
+        var cur = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User) ?? "";
+        var parts = cur.Split(';', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
+        var kept = parts.Where(p => !string.Equals(p.TrimEnd('\\'), dir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)).ToList();
+        if (kept.Count != parts.Count) Environment.SetEnvironmentVariable("PATH", string.Join(';', kept), EnvironmentVariableTarget.User);
+    }
+
     // ---------------------------------------------------------------- Script
 
     public string ScriptCommand(AgentCli cli, string? version = null) => cli switch

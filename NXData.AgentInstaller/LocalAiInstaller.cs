@@ -247,6 +247,31 @@ public sealed class LocalAiInstaller(LocalAiInstallOptions? options = null, Http
 
     private static string Norm(string path) => path.Replace('\\', '/');
 
+    /// <summary>
+    /// Remove a IA Local da pasta (modelo, DLLs do backend e os arquivos de controle). Só apaga o que este
+    /// instalador põe lá — outros arquivos da pasta ficam; a pasta só sai se ficar vazia. A pasta é a mesma
+    /// do NXProject: removida aqui, some para os dois. Com o NXPilot/NXProject abertos, a DLL está em uso.
+    /// </summary>
+    public string Uninstall(string? folder = null)
+    {
+        folder ??= ResolveFolder();
+        if (!Directory.Exists(folder)) return folder;
+        var files = new[] { "llama*.dll", "ggml*.dll", "mtmd*.dll", "llava*.dll", "*.gguf", "*.gguf.tmp", "_backend.nupkg.tmp" }
+            .SelectMany(p => Directory.EnumerateFiles(folder, p))
+            .Concat(new[] { "backend-version.txt", "backend-kind.txt" }.Select(f => Path.Combine(folder, f)).Where(File.Exists))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        try
+        {
+            foreach (var f in files) File.Delete(f);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new IOException($"Não foi possível remover a IA Local: algum arquivo está em uso. Feche o NXPilot e o NXProject e tente de novo. ({ex.Message})", ex);
+        }
+        if (!Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder);
+        return folder;
+    }
+
     private static void TryDelete(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); } catch { /* .tmp fica para a próxima tentativa sobrescrever */ }

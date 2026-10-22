@@ -207,6 +207,10 @@ public partial class MainWindow : Window
                                      $"NXPilot {installed} instalado. Actualizar a la última versión descarga la más reciente de GitHub (y la base de este Setup).");
             Step1Button.Content = T("🔄 Atualizar para a última versão", "🔄 Update to the latest version", "🔄 Actualizar a la última versión"); // instalado: você já verificou no app (era "Reinstalar")
             OpenAppButton.Visibility = Visibility.Visible;
+            AppRemoveButton.Visibility = Visibility.Visible;
+            AppRemoveButton.ToolTip = T("Remover o NXPilot deste computador (pergunta antes; seus dados só saem se você quiser)",
+                                        "Remove NXPilot from this computer (asks first; your data is removed only if you want)",
+                                        "Quitar NXPilot de esta computadora (pregunta antes; sus datos solo se borran si usted quiere)");
         }
         else
         {
@@ -214,6 +218,61 @@ public partial class MainWindow : Window
                                      "Downloads the latest NXPilot from GitHub, installs it in your profile (with the .NET runtime that comes in the Setup) and creates a desktop shortcut.",
                                      "Descarga la versión más reciente de NXPilot de GitHub, la instala en su perfil (con el runtime de .NET que trae el Setup) y crea un acceso directo en el escritorio.");
             Step1Button.Content = T("Instalar", "Install", "Instalar");
+            AppRemoveButton.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>Pasta dos dados do NXPilot (tarefas, histórico, configurações das extensões).</summary>
+    private static string DataDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXPilot");
+
+    /// <summary>
+    /// 🗑 do NXPilot: remove o programa e o atalho; os dados (tarefas, histórico, configurações) saem só se a pessoa
+    /// confirmar à parte — é direito dela apagar tudo, e também guardar. Com o NXPilot aberto, pede para fechar.
+    /// </summary>
+    private async void OnRemoveAppClick(object sender, RoutedEventArgs e)
+    {
+        ErrorText.Visibility = Visibility.Collapsed;
+        if (Process.GetProcessesByName(Path.GetFileNameWithoutExtension(AppExeName)).Length > 0)
+        {
+            ShowError(T("O NXPilot está aberto: feche-o (e espere terminar a tarefa, se houver) e tente de novo.",
+                        "NXPilot is open: close it (and let any task finish) and try again.",
+                        "NXPilot está abierto: ciérrelo (y espere a que termine la tarea, si la hay) e intente de nuevo."));
+            return;
+        }
+        var ask = T($"Remover o NXPilot deste computador?\n\nApaga o programa ({_installDir}) e o atalho da área de trabalho. Agentes, ONNX e IA Local ficam (cada um tem a sua lixeira).",
+                    $"Remove NXPilot from this computer?\n\nDeletes the program ({_installDir}) and the desktop shortcut. Agents, ONNX and Local AI stay (each has its own trash button).",
+                    $"¿Quitar NXPilot de esta computadora?\n\nBorra el programa ({_installDir}) y el acceso directo del escritorio. Los agentes, ONNX e IA Local se quedan (cada uno tiene su papelera).");
+        if (MessageBox.Show(this, ask, "NXPilot Setup", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        var data = Directory.Exists(DataDir) && MessageBox.Show(this,
+            T($"Apagar também os seus dados?\n\n{DataDir}\nTarefas, histórico, configurações das extensões e conexões salvas. Não dá para desfazer.\n\nNão = os dados ficam (reinstalar volta como estava).",
+              $"Also delete your data?\n\n{DataDir}\nTasks, history, extension settings and saved connections. This cannot be undone.\n\nNo = the data stays (reinstalling brings it back as it was).",
+              $"¿Borrar también sus datos?\n\n{DataDir}\nTareas, historial, configuración de las extensiones y conexiones guardadas. No se puede deshacer.\n\nNo = los datos se quedan (reinstalar los recupera tal como estaban)."),
+            "NXPilot Setup", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
+        AppRemoveButton.IsEnabled = Step1Button.IsEnabled = false;
+        string? done = null;
+        try
+        {
+            await Task.Run(() =>
+            {
+                if (Directory.Exists(_installDir)) Directory.Delete(_installDir, recursive: true);
+                var shortcut = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "NXPilot.lnk");
+                if (File.Exists(shortcut)) File.Delete(shortcut);
+                if (data) Directory.Delete(DataDir, recursive: true);
+            });
+            done = data
+                ? T("NXPilot e seus dados removidos.", "NXPilot and your data removed.", "NXPilot y sus datos quitados.")
+                : T("NXPilot removido. Seus dados continuam em ", "NXPilot removed. Your data stays in ", "NXPilot quitado. Sus datos siguen en ") + DataDir;
+            OpenAppButton.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShowError(T("Não foi possível remover tudo: algum arquivo está em uso. Feche o NXPilot e tente de novo. ", "Could not remove everything: some file is in use. Close NXPilot and try again. ", "No se pudo quitar todo: algún archivo está en uso. Cierre NXPilot e intente de nuevo. ") + ex.Message);
+        }
+        finally
+        {
+            AppRemoveButton.IsEnabled = Step1Button.IsEnabled = true;
+            RefreshStep1();
+            if (done != null) Step1StatusText.Text = done; // depois do Refresh, que reescreve o texto
         }
     }
 
@@ -377,6 +436,25 @@ public partial class MainWindow : Window
         Step2StatusText.Text = ok ? T("Modelo instalado.", "Model installed.", "Modelo instalado.") : T("Modelo ainda não baixado.", "Model not downloaded yet.", "Modelo aún no descargado.");
         Step2Button.Content = ok ? T("Já instalado", "Already installed", "Ya instalado") : T("Baixar modelo", "Download model", "Descargar modelo");
         Step2Button.IsEnabled = !ok;
+        OnnxRemoveButton.Visibility = File.Exists(_onnx.ModelPath) || File.Exists(_onnx.VocabPath) ? Visibility.Visible : Visibility.Collapsed;
+        OnnxRemoveButton.ToolTip = T("Remover o classificador ONNX (pergunta antes)", "Remove the ONNX classifier (asks first)", "Quitar el clasificador ONNX (pregunta antes)");
+    }
+
+    /// <summary>🗑 do classificador ONNX: pergunta e remove o modelo (o gate fica só com as regras).</summary>
+    private void OnRemoveOnnxClick(object sender, RoutedEventArgs e)
+    {
+        var ask = T($"Remover o classificador ONNX ({_onnx.Folder})?\n\nSem ele, o NXPilot classifica as ações só pelas regras — mais pedidos de aprovação chegam até você.",
+                    $"Remove the ONNX classifier ({_onnx.Folder})?\n\nWithout it, NXPilot classifies actions with rules only — more approval requests reach you.",
+                    $"¿Quitar el clasificador ONNX ({_onnx.Folder})?\n\nSin él, NXPilot clasifica las acciones solo con reglas — le llegan más solicitudes de aprobación.");
+        if (MessageBox.Show(this, ask, "NXPilot Setup", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        ErrorText.Visibility = Visibility.Collapsed;
+        try
+        {
+            _onnx.Uninstall();
+            Step2ProgressText.Text = T("Classificador ONNX removido.", "ONNX classifier removed.", "Clasificador ONNX quitado.");
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        RefreshStep2();
     }
 
     private async void OnStep2Click(object sender, RoutedEventArgs e)
@@ -407,6 +485,22 @@ public partial class MainWindow : Window
     {
         foreach (var (cli, status, name, button) in new[] { (NXData.AgentInstaller.AgentCli.ClaudeCode, ClaudeStatus, "claude", ClaudeInstallButton), (NXData.AgentInstaller.AgentCli.Codex, CodexStatus, "codex", CodexInstallButton) })
         {
+            // 🗑 aparece sempre que há o agente; só remove o que está nas pastas do instalador oficial. Da extensão
+            // do VS Code (ou npm etc.) fica desabilitada, com a dica de onde remover — apagar ali quebraria a extensão.
+            var remove = cli == NXData.AgentInstaller.AgentCli.ClaudeCode ? ClaudeRemoveButton : CodexRemoveButton;
+            var located = NXData.AgentInstaller.AgentLocator.Candidates(cli, _agentOptions).FirstOrDefault(); // sem rodar --version de novo
+            var ours = _agents.CanUninstall(cli);
+            remove.Visibility = located != null || ours ? Visibility.Visible : Visibility.Collapsed;
+            remove.IsEnabled = ours;
+            remove.ToolTip = ours ? FindResource("Setup_RemoverAgenteTip")
+                : located?.Source == "extensão do VS Code"
+                    ? T("Este vem da extensão do VS Code: remova pela própria extensão (Extensões → Desinstalar). Apagar aqui quebraria a extensão.",
+                        "This one comes from the VS Code extension: remove it from the extension itself (Extensions → Uninstall). Deleting it here would break the extension.",
+                        "Este viene de la extensión de VS Code: quítelo desde la propia extensión (Extensiones → Desinstalar). Borrarlo aquí rompería la extensión.")
+                    : T($"Este não foi instalado por aqui ({located?.Source}): remova pelo mesmo jeito que instalou.",
+                        $"This one was not installed from here ({located?.Source}): remove it the same way you installed it.",
+                        $"Este no se instaló desde aquí ({located?.Source}): quítelo de la misma forma en que lo instaló.");
+            System.Windows.Controls.ToolTipService.SetShowOnDisabled(remove, true);
             var check = ++_agentCheck[(int)cli]; // só a conferência mais recente mexe no botão
             button.SetResourceReference(ContentProperty, "Setup_Instalar");
             button.IsEnabled = true;
@@ -509,6 +603,26 @@ public partial class MainWindow : Window
         finally { RefreshAgents(); } // decide habilitado/desabilitado de cada botão
     }
 
+    /// <summary>🗑 ao lado do Instalar: pergunta e remove o agente (o login da pessoa fica).</summary>
+    private async void OnRemoveAgentClick(object sender, RoutedEventArgs e)
+    {
+        var cli = (sender as Button)?.Tag as string == "claude" ? NXData.AgentInstaller.AgentCli.ClaudeCode : NXData.AgentInstaller.AgentCli.Codex;
+        var name = cli == NXData.AgentInstaller.AgentCli.ClaudeCode ? "Claude Code" : "Codex";
+        var ask = T($"Remover o {name} deste computador?\n\nTarefas que usam o {name} deixam de funcionar até instalar de novo. Seu login e suas configurações são mantidos.",
+                    $"Remove {name} from this computer?\n\nTasks that use {name} stop working until you install it again. Your sign-in and settings are kept.",
+                    $"¿Quitar {name} de esta computadora?\n\nLas tareas que usan {name} dejan de funcionar hasta instalarlo de nuevo. Se mantienen su inicio de sesión y su configuración.");
+        if (MessageBox.Show(this, ask, "NXPilot Setup", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        ClaudeInstallButton.IsEnabled = CodexInstallButton.IsEnabled = ClaudeRemoveButton.IsEnabled = CodexRemoveButton.IsEnabled = false;
+        ErrorText.Visibility = Visibility.Collapsed;
+        try { AgentProgress.Text = await _agents.UninstallAsync(cli); }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally
+        {
+            ClaudeRemoveButton.IsEnabled = CodexRemoveButton.IsEnabled = true;
+            RefreshAgents();
+        }
+    }
+
     private async Task CheckWslAsync(string cli, TextBlock status)
     {
         status.Text = T("verificando WSL…", "checking WSL…", "verificando WSL…");
@@ -570,6 +684,26 @@ public partial class MainWindow : Window
         if (_llamaCts != null) return; // instalando: quem cuida do botão é o OnInstallLlamaClick
         LlamaInstallButton.Content = ok ? T("Já instalada", "Already installed", "Ya instalada") : T("Instalar IA Local (~2,5 GB)", "Install Local AI (~2.5 GB)", "Instalar IA Local (~2,5 GB)");
         LlamaInstallButton.IsEnabled = !ok;
+        LlamaRemoveButton.Visibility = status.BackendPresent || status.ModelPresent ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>🗑 da IA Local: pergunta e remove modelo e backend (a pasta é a mesma do NXProject).</summary>
+    private async void OnRemoveLlamaClick(object sender, RoutedEventArgs e)
+    {
+        var folder = _llama.ResolveFolder();
+        var ask = T($"Remover a IA Local ({folder})?\n\nApaga o modelo (~2,5 GB) e o backend. O NXProject usa esta mesma IA Local e também deixa de tê-la. O gate do NXPilot continua com Regras e ONNX.",
+                    $"Remove the Local AI ({folder})?\n\nDeletes the model (~2.5 GB) and the backend. NXProject uses this same Local AI and will lose it too. The NXPilot gate keeps running with Rules and ONNX.",
+                    $"¿Quitar la IA Local ({folder})?\n\nBorra el modelo (~2,5 GB) y el backend. NXProject usa esta misma IA Local y también la pierde. El gate de NXPilot sigue con Reglas y ONNX.");
+        if (MessageBox.Show(this, ask, "NXPilot Setup", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        ErrorText.Visibility = Visibility.Collapsed;
+        LlamaRemoveButton.IsEnabled = false;
+        try
+        {
+            await Task.Run(() => _llama.Uninstall(folder));
+            LlamaProgressText.Text = T("IA Local removida.", "Local AI removed.", "IA Local quitada.");
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { LlamaRemoveButton.IsEnabled = true; RefreshLlama(); }
     }
 
     private async void OnInstallLlamaClick(object sender, RoutedEventArgs e)

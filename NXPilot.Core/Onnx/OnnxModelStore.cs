@@ -26,6 +26,9 @@ public sealed class OnnxModelStore(string? root = null)
 
     public bool IsInstalled => _installer.IsInstalled;
 
+    /// <summary>Remove o modelo (o gate volta a usar só as regras).</summary>
+    public void Uninstall() => _installer.Uninstall();
+
     /// <summary>Baixa vocab + modelo (progresso em MB); grava em .part e renomeia no fim.</summary>
     public Task DownloadAsync(IProgress<string>? progress = null, CancellationToken ct = default) =>
         _installer.InstallAsync(progress == null ? null : new Progress<LocalAiProgress>(p => progress.Report(p.Message)), ct);
