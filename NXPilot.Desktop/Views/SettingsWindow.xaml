@@ -43,6 +43,9 @@
 
         <!-- Regras do plano por agente: vão no fim de TODO pedido de plano (no plano só se lê e propõe). -->
         <TextBlock x:Name="PlanRulesHeader" Style="{StaticResource SectionHeader}" Margin="0,18,0,6"/>
+        <!-- Recolhido como o "Ver ferramentas": a tela fica leve; abre para ler ou editar. -->
+        <Expander Header="{DynamicResource Cfg_PlanoRegrasVer}" FontSize="12">
+        <StackPanel Margin="16,4,0,0">
         <DockPanel>
             <Button x:Name="PlanRulesResetButton" DockPanel.Dock="Right" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnPlanRulesResetClick"/>
             <ComboBox x:Name="PlanRulesAgentBox" Width="170" HorizontalAlignment="Left" Padding="6,3" SelectionChanged="OnPlanRulesAgentChanged">
@@ -54,6 +57,8 @@
         <TextBox x:Name="PlanRulesBox" Margin="0,6,0,0" Height="110" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
                  FontSize="12" Padding="6,4" LostFocus="OnPlanRulesLostFocus"/>
         <TextBlock x:Name="PlanRulesNote" Style="{StaticResource Muted}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
+        </Expander>
 
         <ProgressBar x:Name="Progress" Height="14" Margin="0,14,0,0" Minimum="0" Maximum="100" IsIndeterminate="True" Visibility="Collapsed"/>
         <TextBlock x:Name="StatusText" TextWrapping="Wrap" FontSize="12" Margin="0,8,0,0"/>

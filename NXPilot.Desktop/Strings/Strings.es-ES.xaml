@@ -298,6 +298,7 @@
     <sys:String x:Key="Cfg_Mcp">MCP NXPilot</sys:String>
     <sys:String x:Key="Cfg_McpNota">Las extensiones (Power BI, PowerPoint, Databricks, Git, correo, work items, Teams, aplicaciones de Windows) se convierten en herramientas de Claude Code y Codex en las tareas; cada llamada pasa por el gate. Detenido, las tareas se inician sin él. El estado se guarda al cerrar NXPilot.</sys:String>
     <sys:String x:Key="Cfg_McpFerramentas">Ver herramientas</sys:String>
+    <sys:String x:Key="Cfg_PlanoRegrasVer">Ver reglas del plan</sys:String>
     <sys:String x:Key="Ext_JanelasLerApp">Leer / monitorear una aplicación…</sys:String>
     <sys:String x:Key="Ext_JanelasProcessos">Procesos (hacer clic y escribir)…</sys:String>
     <sys:String x:Key="Win_LerTitulo">Leer o monitorear una aplicación</sys:String>

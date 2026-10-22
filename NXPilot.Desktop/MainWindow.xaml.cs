@@ -40,6 +40,7 @@ public partial class MainWindow : Window
                      "Escriba el texto que traería un evento (reemplaza {texto}, como dato). Los riesgos que apruebe en esta ejecución quedan preaprobados en los disparos; después, use ⚡ Armar hook."),
             NxText.T("Executar teste", "Run test", "Ejecutar prueba"));
         Vm.PlanApproved += () => MainTabs.SelectedIndex = 1; // plano aprovado: acompanhar pela aba Fases
+        Vm.TaskFinished += () => MainTabs.SelectedIndex = 0; // concluída: aba Plano, com os arquivos gerados e a mensagem final
         Vm.Notifications.Raised += _ => FlashIfAway();
         Services.TeamsNotifier.Attach(Vm.Notifications, () => Vm.CurrentTask?.Info.SubjectFolder); // extensão Teams: os avisos escolhidos vão para o canal
         KeyDown += (_, e) =>

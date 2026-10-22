@@ -112,6 +112,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>A tela troca para a aba Fases quando o plano é aprovado.</summary>
     public event Action? PlanApproved;
+
+    /// <summary>A tela volta para a aba Plano quando a tarefa termina (arquivos gerados e a mensagem final).</summary>
+    public event Action? TaskFinished;
     [ObservableProperty] private string _gateStatus = "Gate: …";
     [ObservableProperty] private int _autoApprovedCount;
 
@@ -669,6 +672,7 @@ public sealed partial class MainViewModel : ObservableObject
         Notifications.Notify(task.Verification is { Approved: false } ? NotificationKind.Failure : NotificationKind.Task,
             T("Tarefa concluída", "Task finished", "Tarea completada"), $"{task.Title} · {task.StateLabel}");
         Persist();
+        TaskFinished?.Invoke();
     }
 
     /// <summary>
