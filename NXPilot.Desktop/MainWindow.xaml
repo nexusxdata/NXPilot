@@ -95,26 +95,57 @@
                     <Button x:Name="SettingsButton" Content="{DynamicResource Main_Configurar}" Style="{StaticResource NavButton}" Click="OnSettingsClick"/>
 
                     <TextBlock Text="{DynamicResource Main_Agentes}" Style="{StaticResource SectionHeader}"/>
-                    <ItemsControl x:Name="AgentsList" ItemsSource="{Binding Agents}">
+                    <!-- Uma linha por agente: login (✓ verde; triângulo vermelho sem login — o clique abre o login oficial; 🚧 em construção)
+                         e, abaixo, o que ele está fazendo agora na tarefa (fase, tempo, subagentes). -->
+                    <ItemsControl x:Name="AgentsList" ItemsSource="{Binding AgentLogins}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Margin="0,0,0,10">
+                                <Button Style="{StaticResource NavButton}" Margin="0,0,0,4"
+                                        Command="{Binding DataContext.LoginAgentCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}">
                                     <DockPanel>
-                                        <Ellipse Width="8" Height="8" Fill="{Binding Status, Converter={StaticResource Semantic}, ConverterParameter=fg}" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Elapsed}" Style="{StaticResource Muted}"/>
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                    </DockPanel>
-                                    <TextBlock Text="{Binding Task}" Style="{StaticResource Muted}" Margin="16,2,0,0"/>
-                                    <ItemsControl ItemsSource="{Binding Children}" Margin="24,4,0,0">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Style="{StaticResource Muted}">
-                                                    <Run Text="└ "/><Run Text="{Binding Name, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding Task, Mode=OneWay}"/>
+                                        <Grid Width="14" Margin="0,2,8,0" VerticalAlignment="Top">
+                                            <Path Data="M 7,0 L 14,12 L 0,12 Z" Fill="{StaticResource DangerBrush}" Width="14" Height="12"
+                                                  Visibility="{Binding SignedOut, Converter={StaticResource BoolToVis}}"/>
+                                            <TextBlock Text="✓" Foreground="#1E8E3E" FontWeight="Bold" FontSize="14" Margin="0,-3,0,0"
+                                                       Visibility="{Binding SignedIn, Converter={StaticResource BoolToVis}}"/>
+                                            <TextBlock Text="🚧" FontSize="12" Margin="-1,-2,0,0"
+                                                       Visibility="{Binding Building, Converter={StaticResource BoolToVis}}"/>
+                                        </Grid>
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Activity.Elapsed}" Style="{StaticResource Muted}" Margin="8,0,0,0"/>
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding SignedOut}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
                                                 </TextBlock>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
+                                            </DockPanel>
+                                            <TextBlock Text="{Binding Hint}" Style="{StaticResource Muted}" TextWrapping="Wrap"/>
+                                            <!-- O que está fazendo agora: bolinha com a cor do estado, tarefa/fase e subagentes. -->
+                                            <StackPanel Visibility="{Binding HasActivity, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0">
+                                                <DockPanel>
+                                                    <Ellipse Width="8" Height="8" Fill="{Binding Activity.Status, Converter={StaticResource Semantic}, ConverterParameter=fg}" Margin="0,5,6,0" VerticalAlignment="Top"/>
+                                                    <TextBlock Text="{Binding Activity.Task}" TextWrapping="Wrap"/>
+                                                </DockPanel>
+                                                <ItemsControl ItemsSource="{Binding Activity.Children}" Margin="14,2,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap">
+                                                                <Run Text="└ "/><Run Text="{Binding Name, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding Task, Mode=OneWay}"/>
+                                                            </TextBlock>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

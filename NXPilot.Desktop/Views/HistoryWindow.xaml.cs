@@ -14,8 +14,9 @@ using static NXPilot.NxText;
 namespace NXPilot.Desktop.Views;
 
 /// <summary>
-/// Histórico de tarefas. Abrir mostra a tarefa na tela (somente leitura); remover apaga o
-/// worktree, o branch nxpilot/&lt;id&gt; e o registro — com confirmação, porque não volta.
+/// Histórico de tarefas. Abrir mostra a tarefa na tela (somente leitura); Lixo só tira da lista
+/// (exclusão lógica, volta com Restaurar); remover (em "⋯ Mais") apaga o worktree, o branch
+/// nxpilot/&lt;id&gt; e o registro — com confirmação, porque não volta.
 /// </summary>
 public partial class HistoryWindow : Window
 {
@@ -46,6 +47,7 @@ public partial class HistoryWindow : Window
         ("stopped", "■", "#666666", () => T("Interrompida", "Stopped", "Interrumpida")),
         ("discarded", "–", "#888888", () => T("Descartada", "Discarded", "Descartada")),
         ("listening", "⚡", "#6A3FB5", () => T("Em escuta", "Listening", "En escucha")),
+        ("trash", "🗑", "#888888", () => T("No lixo", "In the trash", "En la papelera")),
     ];
 
     private static string StatusKeyOf(TaskRecord r) => r.State switch
@@ -86,6 +88,7 @@ public partial class HistoryWindow : Window
 
     private void Reload()
     {
+        var trash = TaskTrash.Load();
         var rows = TaskStore.LoadAll().Select(r =>
         {
             var session = TaskSession.FromRecord(r);
@@ -93,7 +96,7 @@ public partial class HistoryWindow : Window
             var findings = r.Verification is { } v
                 ? T($"{v.Findings.Count(f => f.Severity == "Critico")} crít. · {v.Findings.Count} total", $"{v.Findings.Count(f => f.Severity == "Critico")} crit. · {v.Findings.Count} total", $"{v.Findings.Count(f => f.Severity == "Critico")} crít. · {v.Findings.Count} total")
                 : "—";
-            var st = Statuses.First(x => x.Key == StatusKeyOf(r));
+            var st = Statuses.First(x => x.Key == (trash.ContainsKey(r.Id) ? "trash" : StatusKeyOf(r)));
             var brush = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(st.Color));
             return new Row(r, r.CreatedAt.ToString("dd/MM HH:mm"), (r.Info.AsTemplate ? "⚡ " : "") + r.Info.Title, label, findings,
                 r.Tokens is { Total: > 0 } t ? NXPilot.Agents.TokenUsage.Format(t.Total) : "—", r.Info.Subject is { } subject ? "◆ " + subject : r.Info.RepoPath,
@@ -151,7 +154,7 @@ public partial class HistoryWindow : Window
         var subject = (SubjectBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string ?? "all";
         var inPeriod = _allRows.Where(r => (from == null || r.Record.CreatedAt >= from) && (to == null || r.Record.CreatedAt < to))
             .Where(r => type switch { "hooks" => r.Record.Info.AsTemplate, "tasks" => !r.Record.Info.AsTemplate, _ => true })
-            .Where(r => status == "all" || r.StatusKey == status)
+            .Where(r => status == "all" ? r.StatusKey != "trash" : r.StatusKey == status) // o lixo só aparece no filtro dele
             .Where(r => subject == "all" || SubjectKey(r.Record) == subject)
             .Where(r => risk switch
             {
@@ -207,13 +210,10 @@ public partial class HistoryWindow : Window
         var r = Selected;
         var worktreeExists = r?.Worktree is { } wt && Directory.Exists(wt);
         OpenButton.IsEnabled = r != null && !_taskRunning;
-        WorktreeButton.IsEnabled = worktreeExists;
-        TimelineButton.IsEnabled = r != null;
-        RisksButton.IsEnabled = r != null;
         FindingsButton.IsEnabled = r is { Verification: not null } || r?.FixRounds is { Count: > 0 };
-        AllRisksButton.IsEnabled = Grid.Items.Count > 0;
         CloneButton.IsEnabled = r != null && !_taskRunning;
-        RemoveButton.IsEnabled = r != null && !_taskRunning;
+        TimelineButton.IsEnabled = r != null;
+        MoreButton.Content = T("⋯ Mais", "⋯ More", "⋯ Más");
         StatusText.Text = _taskRunning
             ? T("Há uma tarefa em andamento: termine ou interrompa para abrir outra.", "A task is running: finish or stop it to open another one.", "Hay una tarea en ejecución: termínela o interrúmpala para abrir otra.")
             : r == null ? "" : worktreeExists ? $"{r.Branch} · {r.Worktree}" : T("O worktree desta tarefa não existe mais.", "This task's worktree no longer exists.", "El worktree de esta tarea ya no existe.");
@@ -272,9 +272,118 @@ public partial class HistoryWindow : Window
             Process.Start(new ProcessStartInfo(wt) { UseShellExecute = true });
     }
 
+    /// <summary>Lixo / Restaurar: exclusão lógica — só tira da lista (ou devolve); nada é apagado.</summary>
+    private void OnTrashClick(object sender, RoutedEventArgs e)
+    {
+        if (Grid.SelectedItem is not Row row || _taskRunning) return;
+        try
+        {
+            if (row.StatusKey == "trash") TaskTrash.Restore(row.Record.Id);
+            else TaskTrash.Move(row.Record.Id);
+            Reload();
+            StatusText.Text = row.StatusKey == "trash"
+                ? T($"\"{row.Record.Info.Title}\" voltou para a lista.", $"\"{row.Record.Info.Title}\" is back in the list.", $"\"{row.Record.Info.Title}\" volvió a la lista.")
+                : T($"\"{row.Record.Info.Title}\" foi para o lixo (nada foi apagado). Para ver: filtro de estado \"🗑 No lixo\".",
+                    $"\"{row.Record.Info.Title}\" went to the trash (nothing was deleted). To see it: state filter \"🗑 In the trash\".",
+                    $"\"{row.Record.Info.Title}\" fue a la papelera (no se borró nada). Para verla: filtro de estado \"🗑 En la papelera\".");
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = T("Não foi possível mover para o lixo: ", "Could not move to the trash: ", "No se pudo mover a la papelera: ") + ex.Message;
+        }
+    }
+
+    /// <summary>"⋯ Mais": o que se usa menos (riscos, worktree, Lixo/Restaurar e a remoção definitiva).</summary>
+    private void OnMoreClick(object sender, RoutedEventArgs e)
+    {
+        var r = Selected;
+        var menu = new System.Windows.Controls.ContextMenu { PlacementTarget = MoreButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
+        System.Windows.Controls.MenuItem Item(string key, RoutedEventHandler click, bool enabled, string? tipKey = null)
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = FindResource(key), IsEnabled = enabled };
+            if (tipKey != null) item.ToolTip = FindResource(tipKey);
+            item.Click += click;
+            return item;
+        }
+        menu.Items.Add(Item("Hist_VerRiscos", OnRisksClick, r != null, "Hist_VerRiscosDica"));
+        menu.Items.Add(Item("Hist_RiscosDaLista", OnAllRisksClick, Grid.Items.Count > 0, "Hist_RiscosDaListaDica"));
+        menu.Items.Add(Item("Hist_AbrirWorktree", OnWorktreeClick, r?.Worktree is { } wt && Directory.Exists(wt)));
+        menu.Items.Add(new System.Windows.Controls.Separator());
+        // Lixo = exclusão lógica (volta pelo filtro de estado "🗑 No lixo" → Restaurar).
+        var inTrash = (Grid.SelectedItem as Row)?.StatusKey == "trash";
+        var trash = new System.Windows.Controls.MenuItem
+        {
+            Header = inTrash ? T("♻ Restaurar", "♻ Restore", "♻ Restaurar") : T("🗑 Mover para o lixo", "🗑 Move to trash", "🗑 Mover a la papelera"),
+            ToolTip = inTrash
+                ? T("Volta a tarefa para a lista.", "Puts the task back in the list.", "Devuelve la tarea a la lista.")
+                : T("Tira a tarefa da lista sem apagar nada (exclusão lógica). Veja no filtro de estado \"🗑 No lixo\".",
+                    "Takes the task off the list without deleting anything (soft delete). See it in the state filter \"🗑 In the trash\".",
+                    "Quita la tarea de la lista sin borrar nada (eliminación lógica). Véala en el filtro de estado \"🗑 En la papelera\"."),
+            IsEnabled = r != null && !_taskRunning,
+        };
+        trash.Click += OnTrashClick;
+        menu.Items.Add(trash);
+        // Remover de vez só o que está no lixo há pelo menos 48 h: primeiro a exclusão lógica, depois a física.
+        var readyAt = DateTime.MaxValue;
+        var canRemove = r != null && CanRemove(r.Id, out readyAt);
+        var remove = Item("Hist_Remover", OnRemoveClick, canRemove && !_taskRunning);
+        remove.Foreground = (System.Windows.Media.Brush)FindResource("DangerBrush");
+        // Dica sempre visível (mesmo desabilitado): a regra e onde a tarefa está nela.
+        var rule = T("Remoção definitiva: apaga o worktree, o branch e o registro — não dá para desfazer.\n" +
+                     "Regra: 1) mova a tarefa para o lixo (⋯ Mais → 🗑 Mover para o lixo); 2) ela fica 48 h no lixo, podendo ser restaurada " +
+                     "(filtro de estado \"🗑 No lixo\" → ♻ Restaurar); 3) depois de 48 h a remoção é liberada.",
+                     "Permanent removal: deletes the worktree, the branch and the record — it cannot be undone.\n" +
+                     "Rule: 1) move the task to the trash (⋯ More → 🗑 Move to trash); 2) it stays 48 h in the trash and can be restored " +
+                     "(state filter \"🗑 In the trash\" → ♻ Restore); 3) after 48 h removal is allowed.",
+                     "Eliminación definitiva: borra el worktree, la rama y el registro — no se puede deshacer.\n" +
+                     "Regla: 1) mueva la tarea a la papelera (⋯ Más → 🗑 Mover a la papelera); 2) queda 48 h en la papelera y se puede restaurar " +
+                     "(filtro de estado \"🗑 En la papelera\" → ♻ Restaurar); 3) después de 48 h se permite eliminar.");
+        var now = r == null ? "" : !inTrash
+            ? T("Esta tarefa: ainda não está no lixo.", "This task: not in the trash yet.", "Esta tarea: aún no está en la papelera.")
+            : !canRemove
+                ? T($"Esta tarefa: no lixo; remoção liberada a partir de {readyAt:dd/MM HH:mm}.", $"This task: in the trash; removal allowed from {readyAt:MM/dd HH:mm}.", $"Esta tarea: en la papelera; eliminación permitida desde {readyAt:dd/MM HH:mm}.")
+                : T("Esta tarefa: no lixo há mais de 48 h — pode remover.", "This task: in the trash for over 48 h — can be removed.", "Esta tarea: en la papelera hace más de 48 h — se puede eliminar.");
+        remove.ToolTip = new System.Windows.Controls.TextBlock { Text = now.Length > 0 ? rule + "\n\n" + now : rule, TextWrapping = TextWrapping.Wrap, MaxWidth = 420 };
+        System.Windows.Controls.ToolTipService.SetShowOnDisabled(remove, true);
+        menu.Items.Add(remove);
+        menu.IsOpen = true;
+    }
+
+    /// <summary>Tempo mínimo no lixo antes da remoção definitiva (dá para se arrepender).</summary>
+    private static readonly TimeSpan TrashGrace = TimeSpan.FromHours(48);
+
+    /// <summary>Só remove de vez o que está no lixo há pelo menos <see cref="TrashGrace"/>; devolve quando fica liberado.</summary>
+    private static bool CanRemove(string id, out DateTime readyAt)
+    {
+        readyAt = DateTime.MaxValue;
+        if (!TaskTrash.Load().TryGetValue(id, out var trashedAt)) return false;
+        readyAt = trashedAt + TrashGrace;
+        return DateTime.Now >= readyAt;
+    }
+
+    /// <summary>
+    /// Imagens da pessoa que a tarefa copiou para a pasta de imagens (log "… → caminho"): apaga as que nenhuma
+    /// outra tarefa usa. Só a cópia — o arquivo original da pessoa não é tocado. Devolve quantas apagou.
+    /// </summary>
+    private static int DeleteOwnImages(TaskRecord r)
+    {
+        var prefixes = new[] { "Imagem própria guardada na pasta de imagens → ", "Own image kept in the images folder → ", "Imagen propia guardada en la carpeta de imágenes → " };
+        var files = r.Log.Select(l => prefixes.FirstOrDefault(l.Message.StartsWith) is { } p ? l.Message[p.Length..].Trim() : null)
+            .OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).Where(File.Exists).ToList();
+        if (files.Count == 0) return 0;
+        var others = TaskStore.LoadAll().Where(o => o.Id != r.Id).SelectMany(o => o.Log).Select(l => l.Message).ToList();
+        var deleted = 0;
+        foreach (var f in files.Where(f => !others.Any(m => m.Contains(f, StringComparison.OrdinalIgnoreCase))))
+        {
+            try { File.Delete(f); deleted++; }
+            catch { /* em uso ou sem permissão: fica na pasta */ }
+        }
+        return deleted;
+    }
+
     private async void OnRemoveClick(object sender, RoutedEventArgs e)
     {
-        if (Selected is not { } r) return;
+        if (Selected is not { } r || !CanRemove(r.Id, out _)) return; // só do lixo, depois de 48 h
         var ask = T($"Remover a tarefa \"{r.Info.Title}\"?\n\nIsso apaga o worktree, o branch {r.Branch} e o registro do Histórico. O código que não foi juntado ao seu repositório se perde. Não dá para desfazer.",
                     $"Remove the task \"{r.Info.Title}\"?\n\nThis deletes the worktree, the branch {r.Branch} and the History record. Code not merged into your repository is lost. This cannot be undone.",
                     $"¿Eliminar la tarea \"{r.Info.Title}\"?\n\nEsto borra el worktree, la rama {r.Branch} y el registro del Historial. El código no integrado en su repositorio se pierde. No se puede deshacer.");
@@ -283,8 +392,14 @@ public partial class HistoryWindow : Window
         {
             if (r.Worktree is { } wt && Directory.Exists(wt))
                 await GitWorktree.RemoveAsync(r.Info.RepoPath, wt, r.Branch); // modo local: RepoPath é o repositório-sombra do assunto
+            var images = DeleteOwnImages(r);
             TaskStore.Delete(r.Id);
+            TaskTrash.Restore(r.Id); // removida de vez: sai do lixo também
             Reload();
+            if (images > 0)
+                StatusText.Text = T($"Removida. {images} imagem(ns) sua(s) que esta tarefa copiou para a pasta de imagens também foram apagadas (o original continua onde estava).",
+                    $"Removed. {images} image(s) of yours that this task copied to the images folder were deleted too (the original stays where it was).",
+                    $"Eliminada. {images} imagen(es) suya(s) que esta tarea copió a la carpeta de imágenes también se borraron (el original sigue donde estaba).");
         }
         catch (Exception ex)
         {

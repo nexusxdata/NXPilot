@@ -62,17 +62,19 @@
              o caminho longo quebrava em várias linhas e esticava os botões na altura. -->
         <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
             <TextBlock x:Name="StatusText" Style="{StaticResource Muted}" TextWrapping="Wrap" FontSize="11.5" Margin="0,0,0,8"/>
+            <!-- À esquerda: Linha do tempo e o "⋯ Mais" (o que se usa menos, inclusive o Lixo). À direita: o uso diário. -->
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <Button x:Name="TimelineButton" Content="{DynamicResource Hist_LinhaDoTempo}" Style="{StaticResource SubtleButton}" Click="OnTimelineClick"/>
+                    <Button x:Name="MoreButton" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnMoreClick"/>
+                </StackPanel>
             <WrapPanel HorizontalAlignment="Right">
-                <Button x:Name="RemoveButton" Content="{DynamicResource Hist_Remover}" Style="{StaticResource DangerButton}" Click="OnRemoveClick"/>
-                <Button x:Name="CloneButton" Content="{DynamicResource Hist_Clonar}" ToolTip="{DynamicResource Hist_ClonarDica}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnCloneClick"/>
+                <Button x:Name="CloneButton" Content="{DynamicResource Hist_Clonar}" ToolTip="{DynamicResource Hist_ClonarDica}" Style="{StaticResource SubtleButton}" Click="OnCloneClick"/>
                 <Button x:Name="FindingsButton" Content="{DynamicResource Hist_Achados}" ToolTip="{DynamicResource Hist_AchadosDica}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnFindingsClick"/>
-                <Button x:Name="RisksButton" Content="{DynamicResource Hist_VerRiscos}" ToolTip="{DynamicResource Hist_VerRiscosDica}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnRisksClick"/>
-                <Button x:Name="AllRisksButton" Content="{DynamicResource Hist_RiscosDaLista}" ToolTip="{DynamicResource Hist_RiscosDaListaDica}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnAllRisksClick"/>
-                <Button x:Name="TimelineButton" Content="{DynamicResource Hist_LinhaDoTempo}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnTimelineClick"/>
-                <Button x:Name="WorktreeButton" Content="{DynamicResource Hist_AbrirWorktree}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnWorktreeClick"/>
                 <Button x:Name="OpenButton" Content="{DynamicResource Hist_Abrir}" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Click="OnOpenClick" IsDefault="True"/>
                 <Button Content="{DynamicResource Hist_Fechar}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" IsCancel="True"/>
             </WrapPanel>
+            </DockPanel>
         </StackPanel>
 
         <Grid>

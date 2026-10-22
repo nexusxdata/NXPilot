@@ -44,6 +44,9 @@ public sealed partial class MainViewModel : ObservableObject
     public string TaskTitle => CurrentTask?.Title ?? T("Story #4521 · Orquestrador de agentes com DecisionGate (exemplo)", "Story #4521 · Agent orchestrator with DecisionGate (sample)", "Story #4521 · Orquestador de agentes con DecisionGate (ejemplo)");
 
     public ObservableCollection<AgentItem> Agents { get; } = new();
+
+    /// <summary>Login dos agentes instalados: ✓ verde com login, triângulo vermelho sem (vira ✓ quando a pessoa entra).</summary>
+    public ObservableCollection<AgentLoginItem> AgentLogins { get; } = new();
     public ObservableCollection<ArtifactItem> Artifacts { get; } = new();
 
     /// <summary>Arquivos que a tarefa criou/alterou — com Abrir e Mostrar na pasta.</summary>
@@ -146,6 +149,13 @@ public sealed partial class MainViewModel : ObservableObject
         clock.Tick += async (_, _) => { CurrentTask?.Tick(); await DrainFireQueueAsync(); };
         clock.Start();
         _ = RebuildGateAsync();
+        ShowAgentLogins(); // já mostra o 🚧 NXAgentic; Claude/Codex entram quando o login for conferido
+        Agents.CollectionChanged += (_, _) => ShowAgentLogins(); // a atividade aparece na linha do agente
+        // Login dos agentes: confere ao abrir e a cada 10 min (quem assinar depois vê o aviso sumir sozinho).
+        _ = RefreshAgentLoginsAsync();
+        var loginClock = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
+        loginClock.Tick += async (_, _) => await RefreshAgentLoginsAsync();
+        loginClock.Start();
         // Ponte com o hook dos agentes reais: fica escutando enquanto o app estiver aberto.
         _ = GatePipe.ServeAsync(_gatePipe, OnGateRequestAsync, _gateCts.Token);
         // MCP NXPilot: as extensões viram ferramentas do agente (no estado em que você deixou em Configurar).
@@ -677,6 +687,9 @@ public sealed partial class MainViewModel : ObservableObject
         RenderPhases(task);
         var prompt = TaskPlanning.VerificationPrompt(task.Title, task.Info.Criteria, task.PlanText, diff, ExternalActions(task), PreviousRounds(task));
 
+        var other = task.Info.Executor == ExecutorKind.Codex ? AgentKind.Claude : AgentKind.Codex;
+        await RefreshSignedOutAsync(other);
+        ShowAgentLogins();
         if (ChooseReviewer(task) is not { } choice)
         {
             AddLog("Gate", T("aviso", "warning", "aviso"), T("Nenhum agente instalado para revisar — verificação pulada.", "No agent installed to review — verification skipped.", "Ningún agente instalado para revisar — verificación omitida."));
@@ -686,7 +699,11 @@ public sealed partial class MainViewModel : ObservableObject
         IAgentAdapter reviewer = choice.Reviewer == AgentKind.Codex
             ? new CodexAdapter(CodexModelFor(task)) { OutputSchema = TaskPlanning.VerificationSchema, Mcp = McpHost.Launch }
             : NewClaude();
-        if (choice.SameAsExecutor)
+        if (choice.SameAsExecutor && SignedOut(other))
+            AddLog("Gate", "info", T($"{AgentName(other)} está instalado, mas sem login nesta máquina — o {reviewer.Name} revisa numa sessão nova, somente leitura.",
+                $"{AgentName(other)} is installed but not signed in on this machine — {reviewer.Name} reviews in a new read-only session.",
+                $"{AgentName(other)} está instalado, pero sin inicio de sesión en esta máquina — {reviewer.Name} revisa en una sesión nueva, de solo lectura."));
+        else if (choice.SameAsExecutor)
             AddLog("Gate", "info", T($"Só o {reviewer.Name} está instalado — ele revisa numa sessão nova, somente leitura (com os dois agentes a revisão é cruzada).",
                 $"Only {reviewer.Name} is installed — it reviews in a new read-only session (with both agents the review is cross-checked).",
                 $"Solo {reviewer.Name} está instalado — revisa en una sesión nueva, de solo lectura (con los dos agentes la revisión es cruzada)."));
@@ -932,7 +949,67 @@ public sealed partial class MainViewModel : ObservableObject
         task.Info.Reviewer == ReviewerKind.None ? null : ReviewerChoice.Choose(
             task.Info.Reviewer == ReviewerKind.Codex ? AgentKind.Codex : AgentKind.Claude,
             task.Info.Executor == ExecutorKind.Codex ? AgentKind.Codex : AgentKind.Claude,
-            ReviewerChoice.IsInstalled);
+            kind => ReviewerChoice.IsInstalled(kind) && !SignedOut(kind));
+
+    /// <summary>
+    /// Agentes instalados mas SEM login nesta máquina (ex.: Claude Code que veio com o VS Code e ninguém entrou):
+    /// não servem de revisor cruzado — senão a verificação pede login de um agente que a pessoa nem usa.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<AgentKind, bool> _signedOut = new();
+
+    private static bool SignedOut(AgentKind kind) => _signedOut.TryGetValue(kind, out var o) && o;
+
+    public async Task RefreshAgentLoginsAsync()
+    {
+        await Task.WhenAll(RefreshSignedOutAsync(AgentKind.Claude), RefreshSignedOutAsync(AgentKind.Codex));
+        ShowAgentLogins();
+    }
+
+    private void ShowAgentLogins()
+    {
+        // Uma linha por agente: o login e, abaixo, a atividade dele na tarefa (quando houver).
+        AgentLogins.Clear();
+        AgentItem? ActivityOf(string name) => Agents.FirstOrDefault(a => a.Name == name);
+        foreach (var kind in new[] { AgentKind.Claude, AgentKind.Codex })
+        {
+            if (!_signedOut.TryGetValue(kind, out var outNow)) continue; // não instalado ou não deu para saber
+            AgentLogins.Add(outNow
+                ? new AgentLoginItem(kind, "out", AgentName(kind),
+                    T("Sem login — clique para entrar", "Not signed in — click to sign in", "Sin inicio de sesión — haga clic para entrar"), ActivityOf(AgentName(kind)))
+                : new AgentLoginItem(kind, "in", AgentName(kind), T("Login ativo", "Signed in", "Sesión iniciada"), ActivityOf(AgentName(kind))));
+        }
+        AgentLogins.Add(new AgentLoginItem(null, "build", "NXAgentic", T("Em construção", "Under construction", "En construcción"), ActivityOf("NXAgentic")));
+        // Atividade de quem não tem linha de login (ex.: login ainda não conferido).
+        foreach (var a in Agents.Where(a => AgentLogins.All(l => l.Title != a.Name)))
+            AgentLogins.Add(new AgentLoginItem(null, "none", a.Name, "", a));
+    }
+
+    /// <summary>Clique no aviso: abre o login oficial do agente (navegador) e confere de novo ao terminar.</summary>
+    [RelayCommand]
+    private async Task LoginAgent(AgentLoginItem? item)
+    {
+        if (item is not { SignedOut: true, Kind: { } kind }) return;
+        var exe = kind == AgentKind.Claude ? ClaudeCodeAdapter.Locate() : CodexAdapter.Locate();
+        if (exe == null) { await RefreshAgentLoginsAsync(); return; }
+        AddLog(T("Você", "You", "Usted"), "login", T($"Abrindo o login do {AgentName(kind)} no navegador…", $"Opening {AgentName(kind)} sign-in in the browser…", $"Abriendo el inicio de sesión de {AgentName(kind)} en el navegador…"));
+        await AgentLogin.OpenLoginAsync(kind == AgentKind.Claude, exe, CancellationToken.None);
+        await RefreshSignedOutAsync(kind);
+        ShowAgentLogins();
+        AddLog(kind == AgentKind.Claude ? "Claude Code" : "Codex", "login", SignedOut(kind)
+            ? T("continua sem login.", "still not signed in.", "sigue sin inicio de sesión.")
+            : T("login concluído.", "signed in.", "sesión iniciada."));
+    }
+
+    private static string AgentName(AgentKind kind) => kind == AgentKind.Codex ? "Codex" : "Claude Code";
+
+    /// <summary>Confere o login do agente (sem abrir nada); "não deu para saber" conta como com login, como antes.</summary>
+    private static async Task RefreshSignedOutAsync(AgentKind kind)
+    {
+        var exe = kind == AgentKind.Claude ? ClaudeCodeAdapter.Locate() : CodexAdapter.Locate();
+        if (exe == null) return;
+        try { _signedOut[kind] = await AgentLogin.IsLoggedInAsync(kind == AgentKind.Claude, exe, CancellationToken.None) == false; }
+        catch { _signedOut.TryRemove(kind, out _); }
+    }
 
     /// <summary>
     /// Planejador da fachada Open Core: Basic (Community) ou NXAgentic Intelligence, se instalado

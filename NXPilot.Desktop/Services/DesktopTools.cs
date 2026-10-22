@@ -22,6 +22,9 @@ namespace NXPilot.Desktop.Services;
 /// </summary>
 public static class DesktopTools
 {
+    /// <summary>Linha do log para imagem da pessoa copiada para a pasta de imagens: "… → caminho".</summary>
+    public static string OwnImageLogPrefix => NxText.T("Imagem própria guardada na pasta de imagens → ", "Own image kept in the images folder → ", "Imagen propia guardada en la carpeta de imágenes → ");
+
     private static readonly Lazy<bool> HasPowerPoint = new(() => Type.GetTypeFromProgID("PowerPoint.Application") != null);
     private static readonly Lazy<bool> HasExcel = new(() => Type.GetTypeFromProgID("Excel.Application") != null);
 
@@ -198,7 +201,11 @@ public static class DesktopTools
                 {
                     var win = new Views.ImagePickerWindow(query, Str(a, "purpose") ?? "", Math.Clamp(Int(a, "count") ?? 12, 4, 30))
                         { Owner = System.Windows.Application.Current.MainWindow };
-                    return win.ShowDialog() == true ? win.Selected : null;
+                    var ok = win.ShowDialog() == true;
+                    // Cópias das imagens da pessoa na pasta de imagens: ficam no log da tarefa (a remoção definitiva apaga).
+                    foreach (var copied in win.CopiedToFolder)
+                        c.UserChoice?.Invoke(OwnImageLogPrefix + copied);
+                    return ok ? win.Selected : null;
                 });
                 if (picked == null) return ToolResult.Error(NxText.T("A pessoa fechou a janela sem escolher. Pergunte se quer outra busca ou seguir sem figura.",
                     "The user closed the window without choosing. Ask whether to search again or go on without a picture.",

@@ -442,6 +442,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        await Vm.RefreshAgentLoginsAsync(); // o print mostra o login dos agentes (✓ / triângulo)
+        await Task.Delay(300);
         SaveVisual((FrameworkElement)Content, this, shot);
         if (args.Contains("--exit")) Close();
     }

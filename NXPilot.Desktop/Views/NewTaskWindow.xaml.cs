@@ -128,7 +128,7 @@ public partial class NewTaskWindow : Window
         var notInstalled = T(" — não instalado", " — not installed", " — no instalado");
         AgentClaudeItem.Content = "Claude Code" + (_claudeInstalled ? "" : notInstalled);
         AgentCodexItem.Content = "Codex" + (_codexInstalled ? "" : notInstalled);
-        AgentNXAgenticItem.Content = "NXAgentic" + T(" — em construção", " — under construction", " — en construcción");
+        AgentNXAgenticItem.Content = "🚧 NXAgentic" + T(" — em construção", " — under construction", " — en construcción");
         Select(AgentBox, s.Executor ?? (!_claudeInstalled && _codexInstalled ? nameof(ExecutorKind.Codex) : nameof(ExecutorKind.Claude)));
         UpdateAgentHint();
 

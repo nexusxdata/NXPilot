@@ -9,6 +9,18 @@ using NXPilot.Risk;
 
 namespace NXPilot.Desktop.ViewModels;
 
+/// <summary>
+/// Linha da barra lateral por agente: login (✓ verde, triângulo vermelho até a pessoa entrar — o clique abre o login,
+/// 🚧 em construção) e, abaixo, o que ele está fazendo agora. State: "in", "out", "build" ou "none" (login não conferido).
+/// </summary>
+public sealed record AgentLoginItem(NXPilot.Agents.AgentKind? Kind, string State, string Title, string Hint, AgentItem? Activity = null)
+{
+    public bool SignedIn => State == "in";
+    public bool SignedOut => State == "out";
+    public bool Building => State == "build";
+    public bool HasActivity => Activity != null;
+}
+
 public sealed record AgentItem(string Name, string Status, string Task, string Elapsed, IReadOnlyList<AgentItem>? Children = null);
 
 public sealed record ArtifactItem(string Glyph, string Title, string Subtitle);

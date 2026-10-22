@@ -69,6 +69,10 @@ public static class AgentLogin
         return r.ExitCode == 0 ? true : null;
     }, ct);
 
+    /// <summary>Abre o login oficial do agente (o mesmo de <see cref="EnsureAsync"/>) e espera terminar.</summary>
+    public static Task OpenLoginAsync(bool claude, string exe, CancellationToken ct) =>
+        LoginAsync(exe, claude ? ["auth", "login"] : ["login"], ct);
+
     /// <summary>Login oficial numa janela visível: abre o navegador e espera o fim (até 10 min).</summary>
     private static async Task LoginAsync(string exe, string[] args, CancellationToken ct)
     {

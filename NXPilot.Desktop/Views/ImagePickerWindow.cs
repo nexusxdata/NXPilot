@@ -29,6 +29,9 @@ public sealed class ImagePickerWindow : Window
     /// <summary>As figuras marcadas (vazio = nenhuma serve; nulo = fechou sem decidir).</summary>
     public List<ImageHit>? Selected { get; private set; }
 
+    /// <summary>Imagens da pessoa que ESTA escolha copiou para a pasta de imagens (saem junto se a tarefa for removida de vez).</summary>
+    public List<string> CopiedToFolder { get; } = new();
+
     public ImagePickerWindow(string query, string purpose, int count)
     {
         _count = count;
@@ -196,7 +199,7 @@ public sealed class ImagePickerWindow : Window
     }
 
     /// <summary>A imagem trazida vai para a pasta de imagens (a busca acha da próxima vez); já estando lá, fica onde está.</summary>
-    private static string SaveToImagesFolder(string file)
+    private string SaveToImagesFolder(string file)
     {
         var folder = ImagesFolder();
         var full = System.IO.Path.GetFullPath(file);
@@ -212,6 +215,7 @@ public sealed class ImagePickerWindow : Window
             target = System.IO.Path.Combine(folder, $"{name}-{i}{ext}");
         }
         System.IO.File.Copy(full, target);
+        CopiedToFolder.Add(target);
         return target;
     }
 

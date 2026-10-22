@@ -48,7 +48,7 @@
             <ComboBox x:Name="PlanRulesAgentBox" Width="170" HorizontalAlignment="Left" Padding="6,3" SelectionChanged="OnPlanRulesAgentChanged">
                 <ComboBoxItem Content="Claude Code" Tag="Claude"/>
                 <ComboBoxItem Content="Codex" Tag="Codex"/>
-                <ComboBoxItem Content="NXAgentic" Tag="NXAgentic"/>
+                <ComboBoxItem Content="🚧 NXAgentic" Tag="NXAgentic"/>
             </ComboBox>
         </DockPanel>
         <TextBox x:Name="PlanRulesBox" Margin="0,6,0,0" Height="110" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
