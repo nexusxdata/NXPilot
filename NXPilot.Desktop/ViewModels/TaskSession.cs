@@ -40,6 +40,9 @@ public sealed record NewTaskInfo(string RepoPath, string Title, string Intent, s
     /// </summary>
     public IReadOnlyList<string>? ImageQueries { get; init; }
 
+    /// <summary>Nível do gate nesta tarefa: Padrão nas novas; o clone de uma tarefa concluída vem Confiante.</summary>
+    public NXPilot.Risk.GateLevel GateLevel { get; init; }
+
     /// <summary>
     /// Intenção para o prompt: com work item vinculado, diz ao agente qual é e como ler o item e a
     /// hierarquia dele (workitems_tree) — os dados vêm do DevOps, não do repositório.

@@ -530,8 +530,10 @@ public static class CoreTools
             Description = "Run ONE SQL statement on the configured Databricks SQL warehouse. Reads run directly; writes, DDL and permission changes go to the user for approval " +
                           "(when creating a view/table based on another object, keep its comments — see databricks_comments) " +
                           "(and are refused during planning/review). If the user set write schemas (e.g. sandbox_*), CREATE/INSERT/MERGE/UPDATE/DELETE/DROP/ALTER are only allowed " +
-                          "there — create objects with a fully qualified name in one of them; anything outside is refused. Returns a markdown table.",
-            Schema = NxTool.ParseSchema("""{"type":"object","required":["sql"],"properties":{"sql":{"type":"string"},"max_rows":{"type":"integer","description":"Default 100, max 1000"}}}"""),
+                          "there — create objects with a fully qualified name in one of them; anything outside is refused. Returns a markdown table. " +
+                          "Big results come in PAGES of max_rows: page 1 is free and tells the total, the number of pages and the estimated time; page 2+ needs the user's " +
+                          "approval (asked once for the whole query). Prefer filtering or aggregating (WHERE, GROUP BY) over reading many pages.",
+            Schema = NxTool.ParseSchema("""{"type":"object","required":["sql"],"properties":{"sql":{"type":"string"},"max_rows":{"type":"integer","description":"Rows per page. Default 100, max 1000"},"page":{"type":"integer","description":"Page of a big SELECT result (1 = first, free; 2+ needs approval; the extension caps rows per page and pages)"}}}"""),
             // O gate fica DENTRO: o classificador de SQL decide por instrução (leitura BAIXO, escrita ALTO).
             Run = async (a, c, ct) =>
             {
@@ -540,15 +542,91 @@ public static class CoreTools
                     : new GateSqlApprover((review, risk, t) => c.Approve($"Databricks SQL: {review.Kind} — {Trim(Req(a, "sql"), 300)}", risk, t),
                         DatabricksSettings.Load().WritePolicy()); // escrita só nos schemas de gravação (fora: bloqueada)
                 using var svc = new DatabricksSqlService(Conn(), approver);
-                var max = Math.Clamp(Int(a, "max_rows") ?? 100, 1, 1000);
+                var limits = DatabricksSettings.Load();
+                var max = Math.Clamp(Int(a, "max_rows") ?? limits.PageSize, 1, limits.PageSize); // configurado na extensão, com teto
+                var sql = Req(a, "sql");
+                var page = Math.Max(1, Int(a, "page") ?? 1);
+                var paging = SqlPaging.CanPage(sql);
                 try
                 {
-                    var r = await svc.ExecuteAsync(Req(a, "sql"), null, new SqlExecutionOptions { MaxRows = max }, ct);
-                    return ToolResult.Text(Markdown(r, max));
+                    if (page > 1)
+                    {
+                        if (!paging) return ToolResult.Error(NxText.T("Só um SELECT (ou WITH … SELECT) pode ser lido em páginas.", "Only a SELECT (or WITH … SELECT) can be read in pages.", "Solo un SELECT (o WITH … SELECT) puede leerse en páginas."));
+                        var key = SqlPaging.Key(c.Worktree, sql, max);
+                        if (!SqlPaging.Plans.TryGetValue(key, out var plan))
+                            return ToolResult.Error(NxText.T("Leia a página 1 primeiro (ela diz o total e quantas páginas são).", "Read page 1 first (it tells the total and how many pages there are).", "Lea la página 1 primero (indica el total y cuántas páginas son)."));
+                        if (page > plan.Pages) return ToolResult.Error(NxText.T($"Só há {plan.Pages} página(s).", $"There are only {plan.Pages} page(s).", $"Solo hay {plan.Pages} página(s)."));
+                        if (plan.Pages > limits.PageLimit) return ToolResult.Error(NxText.T(
+                            $"São {plan.Pages} páginas, acima do limite da extensão Databricks ({limits.PageLimit}). Filtre ou agregue (WHERE, GROUP BY) para trazer menos linhas.",
+                            $"That is {plan.Pages} pages, above the Databricks extension limit ({limits.PageLimit}). Filter or aggregate (WHERE, GROUP BY) to bring fewer rows.",
+                            $"Son {plan.Pages} páginas, por encima del límite de la extensión Databricks ({limits.PageLimit}). Filtre o agregue (WHERE, GROUP BY) para traer menos filas."));
+                        // Uma aprovação para a consulta inteira: quantas páginas e quanto tempo, pela medida da página 1.
+                        if (!SqlPaging.Approved.ContainsKey(key))
+                        {
+                            var rest = TimeSpan.FromSeconds(plan.SecondsPerPage * (plan.Pages - 1));
+                            var ok = await c.Approve(NxText.T(
+                                    $"Databricks paginação: ler {plan.Pages - 1} página(s) a mais de {max} linhas ({plan.Total:N0} linhas no total) · estimado {SqlPaging.Format(rest)} (a página 1 levou {plan.SecondsPerPage:0.0} s) — {Trim(sql, 200)}",
+                                    $"Databricks paging: read {plan.Pages - 1} more page(s) of {max} rows ({plan.Total:N0} rows in total) · estimated {SqlPaging.Format(rest)} (page 1 took {plan.SecondsPerPage:0.0} s) — {Trim(sql, 200)}",
+                                    $"Databricks paginación: leer {plan.Pages - 1} página(s) más de {max} filas ({plan.Total:N0} filas en total) · estimado {SqlPaging.Format(rest)} (la página 1 tardó {plan.SecondsPerPage:0.0} s) — {Trim(sql, 200)}"),
+                                NxTool.Medium(NxText.T("resultado grande em várias páginas", "big result in several pages", "resultado grande en varias páginas")), ct);
+                            if (!ok) return ToolResult.Error(NxText.T("O usuário não aprovou ler mais páginas: use a página 1 ou refine a consulta (WHERE, GROUP BY).",
+                                "The user did not approve reading more pages: use page 1 or refine the query (WHERE, GROUP BY).",
+                                "El usuario no aprobó leer más páginas: use la página 1 o refine la consulta (WHERE, GROUP BY)."));
+                            SqlPaging.Approved[key] = true;
+                        }
+                        var paged = await svc.ExecuteAsync(SqlPaging.PageSql(sql, max, page), null, new SqlExecutionOptions { MaxRows = max }, ct);
+                        return ToolResult.Text(Markdown(paged, max) + NxText.T($"\nPágina {page} de {plan.Pages}.", $"\nPage {page} of {plan.Pages}.", $"\nPágina {page} de {plan.Pages}."));
+                    }
+                    var r = await svc.ExecuteAsync(sql, null, new SqlExecutionOptions { MaxRows = max }, ct);
+                    var text = Markdown(r, max);
+                    if (paging && r.Truncated)
+                    {
+                        // Passou do limite: conta o total (o warehouse não diz quando corta) e planeja as páginas.
+                        var count = await svc.ExecuteAsync(SqlPaging.CountSql(sql), null, new SqlExecutionOptions { MaxRows = 1 }, ct);
+                        if (long.TryParse(count.Rows.FirstOrDefault()?.FirstOrDefault(), out var total) && total > max)
+                        {
+                            var plan = new SqlPaging.Plan(total, (int)Math.Ceiling(total / (double)max), r.Elapsed.TotalSeconds);
+                            SqlPaging.Plans[SqlPaging.Key(c.Worktree, sql, max)] = plan;
+                            text += NxText.T(
+                                $"\n⚠ Resultado grande: {total:N0} linhas = {plan.Pages} páginas de {max}. Esta é a página 1 (levou {plan.SecondsPerPage:0.0} s); o resto leva ~{SqlPaging.Format(TimeSpan.FromSeconds(plan.SecondsPerPage * (plan.Pages - 1)))}. " +
+                                (plan.Pages > limits.PageLimit ? $"Passa do limite de {limits.PageLimit} páginas da extensão: filtre ou agregue (WHERE, GROUP BY)." : "Para ler mais, chame de novo com page=2 (o usuário aprova uma vez para todas). Se der, filtre ou agregue em vez de paginar."),
+                                $"\n⚠ Big result: {total:N0} rows = {plan.Pages} pages of {max}. This is page 1 (took {plan.SecondsPerPage:0.0} s); the rest takes ~{SqlPaging.Format(TimeSpan.FromSeconds(plan.SecondsPerPage * (plan.Pages - 1)))}. " +
+                                (plan.Pages > limits.PageLimit ? $"Above the extension limit of {limits.PageLimit} pages: filter or aggregate (WHERE, GROUP BY)." : "To read more, call again with page=2 (the user approves once for all). If possible, filter or aggregate instead of paging."),
+                                $"\n⚠ Resultado grande: {total:N0} filas = {plan.Pages} páginas de {max}. Esta es la página 1 (tardó {plan.SecondsPerPage:0.0} s); el resto tarda ~{SqlPaging.Format(TimeSpan.FromSeconds(plan.SecondsPerPage * (plan.Pages - 1)))}. " +
+                                (plan.Pages > limits.PageLimit ? $"Supera el límite de {limits.PageLimit} páginas de la extensión: filtre o agregue (WHERE, GROUP BY)." : "Para leer más, llame de nuevo con page=2 (el usuario aprueba una vez para todas). Si se puede, filtre o agregue en lugar de paginar."));
+                        }
+                    }
+                    return ToolResult.Text(text);
                 }
                 catch (SqlStatementDeniedException ex) { return ToolResult.Error(NxText.T("NEGADO no NXPilot: ", "DENIED in NXPilot: ", "DENEGADO en NXPilot: ") + ex.Message); }
             },
         };
+    }
+
+    /// <summary>
+    /// Paginação de SELECT grande (big data não trava o NXPilot): a página 1 sai direto, conta o total e mede o tempo;
+    /// as seguintes precisam de UMA aprovação por consulta (quantas páginas e o tempo estimado pela página 1).
+    /// </summary>
+    internal static class SqlPaging
+    {
+        public sealed record Plan(long Total, int Pages, double SecondsPerPage);
+
+        public static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Plan> Plans = new();
+        public static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> Approved = new();
+
+        public static bool CanPage(string sql) =>
+            System.Text.RegularExpressions.Regex.IsMatch(Strip(sql), @"^\s*(SELECT|WITH)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        public static string Key(string worktree, string sql, int pageSize) => $"{worktree}|{pageSize}|{System.Text.RegularExpressions.Regex.Replace(Strip(sql), @"\s+", " ").ToLowerInvariant()}";
+
+        public static string CountSql(string sql) => $"SELECT COUNT(*) AS n FROM ({Strip(sql)}) nx_count";
+
+        public static string PageSql(string sql, int pageSize, int page) => $"SELECT * FROM ({Strip(sql)}) nx_page LIMIT {pageSize} OFFSET {(long)(page - 1) * pageSize}";
+
+        public static string Format(TimeSpan t) => t.TotalMinutes < 1 ? $"{Math.Max(1, Math.Round(t.TotalSeconds)):0} s"
+            : t.TotalHours < 1 ? $"{Math.Round(t.TotalMinutes):0} min" : $"{(int)t.TotalHours} h {t.Minutes:00} min";
+
+        private static string Strip(string sql) => sql.Trim().TrimEnd(';').Trim();
     }
 
     private static string Markdown(SqlQueryResult r, int max)
@@ -557,9 +635,19 @@ public static class CoreTools
         var sb = new StringBuilder();
         sb.AppendLine("| " + string.Join(" | ", r.Columns.Select(c => c.Name)) + " |");
         sb.AppendLine("|" + string.Concat(r.Columns.Select(_ => " --- |")));
+        var shown = 0;
         foreach (var row in r.Rows.Take(max))
+        {
+            // Teto de tamanho da página: tabela larga não lota o contexto do agente.
+            if (sb.Length > DatabricksSettings.PageMaxChars) break;
             sb.AppendLine("| " + string.Join(" | ", row.Select(v => (v ?? "NULL").Replace("|", "\\|").Replace("\n", " "))) + " |");
-        sb.Append($"\n{r.Rows.Count} de {r.TotalRowCount} linha(s){(r.Truncated ? " — cortado" : "")} · {r.Elapsed.TotalSeconds:0.0} s");
+            shown++;
+        }
+        sb.Append($"\n{shown} de {r.TotalRowCount} linha(s){(r.Truncated || shown < r.Rows.Count ? " — cortado" : "")} · {r.Elapsed.TotalSeconds:0.0} s");
+        if (shown < Math.Min(max, r.Rows.Count))
+            sb.Append(NxText.T($"\n⚠ Página cortada em {shown} linhas pelo tamanho (tabela larga): selecione só as colunas necessárias ou use max_rows menor.",
+                $"\n⚠ Page cut at {shown} rows by size (wide table): select only the columns you need or use a smaller max_rows.",
+                $"\n⚠ Página cortada en {shown} filas por tamaño (tabla ancha): seleccione solo las columnas necesarias o use un max_rows menor."));
         return sb.ToString();
     }
 

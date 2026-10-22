@@ -32,6 +32,20 @@ public sealed class DatabricksSettings
 
     public WriteSchemaPolicy WritePolicy() => new(WriteSchemas, Catalog, Schema);
 
+    /// <summary>Tetos fixos (boas práticas): página de até 2.000 linhas — bem abaixo dos 25 MB por resposta da API do
+    /// Databricks — e no máximo 50 páginas; acima disso, filtrar ou agregar em vez de puxar big data. A página também
+    /// tem teto de tamanho (PageMaxChars): tabela larga é cortada antes de lotar o contexto do agente.</summary>
+    public const int MaxRowsPerPageLimit = 2000, MinRowsPerPage = 100, MaxPagesLimit = 50, PageMaxChars = 80_000;
+
+    /// <summary>Linhas por página nas consultas do agente (padrão 500; entre 100 e 2.000).</summary>
+    public int RowsPerPage { get; set; } = 500;
+
+    /// <summary>Páginas por consulta que o agente pode pedir (padrão 10; entre 1 e 50). A partir da 2ª, você aprova.</summary>
+    public int MaxPages { get; set; } = 10;
+
+    [JsonIgnore] public int PageSize => Math.Clamp(RowsPerPage, MinRowsPerPage, MaxRowsPerPageLimit);
+    [JsonIgnore] public int PageLimit => Math.Clamp(MaxPages, 1, MaxPagesLimit);
+
     [JsonIgnore] public string Token { get; set; } = "";
     public string TokenProtected { get; set; } = "";
 

@@ -63,6 +63,8 @@ public partial class ExtensionsWindow : Window
         DbCatalogBox.Text = _db.Catalog;
         DbSchemaBox.Text = _db.Schema;
         DbWriteSchemasBox.Text = _db.WriteSchemas;
+        DbRowsPerPageBox.Text = _db.PageSize.ToString();
+        DbMaxPagesBox.Text = _db.PageLimit.ToString();
         AdoOrgBox.Text = _git.AzureDevOpsOrganizationUrl;
         OutlookClientBox.Text = _mail.OutlookClientId;
         OutlookTenantBox.Text = _mail.OutlookTenant;
@@ -272,6 +274,9 @@ public partial class ExtensionsWindow : Window
         Catalog = DbCatalogBox.Text.Trim(),
         Schema = DbSchemaBox.Text.Trim(),
         WriteSchemas = DbWriteSchemasBox.Text.Trim(),
+        // Fora da faixa: vale o teto (ou o mínimo) — nunca sem limite.
+        RowsPerPage = int.TryParse(DbRowsPerPageBox.Text.Trim(), out var rows) ? Math.Clamp(rows, DatabricksSettings.MinRowsPerPage, DatabricksSettings.MaxRowsPerPageLimit) : 500,
+        MaxPages = int.TryParse(DbMaxPagesBox.Text.Trim(), out var pages) ? Math.Clamp(pages, 1, DatabricksSettings.MaxPagesLimit) : 10,
         Token = DbTokenBox.Password.Length > 0 ? DbTokenBox.Password : _db.Token,
     };
 

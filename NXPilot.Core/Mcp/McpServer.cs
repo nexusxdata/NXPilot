@@ -33,6 +33,8 @@ public static class McpServer
         "If the task cites an example Power BI report (.pbip/.pbix or its folder) and names a tab, call powerbi_style on it with that page and build the new report in that style " +
         "(powerbi_copy_theme, same page size, background, positions and formatting). " +
         "Databricks: when you create a view or table based on a reference object, carry its comments (object and columns) — databricks_comments gives them and the ready SQL; comment new or renamed columns too. " +
+        "Databricks big results come in pages (size and maximum set by the user in the extension): page 1 is free and tells the total, pages and estimated time; " +
+        "page 2+ needs the user's approval — prefer WHERE/GROUP BY/aggregations over reading many pages, never pull a whole big table. " +
         "Power BI: before CREATING a PBIP project call powerbi_info — it gives the workspace the user configured for new reports (use it in the parameters, never a placeholder); " +
         "after creating or editing a PBIP project, review it through these tools before saying the phase is done — powerbi_validate (fix every problem; " +
         "a report without its base theme needs powerbi_fix_report), then powerbi_capture to open it in Power BI Desktop and look at the image: an error dialog or a blank page " +

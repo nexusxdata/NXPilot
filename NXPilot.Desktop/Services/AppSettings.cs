@@ -23,6 +23,8 @@ public sealed class AppSettings
     /// <summary>Versionamento da última tarefa: "Local" (repositório-sombra) ou "Git".</summary>
     public string? Versioning { get; set; }
     public string? LastSubject { get; set; }
+    /// <summary>"+ Opções" da Nova tarefa como a pessoa deixou da última vez (aberto ou recolhido).</summary>
+    public bool NewTaskOptionsExpanded { get; set; }
     /// <summary>Pasta dos assuntos do versionamento local (ex.: OneDrive); vazia = Documentos\NXPilot.</summary>
     public string? SubjectsRoot { get; set; }
     public string? LastModel { get; set; }
@@ -64,6 +66,9 @@ public sealed class AppSettings
     /// ao escolher o assunto na Nova tarefa. Assunto sem padrão segue a última escolha.
     /// </summary>
     public Dictionary<string, SubjectDefaults> SubjectDefaults { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Ferramentas: posição de cada ícone na "área de trabalho" (id → "coluna,linha").</summary>
+    public Dictionary<string, string> ToolPositions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXPilot", "settings.json");

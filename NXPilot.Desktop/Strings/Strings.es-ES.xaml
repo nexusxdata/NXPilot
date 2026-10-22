@@ -13,6 +13,7 @@
     <sys:String x:Key="Main_Notificacoes">🔔  Notificaciones</sys:String>
     <sys:String x:Key="Main_WorkItemsAzureDevops">⧉  Work items (Azure DevOps)</sys:String>
     <sys:String x:Key="Main_Agentes">AGENTES</sys:String>
+    <sys:String x:Key="Main_RemoverAgente">🗑 Quitar este agente…</sys:String>
     <sys:String x:Key="Main_Artefatos">ARTEFACTOS</sys:String>
     <sys:String x:Key="Main_Plano">Plan</sys:String>
     <sys:String x:Key="Main_Intencao">Intención</sys:String>
@@ -197,6 +198,10 @@
     <sys:String x:Key="Task_CriteriosLabel">Criterios de aceptación</sys:String>
     <sys:String x:Key="NewTask_Revisor">Revisor (verificación cruzada)</sys:String>
     <sys:String x:Key="NewTask_AutoFix">Analizar y corregir los hallazgos de la verificación automáticamente (hasta 2 rondas, sin preguntar cada vez — cada acción sigue pasando por el gate)</sys:String>
+    <sys:String x:Key="NewTask_Aprovacoes">Aprobaciones:</sys:String>
+    <sys:String x:Key="NewTask_GatePadrao">Estándar — riesgo bajo pasa solo; medio y alto preguntan</sys:String>
+    <sys:String x:Key="NewTask_GateConfiante">Confiado — medio local también pasa (alto y acciones externas preguntan)</sys:String>
+    <sys:String x:Key="NewTask_GateRigoroso">Estricto — pregunta casi todo (solo la lectura pasa)</sys:String>
     <sys:String x:Key="NewTask_RevisorCodex">Codex — solo lectura (recomendado)</sys:String>
     <sys:String x:Key="NewTask_RevisorClaude">Claude — en una sesión nueva</sys:String>
     <sys:String x:Key="NewTask_RevisorNenhum">Sin verificación</sys:String>
@@ -244,6 +249,9 @@
     <sys:String x:Key="Ext_Schema">Schema predeterminado (opcional)</sys:String>
     <sys:String x:Key="Ext_DbSchemasGravacao">Schemas de escritura (donde el agente puede crear y cambiar objetos)</sys:String>
     <sys:String x:Key="Ext_DbSchemasGravacaoDica">Schema completo o con comodín, separados por coma — p. ej., sandbox_*, dev.sandbox_*. Escribir fuera de ellos se bloquea (protege la producción). Un nombre sin schema usa el catálogo/schema predeterminado de arriba. Obligatorio — use * para permitir todos (cada escritura sigue pasando por el gate).</sys:String>
+    <sys:String x:Key="Ext_DbLinhasPagina">Filas por página (100 a 2.000)</sys:String>
+    <sys:String x:Key="Ext_DbMaxPaginas">Máximo de páginas por consulta (1 a 50)</sys:String>
+    <sys:String x:Key="Ext_DbPaginasDica">Una consulta grande viene en páginas: la 1.ª sale directo y muestra el total, las páginas y el tiempo estimado; desde la 2.ª usted aprueba (una vez por consulta). Por encima del máximo, el agente filtra o agrega en lugar de traer el volumen.</sys:String>
     <sys:String x:Key="Ext_TokenDatabricks">Token (PAT) de Databricks</sys:String>
     <sys:String x:Key="Ext_DatabricksGate">SELECT, SHOW y DESCRIBE pasan solos. INSERT, UPDATE, DELETE, MERGE, DDL y GRANT requieren su aprobación.</sys:String>
     <sys:String x:Key="Ext_TestarDatabricks">Probar conexión</sys:String>
@@ -298,7 +306,7 @@
     <sys:String x:Key="Cfg_Mcp">MCP NXPilot</sys:String>
     <sys:String x:Key="Cfg_McpNota">Las extensiones (Power BI, PowerPoint, Databricks, Git, correo, work items, Teams, aplicaciones de Windows) se convierten en herramientas de Claude Code y Codex en las tareas; cada llamada pasa por el gate. Detenido, las tareas se inician sin él. El estado se guarda al cerrar NXPilot.</sys:String>
     <sys:String x:Key="Cfg_McpFerramentas">Ver herramientas</sys:String>
-    <sys:String x:Key="Cfg_PlanoRegrasVer">Ver reglas del plan</sys:String>
+    <sys:String x:Key="Cfg_PlanoRegrasVer">Ver agentes y reglas del plan</sys:String>
     <sys:String x:Key="Ext_JanelasLerApp">Leer / monitorear una aplicación…</sys:String>
     <sys:String x:Key="Ext_JanelasProcessos">Procesos (hacer clic y escribir)…</sys:String>
     <sys:String x:Key="Win_LerTitulo">Leer o monitorear una aplicación</sys:String>

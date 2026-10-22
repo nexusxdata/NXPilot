@@ -485,28 +485,19 @@ public partial class MainWindow : Window
     {
         foreach (var (cli, status, name, button) in new[] { (NXData.AgentInstaller.AgentCli.ClaudeCode, ClaudeStatus, "claude", ClaudeInstallButton), (NXData.AgentInstaller.AgentCli.Codex, CodexStatus, "codex", CodexInstallButton) })
         {
-            // 🗑 aparece sempre que há o agente; só remove o que está nas pastas do instalador oficial. Da extensão
-            // do VS Code (ou npm etc.) fica desabilitada, com a dica de onde remover — apagar ali quebraria a extensão.
+            // 🗑: a regra é do AgentPanel (a mesma do NXPilot → Configurar → Agentes de código).
             var remove = cli == NXData.AgentInstaller.AgentCli.ClaudeCode ? ClaudeRemoveButton : CodexRemoveButton;
-            var located = NXData.AgentInstaller.AgentLocator.Candidates(cli, _agentOptions).FirstOrDefault(); // sem rodar --version de novo
-            var ours = _agents.CanUninstall(cli);
-            remove.Visibility = located != null || ours ? Visibility.Visible : Visibility.Collapsed;
-            remove.IsEnabled = ours;
-            remove.ToolTip = ours ? FindResource("Setup_RemoverAgenteTip")
-                : located?.Source == "extensão do VS Code"
-                    ? T("Este vem da extensão do VS Code: remova pela própria extensão (Extensões → Desinstalar). Apagar aqui quebraria a extensão.",
-                        "This one comes from the VS Code extension: remove it from the extension itself (Extensions → Uninstall). Deleting it here would break the extension.",
-                        "Este viene de la extensión de VS Code: quítelo desde la propia extensión (Extensiones → Desinstalar). Borrarlo aquí rompería la extensión.")
-                    : T($"Este não foi instalado por aqui ({located?.Source}): remova pelo mesmo jeito que instalou.",
-                        $"This one was not installed from here ({located?.Source}): remove it the same way you installed it.",
-                        $"Este no se instaló desde aquí ({located?.Source}): quítelo de la misma forma en que lo instaló.");
+            var removeState = NXData.AgentInstaller.AgentPanel.Remove(_agents, _agentOptions, cli, T);
+            remove.Visibility = removeState.Visible ? Visibility.Visible : Visibility.Collapsed;
+            remove.IsEnabled = removeState.Enabled;
+            remove.ToolTip = removeState.Tip;
             System.Windows.Controls.ToolTipService.SetShowOnDisabled(remove, true);
             var check = ++_agentCheck[(int)cli]; // só a conferência mais recente mexe no botão
             button.SetResourceReference(ContentProperty, "Setup_Instalar");
             button.IsEnabled = true;
             if (NXData.AgentInstaller.AgentLocator.Find(cli, _agentOptions) is { } found)
             {
-                status.Text = T($"✓ {found.Version ?? "instalado"} ({found.Source})", $"✓ {found.Version ?? "installed"} ({SourceEn(found.Source)})", $"✓ {found.Version ?? "instalado"} ({SourceEs(found.Source)})");
+                status.Text = NXData.AgentInstaller.AgentPanel.InstalledText(found, T);
                 status.Foreground = Brushes.Green;
                 if (found.Version != null) _ = CheckAgentUpdateAsync(cli, check, found.Version, status, button);
             }
@@ -529,37 +520,19 @@ public partial class MainWindow : Window
         try
         {
             var (target, _) = await _agents.ResolveVersionAsync(cli, SelectedVersion);
-            if (check != _agentCheck[(int)cli] || ParseVersion(target) is not { } t || ParseVersion(installed) is not { } i) return;
-            if (t > i)
+            if (check != _agentCheck[(int)cli]) return;
+            // Instalar / Atualizar / ✓ Atualizado: regra do AgentPanel (a mesma do app).
+            var (kind, enabled) = NXData.AgentInstaller.AgentPanel.Install(new NXData.AgentInstaller.AgentLocation(cli, "", "", installed), target, _agentFailed.Contains(cli));
+            button.Content = NXData.AgentInstaller.AgentPanel.InstallLabel(kind, T);
+            button.IsEnabled = enabled;
+            if (kind == NXData.AgentInstaller.AgentPanel.InstallButton.Update)
             {
-                button.SetResourceReference(ContentProperty, "Setup_AtualizarAgente");
-                status.Text += T($" · {target} disponível", $" · {target} available", $" · {target} disponible");
+                status.Text += NXData.AgentInstaller.AgentPanel.AvailableSuffix(target, T);
                 status.Foreground = Brushes.DarkOrange;
-            }
-            else if (!_agentFailed.Contains(cli))
-            {
-                button.SetResourceReference(ContentProperty, "Setup_AgenteAtualizado");
-                button.IsEnabled = false;
             }
         }
         catch { /* sem internet ou serviço fora: não dá para comparar */ }
     }
-
-    private static Version? ParseVersion(string v) => Version.TryParse(v.Split('-')[0], out var r) ? r : null;
-
-    private static string SourceEn(string source) => source switch
-    {
-        "instalador oficial" => "official installer",
-        "extensão do VS Code" => "VS Code extension",
-        _ => source,
-    };
-
-    private static string SourceEs(string source) => source switch
-    {
-        "instalador oficial" => "instalador oficial",
-        "extensão do VS Code" => "extensión de VS Code",
-        _ => source,
-    };
 
     private void OnRecheckClick(object sender, RoutedEventArgs e) => RefreshAgents();
 
@@ -607,10 +580,7 @@ public partial class MainWindow : Window
     private async void OnRemoveAgentClick(object sender, RoutedEventArgs e)
     {
         var cli = (sender as Button)?.Tag as string == "claude" ? NXData.AgentInstaller.AgentCli.ClaudeCode : NXData.AgentInstaller.AgentCli.Codex;
-        var name = cli == NXData.AgentInstaller.AgentCli.ClaudeCode ? "Claude Code" : "Codex";
-        var ask = T($"Remover o {name} deste computador?\n\nTarefas que usam o {name} deixam de funcionar até instalar de novo. Seu login e suas configurações são mantidos.",
-                    $"Remove {name} from this computer?\n\nTasks that use {name} stop working until you install it again. Your sign-in and settings are kept.",
-                    $"¿Quitar {name} de esta computadora?\n\nLas tareas que usan {name} dejan de funcionar hasta instalarlo de nuevo. Se mantienen su inicio de sesión y su configuración.");
+        var ask = NXData.AgentInstaller.AgentPanel.RemoveQuestion(cli, T);
         if (MessageBox.Show(this, ask, "NXPilot Setup", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         ClaudeInstallButton.IsEnabled = CodexInstallButton.IsEnabled = ClaudeRemoveButton.IsEnabled = CodexRemoveButton.IsEnabled = false;
         ErrorText.Visibility = Visibility.Collapsed;

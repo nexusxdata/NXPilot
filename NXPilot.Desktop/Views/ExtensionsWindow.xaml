@@ -53,6 +53,19 @@
                     <TextBlock Text="{DynamicResource Ext_DbSchemasGravacao}" Style="{StaticResource Muted}" Margin="0,8,0,2"/>
                     <TextBox x:Name="DbWriteSchemasBox" Padding="4,3" FontFamily="Consolas"/>
                     <TextBlock Text="{DynamicResource Ext_DbSchemasGravacaoDica}" TextWrapping="Wrap" FontSize="11" Foreground="DimGray" Margin="0,2,0,0"/>
+                    <!-- Volume das consultas do agente: página e quantidade de páginas, com teto fixo (big data não trava o NXPilot). -->
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="12"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Ext_DbLinhasPagina}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
+                            <TextBox x:Name="DbRowsPerPageBox" Padding="4,3"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="{DynamicResource Ext_DbMaxPaginas}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
+                            <TextBox x:Name="DbMaxPagesBox" Padding="4,3"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{DynamicResource Ext_DbPaginasDica}" TextWrapping="Wrap" FontSize="11" Foreground="DimGray" Margin="0,2,0,0"/>
                     <TextBlock Text="{DynamicResource Ext_TokenDatabricks}" Style="{StaticResource Muted}" Margin="0,8,0,2"/>
                     <PasswordBox x:Name="DbTokenBox" Padding="4,3"/>
                     <TextBlock x:Name="DbTokenState" Style="{StaticResource Muted}" FontSize="11" Margin="0,2,0,0"/>

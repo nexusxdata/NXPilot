@@ -88,6 +88,11 @@ public static class PlainRisk
                 ? ["só consulta ou mexe na pasta da tarefa", "it only reads or works in the task folder", "solo consulta o trabaja en la carpeta de la tarea"]
                 : ["pode gravar dados fora da pasta da tarefa", "it may write data outside the task folder", "puede grabar datos fuera de la carpeta de la tarea"];
         }
+        else if (tool.StartsWith("Databricks pagina", StringComparison.OrdinalIgnoreCase))
+        {
+            what = ["ler o resultado de uma consulta grande do Databricks em várias páginas", "read a big Databricks query result in several pages", "leer el resultado de una consulta grande de Databricks en varias páginas"];
+            why = ["o volume é grande: leva o tempo estimado e ocupa o agente (só lê, não muda nada)", "the volume is big: it takes the estimated time and keeps the agent busy (it only reads, nothing changes)", "el volumen es grande: tarda el tiempo estimado y ocupa al agente (solo lee, no cambia nada)"];
+        }
         else if (tool.StartsWith("Databricks", StringComparison.OrdinalIgnoreCase))
         {
             what = ["rodar uma consulta no Databricks", "run a query on Databricks", "ejecutar una consulta en Databricks"];

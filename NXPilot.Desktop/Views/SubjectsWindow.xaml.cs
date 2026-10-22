@@ -65,6 +65,8 @@ public partial class SubjectsWindow : Window
         RepoNameBox.Visibility = RepoNameLabel.Visibility = moved ? Visibility.Collapsed : Visibility.Visible;
         RepoNameBox.Text = RepoSlug(s.Name);
         GitHubButton.Content = moved ? T("Enviar ao GitHub", "Push to GitHub", "Enviar a GitHub") : T("Mover para o GitHub…", "Move to GitHub…", "Mover a GitHub…");
+        // Recolhido: o título já diz se o assunto está no GitHub; expande para enviar ou mover.
+        GitHubExpander.Header = moved ? "GitHub · ✓ " + T("já está no GitHub", "already on GitHub", "ya está en GitHub") : T("GitHub (opcional)", "GitHub (optional)", "GitHub (opcional)");
         GitHubText.Text = moved
             ? T($"Este assunto está no GitHub: {s.WebUrl}. \"Enviar\" leva os snapshots e os branches das tarefas novas.",
                 $"This subject is on GitHub: {s.WebUrl}. \"Push\" sends the snapshots and the new task branches.",

@@ -263,6 +263,7 @@ public sealed class DatabricksQueryWindow : Window
         _grid.ItemsSource = null;
         _grid.Columns.Clear();
         _grid.ItemsSource = table.DefaultView;
+        _grid.FrozenColumnCount = _vertical.IsChecked == true ? 1 : 0; // vertical: o nome da coluna fica parado ao rolar para o lado (o cabeçalho já fica sempre)
     }
 
     /// <summary>Excel no MESMO formato da tela (vertical ou horizontal), cabeçalho com filtro. Números como número.</summary>

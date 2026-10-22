@@ -93,6 +93,34 @@ public static class PowerBiDesktop
     }
 
     /// <summary>
+    /// Aviso de erro desenhado DENTRO da janela do Power BI ("Your report has issues that could not be resolved",
+    /// com a lista de problemas): não é uma janela filha, então só aparece lendo o texto da janela.
+    /// </summary>
+    public static string? InWindowLoadError(WindowsUiService ui, WindowInfo main)
+    {
+        try { return NXPilot.Integrations.PowerBiReport.LoadErrorFromText(ui.ReadText(main, 8000)); }
+        catch { return null; } // janela fechou durante a leitura
+    }
+
+    /// <summary>
+    /// Clica no botão Atualizar (Refresh) da faixa de opções e espera os dados carregarem. Falso se o botão
+    /// não foi achado (outro idioma ou layout). Usa a ação do próprio botão — não mexe no mouse.
+    /// </summary>
+    public static async Task<bool> RefreshAsync(WindowsUiService ui, WindowInfo window, CancellationToken ct = default)
+    {
+        var driver = ui.Driver(window);
+        foreach (var name in new[] { "Refresh", "Atualizar", "Actualizar" })
+        {
+            var target = new UiTarget("Button", null, name);
+            if (driver.Count(target) != 1) continue;
+            driver.Click(target);
+            await Task.Delay(TimeSpan.FromSeconds(45), ct); // dados do modelo atualizando → visuais redesenhando
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Abre o projeto, espera a janela (o título é só o nome do projeto — o Power BI é reconhecido
     /// pelo processo; até 4 min, o Power BI demora a carregar o modelo), dá tempo para os visuais
     /// renderizarem e grava a captura em <paramref name="png"/>. O Power BI continua aberto.

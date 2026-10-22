@@ -125,6 +125,15 @@ public static class DesktopTools
                 var content = new List<ToolContent> { ToolContent.OfImage(img, mime) };
                 if (note.Length > 0) content.Add(ToolContent.OfText(note));
 
+                // Aviso desenhado dentro da janela ("Your report has issues that could not be resolved"): também é NÃO carregou.
+                if (open != null)
+                    using (var ui = new WindowsUiService(WindowsUiPolicy.PowerBiOnly))
+                        if (PowerBiDesktop.InWindowLoadError(ui, open) is { } issue)
+                            content.Add(ToolContent.OfText(NxText.T(
+                                $"⚠ O Power BI mostrou um aviso: o relatório NÃO carregou. {issue}\nRode powerbi_validate, corrija (propriedade a mais na raiz do report.json ou tema base: powerbi_fix_report) e capture de novo com reopen=true. Não clique em Continue: corrija o arquivo.",
+                                $"⚠ Power BI showed a warning: the report did NOT load. {issue}\nRun powerbi_validate, fix it (extra property in the root of report.json or base theme: powerbi_fix_report) and capture again with reopen=true. Do not click Continue: fix the file.",
+                                $"⚠ Power BI mostró un aviso: el informe NO cargó. {issue}\nEjecute powerbi_validate, corrija (propiedad de más en la raíz de report.json o tema base: powerbi_fix_report) y capture de nuevo con reopen=true. No haga clic en Continue: corrija el archivo.")));
+
                 // Janela de erro do Power BI ("Something went wrong"): o relatório NÃO carregou.
                 using (var ui = new WindowsUiService(WindowsUiPolicy.PowerBiOnly))
                     foreach (var dialog in open == null ? [] : PowerBiDesktop.ErrorDialogs(ui, open))

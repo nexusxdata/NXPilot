@@ -53,17 +53,17 @@
                     <Button Content="{DynamicResource Subj_MoverPasta}" Style="{StaticResource SubtleButton}" Margin="0,0,8,6" Click="OnMoveClick"/>
                 </WrapPanel>
 
-                <Border Style="{StaticResource Card}" Margin="0,12,0,0">
-                    <StackPanel>
-                        <TextBlock Text="GitHub" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="GitHubText" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                <!-- GitHub (opcional): recolhido como o "Ver ferramentas" do Configurar; expande quando for configurar. -->
+                <Expander x:Name="GitHubExpander" Header="GitHub" Margin="0,12,0,0" FontSize="12">
+                    <StackPanel Margin="16,4,0,0">
+                        <TextBlock x:Name="GitHubText" Style="{StaticResource Muted}" TextWrapping="Wrap"/>
                         <DockPanel Margin="0,8,0,0">
                             <Button x:Name="GitHubButton" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Padding="10,4" Margin="6,0,0,0" Click="OnGitHubClick"/>
                             <TextBlock x:Name="RepoNameLabel" DockPanel.Dock="Left" Text="{DynamicResource Subj_NomeRepo}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                             <TextBox x:Name="RepoNameBox" Padding="4,4" FontFamily="{StaticResource MonoFont}" FontSize="12"/>
                         </DockPanel>
                     </StackPanel>
-                </Border>
+                </Expander>
             </StackPanel>
         </Grid>
     </DockPanel>

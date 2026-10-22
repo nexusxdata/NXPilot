@@ -69,6 +69,8 @@
                     <Button x:Name="MoreButton" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnMoreClick"/>
                 </StackPanel>
             <WrapPanel HorizontalAlignment="Right">
+                <!-- Ver o resultado de uma tarefa sem trocar a da tela (funciona com outra tarefa rodando). -->
+                <Button x:Name="ResultFilesButton" Style="{StaticResource SubtleButton}" Margin="0,0,8,0" Click="OnResultFilesClick"/>
                 <Button x:Name="CloneButton" Content="{DynamicResource Hist_Clonar}" ToolTip="{DynamicResource Hist_ClonarDica}" Style="{StaticResource SubtleButton}" Click="OnCloneClick"/>
                 <Button x:Name="FindingsButton" Content="{DynamicResource Hist_Achados}" ToolTip="{DynamicResource Hist_AchadosDica}" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnFindingsClick"/>
                 <Button x:Name="OpenButton" Content="{DynamicResource Hist_Abrir}" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Click="OnOpenClick" IsDefault="True"/>

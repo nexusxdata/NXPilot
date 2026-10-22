@@ -44,6 +44,9 @@ public static class PowerBiReport
         try { root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? throw new JsonException("não é um objeto"); }
         catch (Exception ex) { problems.Add($"{rel}: JSON inválido — {ex.Message}"); return problems; }
 
+        if (!pbir)
+            foreach (var key in LegacyRootNotAllowed.Where(root.ContainsKey))
+                problems.Add($"{rel}: a propriedade '{key}' na raiz do report.json não é aceita pelo Power BI Desktop atual — ele mostra \"Your report has issues that could not be resolved\" (An additional property '{key}' was included in the root property of report.json). Corrija com powerbi_fix_report.");
         if (pbir)
             foreach (var kind in new[] { "baseTheme", "customTheme" })
                 if (root["themeCollection"]?[kind]?["reportVersionAtImport"] is JsonValue)
@@ -92,6 +95,24 @@ public static class PowerBiReport
         (pbirReport["themeCollection"]?["baseTheme"]?["reportVersionAtImport"] ?? pbirReport["themeCollection"]?["customTheme"]?["reportVersionAtImport"]) is JsonObject existing
             ? existing.DeepClone()
             : new JsonObject { ["visual"] = "2.6.0", ["report"] = "3.1.0", ["page"] = "2.3.0" };
+
+    /// <summary>Propriedades que versões antigas punham na raiz do report.json e o Power BI Desktop atual recusa.</summary>
+    public static readonly string[] LegacyRootNotAllowed = ["layoutOptimization"];
+
+    /// <summary>
+    /// Texto da janela do Power BI que indica que o relatório NÃO carregou ("Your report has issues…",
+    /// "Something went wrong"…): devolve o aviso e a lista de problemas; nulo se não há aviso.
+    /// </summary>
+    public static string? LoadErrorFromText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        string[] markers = ["Your report has issues", "could not be resolved", "Something went wrong", "List of issues", "Load errors",
+                            "Couldn't load", "Unable to open", "Seu relatório tem problemas", "Algo deu errado", "Não foi possível carregar"];
+        var lines = text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+        var start = lines.FindIndex(l => markers.Any(m => l.Contains(m, StringComparison.OrdinalIgnoreCase)));
+        if (start < 0) return null;
+        return string.Join(" | ", lines.Skip(start).Take(10));
+    }
 
     public static string ThemeFile(string reportDir, string theme) =>
         System.IO.Path.Combine(reportDir, "StaticResources", "SharedResources", ThemesFolder, theme + ".json");
@@ -170,7 +191,7 @@ public static class PowerBiReport
             root["resourcePackages"] = packages;
             var ordinal = 0;
             foreach (var section in root["sections"] as JsonArray ?? []) if (section is JsonObject s) s["ordinal"] ??= ordinal++;
-            root["layoutOptimization"] ??= 0;
+            foreach (var key in LegacyRootNotAllowed) root.Remove(key); // o Power BI atual recusa (não acrescentar nunca)
         }
         File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
         var target = ThemeFile(reportDir, theme);

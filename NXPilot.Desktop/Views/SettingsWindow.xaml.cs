@@ -30,6 +30,8 @@ public partial class SettingsWindow : Window
     {
         if (PlanRulesBox == null) return; // durante o InitializeComponent
         PlanRulesBox.Text = AppSettings.Load().PlanRulesFor(PlanRulesAgent);
+        _agentFailed = false;
+        _ = RefreshAgentButtonsAsync(); // instalado? versão nova? (Instalar/Atualizar e 🗑 ao lado)
     }
 
     private void OnPlanRulesLostFocus(object sender, RoutedEventArgs e)
@@ -46,13 +48,98 @@ public partial class SettingsWindow : Window
         PlanRulesBox.Text = AppSettings.Load().PlanRulesFor(agent);
     }
 
+    /// <summary>Há tarefa rodando? (instalar/remover agente espera ela terminar)</summary>
+    public Func<bool> TaskRunning { get; init; } = () => false;
+
+    /// <summary>Agente instalado/atualizado/removido: a barra lateral confere de novo.</summary>
+    public Action? AgentsChanged { get; init; }
+
+    private NXPilot.Agents.AgentKind? SelectedAgentKind => PlanRulesAgent switch
+    {
+        "Claude" => NXPilot.Agents.AgentKind.Claude,
+        "Codex" => NXPilot.Agents.AgentKind.Codex,
+        _ => null, // NXAgentic: em construção, nada a instalar
+    };
+
+    private int _agentCheck;
+    private bool _agentFailed;
+
+    /// <summary>Agente escolhido nas regras: status e os botões Instalar/Atualizar e 🗑 (regra do AgentPanel, a mesma do Setup).</summary>
+    private async Task RefreshAgentButtonsAsync()
+    {
+        var check = ++_agentCheck;
+        AgentInstallButton.Visibility = AgentRemoveButton.Visibility = Visibility.Collapsed;
+        AgentStatusText.Text = "";
+        if (SelectedAgentKind is not { } kind) return;
+        AgentStatusText.Foreground = Brushes.Gray;
+        AgentStatusText.Text = T("verificando o agente…", "checking the agent…", "verificando el agente…");
+        var found = await Task.Run(() => NXPilot.Agents.AgentUpdates.Find(kind));
+        var latest = await NXPilot.Agents.AgentUpdates.LatestAsync(kind);
+        if (check != _agentCheck) return; // trocou de agente no meio
+        var (button, enabled) = NXData.AgentInstaller.AgentPanel.Install(found, latest, _agentFailed);
+        AgentInstallButton.Content = NXData.AgentInstaller.AgentPanel.InstallLabel(button, T);
+        AgentInstallButton.IsEnabled = enabled;
+        AgentInstallButton.Visibility = Visibility.Visible;
+        var remove = NXPilot.Agents.AgentUpdates.RemoveState(kind, T);
+        AgentRemoveButton.Visibility = remove.Visible ? Visibility.Visible : Visibility.Collapsed;
+        AgentRemoveButton.IsEnabled = remove.Enabled;
+        AgentRemoveButton.ToolTip = remove.Tip;
+        ToolTipService.SetShowOnDisabled(AgentRemoveButton, true);
+        AgentStatusText.Text = found == null ? T("Não instalado.", "Not installed.", "No instalado.")
+            : NXData.AgentInstaller.AgentPanel.InstalledText(found, T) + (button == NXData.AgentInstaller.AgentPanel.InstallButton.Update ? NXData.AgentInstaller.AgentPanel.AvailableSuffix(latest!, T) : "");
+        AgentStatusText.Foreground = found == null ? Brushes.Gray : button == NXData.AgentInstaller.AgentPanel.InstallButton.Update ? Brushes.DarkOrange : Brushes.Green;
+    }
+
+    private bool BlockedByTask()
+    {
+        if (!TaskRunning()) return false;
+        MessageBox.Show(this, T("Há uma tarefa em andamento usando os agentes. Faça isso quando ela terminar.", "A task is running with the agents. Do this when it finishes.", "Hay una tarea en curso usando los agentes. Hágalo cuando termine."),
+            "NXPilot", MessageBoxButton.OK, MessageBoxImage.Information);
+        return true;
+    }
+
+    private async void OnAgentInstallClick(object sender, RoutedEventArgs e)
+    {
+        if (SelectedAgentKind is not { } kind || BlockedByTask()) return;
+        AgentInstallButton.IsEnabled = AgentRemoveButton.IsEnabled = PlanRulesAgentBox.IsEnabled = false;
+        try
+        {
+            var r = await NXPilot.Agents.AgentUpdates.UpdateAsync(kind, new Progress<string>(m => { AgentStatusText.Foreground = Brushes.SteelBlue; AgentStatusText.Text = "⟳ " + m; }));
+            _agentFailed = false;
+            await RefreshAgentButtonsAsync();
+            AgentStatusText.Text += "  ·  " + r.Message;
+        }
+        catch (Exception ex)
+        {
+            _agentFailed = true; // continua habilitado para tentar de novo
+            await RefreshAgentButtonsAsync();
+            AgentStatusText.Foreground = Brushes.Firebrick;
+            AgentStatusText.Text = T("Não foi possível instalar: ", "Could not install: ", "No se pudo instalar: ") + ex.Message;
+        }
+        finally { PlanRulesAgentBox.IsEnabled = true; AgentsChanged?.Invoke(); }
+    }
+
+    private async void OnAgentRemoveClick(object sender, RoutedEventArgs e)
+    {
+        if (SelectedAgentKind is not { } kind || BlockedByTask()) return;
+        if (MessageBox.Show(this, NXData.AgentInstaller.AgentPanel.RemoveQuestion(NXPilot.Agents.AgentUpdates.CliOf(kind), T), "NXPilot",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        string done;
+        try { done = await NXPilot.Agents.AgentUpdates.UninstallAsync(kind); }
+        catch (Exception ex) { done = T("Não foi possível remover: ", "Could not remove: ", "No se pudo quitar: ") + ex.Message; }
+        await RefreshAgentButtonsAsync();
+        AgentStatusText.Text += "  ·  " + done;
+        AgentsChanged?.Invoke();
+    }
+
     public SettingsWindow()
     {
         InitializeComponent();
+
         var v = UpdateService.CurrentVersion;
         CurrentVersionText.Text = T($"Instalada: NXPilot {v.ToString(3)}.{v.Revision:00}", $"Installed: NXPilot {v.ToString(3)}.{v.Revision:00}", $"Instalada: NXPilot {v.ToString(3)}.{v.Revision:00}");
         Loaded += async (_, _) => await LoadVersionsAsync();
-        PlanRulesHeader.Text = T("REGRAS DO PLANO POR AGENTE", "PLANNING RULES PER AGENT", "REGLAS DEL PLAN POR AGENTE");
+        PlanRulesHeader.Text = T("AGENTES E REGRAS DO PLANO", "AGENTS AND PLANNING RULES", "AGENTES Y REGLAS DEL PLAN");
         PlanRulesResetButton.Content = T("Restaurar padrão", "Restore default", "Restaurar predeterminado");
         PlanRulesNote.Text = T("Vai no fim de todo pedido de plano do agente da tarefa. No plano só se lê e propõe: criar, alterar ou enviar algo fica para a execução, depois da sua aprovação. A trava é do NXPilot (no plano, o que grava é recusado); a regra evita o agente tentar. Grava ao sair da caixa.",
                                "Appended to every planning request of the task's agent. Planning only reads and proposes: creating, changing or sending something waits for execution, after your approval. The lock is NXPilot's (writing is refused while planning); the rule keeps the agent from trying. Saved when you leave the box.",

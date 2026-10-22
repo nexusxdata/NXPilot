@@ -21,6 +21,9 @@ public sealed record AgentLoginItem(NXPilot.Agents.AgentKind? Kind, string State
 
     /// <summary>Atualizando agora: barra na linha do agente com a etapa (baixando, conferindo, instalando).</summary>
     public bool IsUpdating => UpdateProgress != null;
+
+    /// <summary>Sem login e instalado pelo NXPilot: o botão direito na linha oferece remover.</summary>
+    public bool CanRemove { get; init; }
     public bool SignedIn => State == "in";
     public bool SignedOut => State == "out";
     public bool Building => State == "build";

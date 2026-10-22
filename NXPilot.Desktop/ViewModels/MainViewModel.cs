@@ -719,6 +719,9 @@ public sealed partial class MainViewModel : ObservableObject
         var result = TaskPlanning.ParseVerification(answer, reviewer.Name);
         if (task.PowerBi != null && NXPilot.Integrations.PowerBiProject.ValidateChangedFiles(task.Worktree!, diff) is { Count: > 0 } pbiFindings)
             result = result with { Approved = false, Findings = pbiFindings.Concat(result.Findings).ToList() };
+        // Depois da verificação: abre o PBI no Power BI Desktop, clica em Atualizar e tira o print (prova de que carregou).
+        if (await PowerBiOpenCheckAsync(task) is { Count: > 0 } opened)
+            result = result with { Approved = false, Findings = opened.Concat(result.Findings).ToList() };
         task.Verification = result;
         RenderVerification(result);
         AddLog(reviewer.Name, T("verificação", "verification", "verificación"),
@@ -948,6 +951,58 @@ public sealed partial class MainViewModel : ObservableObject
     private static string CodexModelFor(TaskSession task) =>
         task.Info.CodexModel is { Length: > 0 } m ? m : NXPilot.Agents.CodexAppServerAdapter.TestedModels[0];
 
+    /// <summary>
+    /// Conferência do Power BI depois da verificação cruzada: abre o projeto no Power BI Desktop, clica em Atualizar
+    /// (Refresh) e grava o print no resultado da tarefa. Aviso de erro (janela ou dentro dela, como "Your report has
+    /// issues…") vira achado CRÍTICO — a correção de achados resolve. Power BI já aberto com o projeto: não fecha
+    /// (pode ter mudança sua sem salvar) — só avisa. Fica aberto no fim, para você ver.
+    /// </summary>
+    private async Task<List<Finding>> PowerBiOpenCheckAsync(TaskSession task)
+    {
+        if (task.Worktree is not { } wt || NXPilot.Integrations.PowerBiProject.Detect(wt) is not { } pbi || !PowerBiDesktop.IsInstalled) return [];
+        var findings = new List<Finding>();
+        var rel = Path.GetRelativePath(wt, pbi.PbipPath);
+        using (var probe = new NXPilot.WindowsUi.WindowsUiService(NXPilot.WindowsUi.WindowsUiPolicy.PowerBiOnly))
+            if (probe.FindWindow(PowerBiDesktop.ProcessName, pbi.Name) != null)
+            {
+                AddLog("Power BI", T("aviso", "warning", "aviso"), T($"O Power BI já está aberto com {pbi.Name}: feche-o para o NXPilot conferir se o relatório carrega (abrir, Atualizar e print).",
+                    $"Power BI is already open with {pbi.Name}: close it so NXPilot can check the report loads (open, Refresh and screenshot).",
+                    $"Power BI ya está abierto con {pbi.Name}: ciérrelo para que NXPilot verifique que el informe carga (abrir, Actualizar y captura)."));
+                return [];
+            }
+        SetAgent("Power BI", "Rodando", T("abrindo o relatório e clicando em Atualizar", "opening the report and clicking Refresh", "abriendo el informe y haciendo clic en Actualizar"));
+        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXPilot", "captures");
+        Directory.CreateDirectory(folder);
+        var png = Path.Combine(folder, $"{task.Id}-powerbi.png");
+        try
+        {
+            var window = await PowerBiDesktop.OpenAndCaptureAsync(pbi.PbipPath, png);
+            using var ui = new NXPilot.WindowsUi.WindowsUiService(NXPilot.WindowsUi.WindowsUiPolicy.PowerBiOnly);
+            string? Problem() => PowerBiDesktop.InWindowLoadError(ui, window)
+                ?? PowerBiDesktop.ErrorDialogs(ui, window).Select(d => $"{d.Title}: {Trim(ui.ReadText(d, 1500), 600)}").FirstOrDefault();
+            var problem = Problem();
+            var refreshed = false;
+            if (problem == null)
+            {
+                refreshed = await PowerBiDesktop.RefreshAsync(ui, window);
+                if (refreshed) { ui.Capture(window, png); problem = Problem(); }
+            }
+            if (problem != null)
+                findings.Add(new Finding("Critico", rel, null, T($"O Power BI Desktop não carregou o relatório: {problem}", $"Power BI Desktop did not load the report: {problem}", $"Power BI Desktop no cargó el informe: {problem}")));
+            foreach (var old in Artifacts.Where(a => a.Glyph == "📸").ToList()) Artifacts.Remove(old);
+            Artifacts.Add(new ArtifactItem("📸", T("Power BI aberto", "Power BI opened", "Power BI abierto"), png));
+            AddLog("Power BI", problem == null ? T("conferido", "checked", "verificado") : T("erro", "error", "error"),
+                problem != null ? T($"O relatório NÃO carregou (vira achado crítico): {Trim(problem, 300)} · print: {png}", $"The report did NOT load (critical finding): {Trim(problem, 300)} · screenshot: {png}", $"El informe NO cargó (hallazgo crítico): {Trim(problem, 300)} · captura: {png}")
+                : refreshed ? T($"Abriu e atualizou (Atualizar) sem aviso de erro · print: {png}", $"Opened and refreshed without error warnings · screenshot: {png}", $"Abrió y actualizó sin avisos de error · captura: {png}")
+                : T($"Abriu sem aviso de erro (botão Atualizar não encontrado) · print: {png}", $"Opened without error warnings (Refresh button not found) · screenshot: {png}", $"Abrió sin avisos de error (botón Actualizar no encontrado) · captura: {png}"));
+        }
+        catch (Exception ex)
+        {
+            AddLog("Power BI", T("aviso", "warning", "aviso"), T("Não foi possível conferir no Power BI Desktop: ", "Could not check in Power BI Desktop: ", "No se pudo verificar en Power BI Desktop: ") + ex.Message);
+        }
+        return findings;
+    }
+
     /// <summary>Revisor efetivo: o outro agente se instalado; senão o mesmo, em sessão nova (ver ReviewerChoice).</summary>
     private static (AgentKind Reviewer, bool SameAsExecutor)? ChooseReviewer(TaskSession task) =>
         task.Info.Reviewer == ReviewerKind.None ? null : ReviewerChoice.Choose(
@@ -977,6 +1032,37 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly HashSet<AgentKind> _updateDismissed = new();
     /// <summary>Agente sendo atualizado → etapa atual (aparece na linha dele, com a barra).</summary>
     private readonly Dictionary<AgentKind, string> _updating = new();
+
+    /// <summary>Tarefa em andamento (instalar/remover agente espera).</summary>
+    public bool IsBusy => Busy;
+
+    /// <summary>Depois de instalar/atualizar/remover um agente: confere login e versão de novo (sem esperar a hora).</summary>
+    public async Task RefreshAgentsAfterChangeAsync()
+    {
+        await RefreshUpdatesAsync(force: true);
+        await RefreshAgentLoginsAsync();
+    }
+
+    /// <summary>Botão direito na linha de um agente sem login que o NXPilot instalou: pergunta e remove (o login da pessoa fica).</summary>
+    public async Task RemoveAgentAsync(AgentLoginItem item)
+    {
+        if (item.Kind is not { } kind || !AgentUpdates.CanUninstall(kind)) return;
+        var owner = Application.Current.MainWindow;
+        if (Busy)
+        {
+            MessageBox.Show(owner, T($"Há uma tarefa em andamento. Remova o {AgentName(kind)} quando ela terminar.", $"A task is running. Remove {AgentName(kind)} when it finishes.", $"Hay una tarea en curso. Quite {AgentName(kind)} cuando termine."),
+                "NXPilot", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (MessageBox.Show(owner, T($"Remover o {AgentName(kind)} deste computador?\n\nEle está sem login. Tarefas que usam o {AgentName(kind)} deixam de funcionar até instalar de novo (Configurar → Agentes de código). Seu login e suas configurações são mantidos.",
+                $"Remove {AgentName(kind)} from this computer?\n\nIt is not signed in. Tasks that use {AgentName(kind)} stop working until you install it again (Settings → Coding agents). Your sign-in and settings are kept.",
+                $"¿Quitar {AgentName(kind)} de esta computadora?\n\nNo tiene sesión iniciada. Las tareas que usan {AgentName(kind)} dejan de funcionar hasta instalarlo de nuevo (Configurar → Agentes de código). Se mantienen su inicio de sesión y su configuración."),
+                "NXPilot", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        try { AddLog(AgentName(kind), T("remover", "remove", "quitar"), await AgentUpdates.UninstallAsync(kind)); }
+        catch (Exception ex) { MessageBox.Show(owner, ex.Message, "NXPilot", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        _signedOut.TryRemove(kind, out _);
+        await RefreshAgentsAfterChangeAsync();
+    }
 
     private async Task RefreshUpdatesAsync(bool force = false)
     {
@@ -1070,6 +1156,7 @@ public sealed partial class MainViewModel : ObservableObject
                     T("Sem login — clique para entrar", "Not signed in — click to sign in", "Sin inicio de sesión — haga clic para entrar"), ActivityOf(AgentName(kind)), UpdateTipFor(kind))
                 : new AgentLoginItem(kind, "in", AgentName(kind), T("Login ativo", "Signed in", "Sesión iniciada"), ActivityOf(AgentName(kind)), UpdateTipFor(kind)));
             if (_updating.TryGetValue(kind, out var step)) AgentLogins[^1] = AgentLogins[^1] with { UpdateProgress = step };
+            if (outNow && AgentUpdates.CanUninstall(kind)) AgentLogins[^1] = AgentLogins[^1] with { CanRemove = true }; // botão direito: remover
         }
         AgentLogins.Add(new AgentLoginItem(null, "build", "NXAgentic", T("Em construção", "Under construction", "En construcción"), ActivityOf("NXAgentic")));
         // Atividade de quem não tem linha de login (ex.: login ainda não conferido).
@@ -1192,7 +1279,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Depois do risco: BAIXO passa sozinho; regra da tarefa; senão vai para o painel e espera você.</summary>
     private async Task<GateResponse> DecideAsync(string agent, string action, RiskResult r, string? worktree)
     {
-        if (DecisionGate.Decide(r) == GateOutcome.AutoApprove)
+        var level = await OnUiGet(() => CurrentTask?.State == TaskState.Executing ? CurrentTask.Info.GateLevel : GateLevel.Padrao); // plano e revisão só leem
+        if (DecisionGate.Decide(r) == GateOutcome.AutoApprove && !GateLevelPolicy.RequiresApproval(level, action, r.Level))
         {
             await OnUi(() =>
             {
@@ -1213,6 +1301,19 @@ public sealed partial class MainViewModel : ObservableObject
                 RecordRisk(agent, action, r, "rule");
             });
             return new GateResponse(true, $"{r.Level}: {rule}");
+        }
+
+        // Tarefa Confiante (ex.: clone de tarefa já aprovada): MÉDIO local passa. Externo e ALTO continuam pedindo.
+        if (GateLevelPolicy.AutoApprovesMedium(level, action, r.Level))
+        {
+            var why = T("tarefa Confiante", "Confident task", "tarea Confiada");
+            await OnUi(() =>
+            {
+                AutoApprovedCount++;
+                AddLog("Gate", T("aprovado por regra", "approved by rule", "aprobado por regla"), $"{agent}: {action} ({r.Level} · {why})");
+                RecordRisk(agent, action, r, "rule");
+            });
+            return new GateResponse(true, $"{r.Level}: {why}");
         }
 
         // MÉDIO/ALTO: vai para o painel e o agente espera a sua decisão.

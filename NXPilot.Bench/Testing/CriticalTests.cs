@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXPilot — licenciado sob a NXPilot License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -259,6 +259,21 @@ public static class CriticalTests
             AssertEqual((AgentKind.Codex, true), ReviewerChoice.Choose(AgentKind.Claude, AgentKind.Codex, onlyCodex), "Pediu Claude sem Claude instalado: Codex revisa.");
             AssertEqual((AgentKind.Claude, true), ReviewerChoice.Choose(AgentKind.Codex, AgentKind.Claude, onlyClaude), "Só Claude: ele mesmo revisa.");
             AssertTrue(ReviewerChoice.Choose(AgentKind.Codex, AgentKind.Codex, _ => false) == null, "Nenhum instalado: sem revisor.");
+            return Task.CompletedTask;
+        }),
+        new("Nível do gate por tarefa: Confiante libera só MÉDIO local; Rigoroso pede até BAIXO (menos leitura); ALTO sempre pede", () =>
+        {
+            const NXPilot.Risk.GateLevel padrao = NXPilot.Risk.GateLevel.Padrao, confiante = NXPilot.Risk.GateLevel.Confiante, rigoroso = NXPilot.Risk.GateLevel.Rigoroso;
+            AssertTrue(NXPilot.Risk.GateLevelPolicy.AutoApprovesMedium(confiante, "Bash: dotnet build", RiskLevel.Medio), "Confiante: MÉDIO local passa.");
+            AssertTrue(NXPilot.Risk.GateLevelPolicy.AutoApprovesMedium(confiante, @"Write: C:\wt\a.cs", RiskLevel.Medio), "Confiante: arquivo do worktree passa.");
+            AssertFalse(NXPilot.Risk.GateLevelPolicy.AutoApprovesMedium(confiante, "MCP nxpilot databricks_sql: {}", RiskLevel.Medio), "Confiante: ferramenta externa (MCP) pede.");
+            AssertFalse(NXPilot.Risk.GateLevelPolicy.AutoApprovesMedium(confiante, "Bash: curl https://x.test", RiskLevel.Medio), "Confiante: rede pede.");
+            AssertFalse(NXPilot.Risk.GateLevelPolicy.AutoApprovesMedium(confiante, "Bash: rm -rf x", RiskLevel.Alto), "ALTO nunca passa.");
+            AssertFalse(NXPilot.Risk.GateLevelPolicy.AutoApprovesMedium(padrao, "Bash: dotnet build", RiskLevel.Medio), "Padrão: MÉDIO pede.");
+            AssertTrue(NXPilot.Risk.GateLevelPolicy.RequiresApproval(rigoroso, "Bash: mkdir out", RiskLevel.Baixo), "Rigoroso: BAIXO que muda algo pede.");
+            AssertFalse(NXPilot.Risk.GateLevelPolicy.RequiresApproval(rigoroso, "Read: a.cs", RiskLevel.Baixo), "Rigoroso: leitura passa.");
+            AssertFalse(NXPilot.Risk.GateLevelPolicy.RequiresApproval(rigoroso, "Bash: git status", RiskLevel.Baixo), "Rigoroso: git status passa.");
+            AssertFalse(NXPilot.Risk.GateLevelPolicy.RequiresApproval(padrao, "Bash: mkdir out", RiskLevel.Baixo), "Padrão: BAIXO passa.");
             return Task.CompletedTask;
         }),
         new("Aprovação em linguagem simples: o que o agente quer e por que o risco é esse nível", () =>
@@ -571,8 +586,15 @@ public static class CriticalTests
             return Task.CompletedTask;
         }),
 
-        new("Databricks: schemas de gravação (sandbox_*) — dentro é MÉDIO, fora (produção) é bloqueado, destino desconhecido pergunta", async () =>
+        new("Databricks: schemas de gravação (sandbox_*) — dentro é MÉDIO, fora (produção) é bloqueado, destino desconhecido pergunta; paginação com teto", async () =>
         {
+            // Paginação configurável, mas sempre com teto (boas práticas: página pequena, no máximo 50 páginas).
+            AssertEqual(500, new NXPilot.Integrations.DatabricksSettings().PageSize, "Padrão: 500 linhas por página.");
+            AssertEqual(2000, new NXPilot.Integrations.DatabricksSettings { RowsPerPage = 100_000 }.PageSize, "Página nunca passa de 2.000 linhas.");
+            AssertEqual(100, new NXPilot.Integrations.DatabricksSettings { RowsPerPage = 1 }.PageSize, "Página tem no mínimo 100 linhas.");
+            AssertEqual(50, new NXPilot.Integrations.DatabricksSettings { MaxPages = 999 }.PageLimit, "No máximo 50 páginas por consulta.");
+            AssertEqual(10, new NXPilot.Integrations.DatabricksSettings().PageLimit, "Padrão: 10 páginas.");
+
             // Padrão da conexão: catálogo dev, schema sandbox_carmo.
             var policy = new WriteSchemaPolicy("sandbox_*, prd.area_teste", "dev", "sandbox_carmo");
             (RiskLevel Level, string? Blocked) Eval(string sql)
@@ -1602,6 +1624,12 @@ public static class CriticalTests
                 AssertFalse(ok.IsError, "Depois do tema base: válido. " + ok.Content[0].Text);
                 var json = JsonNode.Parse(File.ReadAllText(Path.Combine(report, "report.json")))!;
                 AssertContains("CY99SU01", json["config"]!.GetValue<string>(), "Tema base no config.");
+                AssertContains("layoutOptimization", bad.Content[0].Text, "Propriedade que o Power BI atual recusa na raiz: apontada.");
+                AssertFalse(json.AsObject().ContainsKey("layoutOptimization"), "A correção tira o layoutOptimization (nunca acrescenta).");
+                AssertContains("layoutOptimization", NXPilot.Integrations.PowerBiReport.LoadErrorFromText(
+                    "Home\nInsert\nYour report has issues that could not be resolved\nList of issues (1):\nAn additional property 'layoutOptimization' was included in the root property of report.json.\nContinue"),
+                    "Aviso dentro da janela do Power BI é lido, com a lista de problemas.");
+                AssertTrue(NXPilot.Integrations.PowerBiReport.LoadErrorFromText("Home\nInsert\nModeling\nNew visual") == null, "Janela normal: sem aviso.");
                 AssertEqual(0, json["sections"]![0]!["ordinal"]!.GetValue<int>(), "Páginas com ordinal.");
 
                 // PBIR (definition/report.json): mesma regra.
@@ -1705,6 +1733,15 @@ public static class CriticalTests
                 AssertFalse(built.IsError, "xlsx_build: " + built.Content[0].Text);
                 var file = Path.Combine(wt, "saida", "plano.xlsx");
                 AssertEqual(0, XlsxDocument.Validate(file).Count, "Zero erro de esquema: " + string.Join("; ", XlsxDocument.Validate(file)));
+                using (var pretty = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(file, false))
+                {
+                    // Já sai formatada: linhas zebradas (registro 1 ≠ registro 2) e inteiro com o formato de milhar a partir de 10.000.
+                    var sheetRows = pretty.WorkbookPart!.WorksheetParts.First().Worksheet!.Descendants<DocumentFormat.OpenXml.Spreadsheet.Row>().ToList();
+                    uint StyleAt(int row, int col) => sheetRows[row].Elements<DocumentFormat.OpenXml.Spreadsheet.Cell>().ElementAt(col).StyleIndex?.Value ?? 0;
+                    AssertTrue(StyleAt(1, 0) != StyleAt(2, 0), "Linhas zebradas.");
+                    var xf = pretty.WorkbookPart.WorkbookStylesPart!.Stylesheet!.CellFormats!.Elements<DocumentFormat.OpenXml.Spreadsheet.CellFormat>().ElementAt((int)StyleAt(1, 1));
+                    AssertEqual(173u, xf.NumberFormatId?.Value ?? 0, "Inteiro com milhar só a partir de 10.000.");
+                }
 
                 var outside = Path.Combine(Path.GetTempPath(), "nx-fora-" + Guid.NewGuid().ToString("N")[..8] + ".xlsx");
                 var denied = await host.CallAsync("xlsx_build", new JsonObject { ["output"] = outside, ["sheets"] = sheets.DeepClone() }, ctx, default);

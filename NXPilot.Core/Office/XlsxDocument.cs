@@ -153,7 +153,9 @@ public static class XlsxDocument
 
     /// <summary>
     /// Planilha nova: sheets = [{name, rows: [[...]], header?: true, widths?: [n...]}]. Com
-    /// header, a 1ª linha fica em negrito com fundo, congelada e com filtro.
+    /// header, a 1ª linha fica em negrito com fundo, congelada e com filtro. Já sai formatada para
+    /// apresentar (sem precisar pedir): bordas finas, linhas zebradas, texto longo quebrando a linha
+    /// (alinhado em cima), inteiros sem casas e com milhar só a partir de 10.000, datas dd/mm/aaaa.
     /// </summary>
     public static int Build(string output, JsonArray sheets)
     {
@@ -183,11 +185,50 @@ public static class XlsxDocument
                         VerticalSplit = 1, TopLeftCell = "A2", ActivePane = PaneValues.BottomLeft, State = PaneStateValues.Frozen,
                     }) { WorkbookViewId = 0, TabSelected = wb.Workbook!.Sheets!.Count() == 1 }), 0);
                 }
-                SetWidths(ws, rows, spec["widths"] as JsonArray, colCount);
+                var widths = SetWidths(ws, rows, spec["widths"] as JsonArray, colCount);
+                Beautify(wb, ws, header && rows.Count > 0, widths);
             }
             AfterWrite(wb);
         }
         return sheets.Count;
+    }
+
+    // Estilos do BaseStylesheet: corpo = 3..7 (texto, texto quebrando, inteiro, data, número); faixa zebrada = +5.
+    private const uint BodyText = 3, BodyWrap = 4, BodyInt = 5, BodyDate = 6, BodyNumber = 7, Band = 5;
+
+    /// <summary>Corpo da planilha nova em formato de apresentação: estilo por tipo, zebra e altura das linhas com texto longo.</summary>
+    private static void Beautify(WorkbookPart wb, WorksheetPart ws, bool header, IReadOnlyList<double> widths)
+    {
+        var strings = SharedStrings(wb);
+        var styles = new StyleInfo(wb);
+        var first = true;
+        var dataIndex = 0;
+        foreach (var row in ws.Worksheet!.GetFirstChild<SheetData>()!.Elements<Row>())
+        {
+            if (header && first) { first = false; continue; }
+            first = false;
+            var band = dataIndex++ % 2 == 1 ? Band : 0u;
+            var lines = 1;
+            foreach (var cell in row.Elements<Cell>())
+            {
+                var col = CellPos(cell, (int)(row.RowIndex?.Value ?? 1)).Col;
+                var width = col - 1 < widths.Count ? widths[col - 1] : 10;
+                uint style;
+                if (cell.DataType?.Value == CellValues.SharedString && int.TryParse(cell.CellValue?.Text, out var si) && si < strings.Count)
+                {
+                    var text = strings[si];
+                    var needed = text.Split('\n').Sum(l => Math.Max(1, (int)Math.Ceiling(l.Length / Math.Max(1, width - 1))));
+                    lines = Math.Max(lines, needed);
+                    style = needed > 1 ? BodyWrap : BodyText;
+                }
+                else if (cell.DataType?.Value is { } dt && (dt == CellValues.Boolean || dt == CellValues.String || dt == CellValues.InlineString)) style = BodyText;
+                else if (styles.IsDate(cell.StyleIndex?.Value ?? 0)) style = BodyDate;
+                else if (cell.CellFormula == null && cell.CellValue?.Text is { } n && !n.Contains('.') && !n.Contains('E')) style = BodyInt;
+                else style = BodyNumber;
+                cell.StyleIndex = style + band;
+            }
+            if (lines > 1) { row.Height = Math.Min(409, 15 * Math.Min(lines, 20)); row.CustomHeight = true; } // texto longo: linha mais alta (até 20 linhas)
+        }
     }
 
     public static IReadOnlyList<string> Validate(string path)
@@ -369,32 +410,50 @@ public static class XlsxDocument
         return ws;
     }
 
-    private static void SetWidths(WorksheetPart ws, JsonArray rows, JsonArray? widths, int colCount)
+    private static IReadOnlyList<double> SetWidths(WorksheetPart ws, JsonArray rows, JsonArray? widths, int colCount)
     {
-        if (colCount == 0) return;
+        var list = new List<double>();
+        if (colCount == 0) return list;
         var columns = new Columns();
         for (var c = 0; c < colCount; c++)
         {
             double width = widths != null && c < widths.Count && widths[c] is JsonValue wv && wv.GetValueKind() == JsonValueKind.Number ? Number(wv)
                 : Math.Clamp(rows.Take(200).Select(r => (r as JsonArray) is { } a && c < a.Count ? (a[c]?.ToString().Length ?? 0) : 0).DefaultIfEmpty(0).Max() + 2, 8, 60);
             columns.Append(new Column { Min = (uint)(c + 1), Max = (uint)(c + 1), Width = width, CustomWidth = true });
+            list.Add(width);
         }
         ws.Worksheet!.InsertBefore(columns, ws.Worksheet!.GetFirstChild<SheetData>());
+        return list;
     }
 
     private static Stylesheet BaseStylesheet() => new(
+        // Inteiro: milhar só a partir de 10.000 (ano 2026 e código 1234 sem ponto), como na Amostra de dados.
+        new NumberingFormats(new NumberingFormat { NumberFormatId = 173, FormatCode = "[>=10000]#,##0;[<=-10000]-#,##0;0" }) { Count = 1 },
         new Fonts(new Font(new FontSize { Val = 11 }, new FontName { Val = "Calibri" }),
                   new Font(new Bold(), new FontSize { Val = 11 }, new Color { Rgb = "FFFFFFFF" }, new FontName { Val = "Calibri" })) { Count = 2 },
         new Fills(new Fill(new PatternFill { PatternType = PatternValues.None }),
                   new Fill(new PatternFill { PatternType = PatternValues.Gray125 }),
-                  new Fill(new PatternFill(new ForegroundColor { Rgb = "FF1F4E79" }) { PatternType = PatternValues.Solid })) { Count = 3 },
-        new Borders(new Border(new LeftBorder(), new RightBorder(), new TopBorder(), new BottomBorder(), new DiagonalBorder())) { Count = 1 },
+                  new Fill(new PatternFill(new ForegroundColor { Rgb = "FF1F4E79" }) { PatternType = PatternValues.Solid }),
+                  new Fill(new PatternFill(new ForegroundColor { Rgb = "FFEEF4FB" }) { PatternType = PatternValues.Solid })) { Count = 4 },
+        new Borders(new Border(new LeftBorder(), new RightBorder(), new TopBorder(), new BottomBorder(), new DiagonalBorder()),
+                    new Border(new LeftBorder(new Color { Rgb = "FFD9D9D9" }) { Style = BorderStyleValues.Thin }, new RightBorder(new Color { Rgb = "FFD9D9D9" }) { Style = BorderStyleValues.Thin },
+                               new TopBorder(new Color { Rgb = "FFD9D9D9" }) { Style = BorderStyleValues.Thin }, new BottomBorder(new Color { Rgb = "FFD9D9D9" }) { Style = BorderStyleValues.Thin },
+                               new DiagonalBorder())) { Count = 2 },
         new CellStyleFormats(new CellFormat { NumberFormatId = 0, FontId = 0, FillId = 0, BorderId = 0 }) { Count = 1 },
         new CellFormats(
             new CellFormat { NumberFormatId = 0, FontId = 0, FillId = 0, BorderId = 0, FormatId = 0 },
             new CellFormat { NumberFormatId = 0, FontId = 1, FillId = 2, BorderId = 0, FormatId = 0, ApplyFont = true, ApplyFill = true },
-            new CellFormat { NumberFormatId = 14, FontId = 0, FillId = 0, BorderId = 0, FormatId = 0, ApplyNumberFormat = true }) { Count = 3 },
+            new CellFormat { NumberFormatId = 14, FontId = 0, FillId = 0, BorderId = 0, FormatId = 0, ApplyNumberFormat = true },
+            // 3..7: corpo (texto, texto quebrando, inteiro, data, número) com borda e alinhado em cima; 8..12: o mesmo com a faixa zebrada.
+            Body(0, false, 0), Body(0, true, 0), Body(173, false, 0), Body(14, false, 0), Body(0, false, 0),
+            Body(0, false, 3), Body(0, true, 3), Body(173, false, 3), Body(14, false, 3), Body(0, false, 3)) { Count = 13 },
         new CellStyles(new CellStyle { Name = "Normal", FormatId = 0, BuiltinId = 0 }) { Count = 1 });
+
+    private static CellFormat Body(uint numberFormat, bool wrap, uint fill) => new(new Alignment { Vertical = VerticalAlignmentValues.Top, WrapText = wrap })
+    {
+        NumberFormatId = numberFormat, FontId = 0, FillId = fill, BorderId = 1, FormatId = 0,
+        ApplyNumberFormat = numberFormat != 0, ApplyFill = fill != 0, ApplyBorder = true, ApplyAlignment = true,
+    };
 
     // ================================================================ strings e estilos
 

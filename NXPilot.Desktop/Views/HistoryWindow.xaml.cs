@@ -213,6 +213,11 @@ public partial class HistoryWindow : Window
         FindingsButton.IsEnabled = r is { Verification: not null } || r?.FixRounds is { Count: > 0 };
         CloneButton.IsEnabled = r != null && !_taskRunning;
         TimelineButton.IsEnabled = r != null;
+        ResultFilesButton.Content = T("📂 Arquivos gerados", "📂 Generated files", "📂 Archivos generados");
+        ResultFilesButton.ToolTip = T("Abre os arquivos que a tarefa criou ou alterou, sem trocar a tarefa da tela — dá para usar com outra tarefa rodando.",
+            "Opens the files the task created or changed, without switching the task on screen — works while another task is running.",
+            "Abre los archivos que la tarea creó o modificó, sin cambiar la tarea en pantalla — funciona con otra tarea en ejecución.");
+        ResultFilesButton.IsEnabled = worktreeExists; // de propósito NÃO depende de ter tarefa rodando
         MoreButton.Content = T("⋯ Mais", "⋯ More", "⋯ Más");
         StatusText.Text = _taskRunning
             ? T("Há uma tarefa em andamento: termine ou interrompa para abrir outra.", "A task is running: finish or stop it to open another one.", "Hay una tarea en ejecución: termínela o interrúmpala para abrir otra.")
@@ -260,6 +265,11 @@ public partial class HistoryWindow : Window
 
     private NXPilot.Risk.RiskLevel? FilterLevel =>
         Enum.TryParse<NXPilot.Risk.RiskLevel>((RiskBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string, out var lv) ? lv : null;
+
+    private void OnResultFilesClick(object sender, RoutedEventArgs e)
+    {
+        if (Selected is { } r) new ResultFilesWindow(r) { Owner = this }.ShowDialog();
+    }
 
     private void OnTimelineClick(object sender, RoutedEventArgs e)
     {

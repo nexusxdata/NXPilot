@@ -48,12 +48,18 @@
         <StackPanel Margin="16,4,0,0">
         <DockPanel>
             <Button x:Name="PlanRulesResetButton" DockPanel.Dock="Right" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Click="OnPlanRulesResetClick"/>
-            <ComboBox x:Name="PlanRulesAgentBox" Width="170" HorizontalAlignment="Left" Padding="6,3" SelectionChanged="OnPlanRulesAgentChanged">
-                <ComboBoxItem Content="Claude Code" Tag="Claude"/>
-                <ComboBoxItem Content="Codex" Tag="Codex"/>
-                <ComboBoxItem Content="🚧 NXAgentic" Tag="NXAgentic"/>
-            </ComboBox>
+            <!-- Escolhe o agente: ao lado, Instalar/Atualizar e 🗑 (regra do AgentPanel, a mesma do Setup — sem baixar o Setup). -->
+            <StackPanel Orientation="Horizontal">
+                <ComboBox x:Name="PlanRulesAgentBox" Width="170" HorizontalAlignment="Left" Padding="6,3" SelectionChanged="OnPlanRulesAgentChanged">
+                    <ComboBoxItem Content="Claude Code" Tag="Claude"/>
+                    <ComboBoxItem Content="Codex" Tag="Codex"/>
+                    <ComboBoxItem Content="🚧 NXAgentic" Tag="NXAgentic"/>
+                </ComboBox>
+                <Button x:Name="AgentInstallButton" Style="{StaticResource SubtleButton}" Margin="8,0,0,0" Padding="10,3" Visibility="Collapsed" Click="OnAgentInstallClick"/>
+                <Button x:Name="AgentRemoveButton" Content="🗑" Style="{StaticResource SubtleButton}" Margin="6,0,0,0" Padding="8,3" Visibility="Collapsed" Click="OnAgentRemoveClick"/>
+            </StackPanel>
         </DockPanel>
+        <TextBlock x:Name="AgentStatusText" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
         <TextBox x:Name="PlanRulesBox" Margin="0,6,0,0" Height="110" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
                  FontSize="12" Padding="6,4" LostFocus="OnPlanRulesLostFocus"/>
         <TextBlock x:Name="PlanRulesNote" Style="{StaticResource Muted}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>

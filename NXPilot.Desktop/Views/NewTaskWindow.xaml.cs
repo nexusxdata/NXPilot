@@ -91,6 +91,7 @@ public partial class NewTaskWindow : Window
         Select(AgentBox, clone.Executor.ToString());
         Select(ReviewerBox, clone.Reviewer.ToString());
         AutoFixBox.IsChecked = clone.AutoFixFindings;
+        Select(GateLevelBox, clone.GateLevel.ToString());
         Select(ModelBox, clone.Model ?? "");
         if (clone.CodexModel is { Length: > 0 } codexModel) CodexModelBox.Text = codexModel;
         Title = T("Nova tarefa (clonada do Histórico)", "New task (cloned from History)", "Nueva tarea (clonada del Historial)");
@@ -123,7 +124,7 @@ public partial class NewTaskWindow : Window
         Select(ReviewerBox, s.Reviewer ?? nameof(ReviewerKind.Codex));
         Select(VersioningBox, s.Versioning ?? nameof(VersioningMode.Local));
         UpdateVersioningHint();
-        LoadSubjects(s.LastSubject);
+        LoadSubjects(null); // tarefa nova: assunto em branco — a pessoa escolhe ou cria (evita gravar no assunto errado)
 
         // Quem tem só o Codex (ou só o Claude) também cria tarefa: mostra o que está instalado e
         // já seleciona o último usado ou, na primeira vez, o que existe na máquina.
@@ -136,13 +137,12 @@ public partial class NewTaskWindow : Window
         Select(AgentBox, s.Executor ?? (!_claudeInstalled && _codexInstalled ? nameof(ExecutorKind.Codex) : nameof(ExecutorKind.Claude)));
         UpdateAgentHint();
 
-        // Mais espaço para o texto: com a última configuração ainda válida, as opções começam
-        // recolhidas (fica o resumo); na primeira vez, ou com algo a acertar, começam abertas.
+        // "+ Opções" abre ou recolhido como a pessoa deixou na última tarefa.
         // O padrão do assunto vence a "última escolha" (aplicada logo acima).
         ApplySubjectDefaults();
         Height = Math.Min(Height, SystemParameters.WorkArea.Height - 40);
         OnTaskModeChanged(this, null!);
-        SetOptionsVisible(!ConfigLooksReady());
+        SetOptionsVisible(s.NewTaskOptionsExpanded);
         UpdateCounters();
         UpdateSummary();
 
@@ -387,7 +387,11 @@ public partial class NewTaskWindow : Window
 
     private bool _optionsVisible = true;
 
-    private void OnToggleOptionsClick(object sender, RoutedEventArgs e) => SetOptionsVisible(!_optionsVisible);
+    private void OnToggleOptionsClick(object sender, RoutedEventArgs e)
+    {
+        SetOptionsVisible(!_optionsVisible);
+        AppSettings.Update(s => s.NewTaskOptionsExpanded = _optionsVisible); // a próxima Nova tarefa abre igual
+    }
 
     /// <summary>Para a captura (--shot --window newtask --options): abre as opções.</summary>
     public void ShowOptions() => SetOptionsVisible(true);
@@ -406,7 +410,7 @@ public partial class NewTaskWindow : Window
         OptionsPanel.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         OptionsColumn.Width = visible ? new GridLength(430) : new GridLength(0);
         GapColumn.Width = visible ? new GridLength(24) : new GridLength(0);
-        OptionsToggle.Content = visible ? T("Ocultar opções ▸", "Hide options ▸", "Ocultar opciones ▸") : T("◂ Opções", "◂ Options", "◂ Opciones");
+        OptionsToggle.Content = visible ? T("− Opções", "− Options", "− Opciones") : T("+ Opções", "+ Options", "+ Opciones");
     }
 
     /// <summary>A configuração lembrada já serve? (pasta existe e o agente escolhido está instalado)</summary>
@@ -498,7 +502,7 @@ public partial class NewTaskWindow : Window
     {
         if (VersioningHint == null || SubjectRow == null || RepoRow == null) return; // SelectionChanged dispara durante o InitializeComponent
         var local = SelectedVersioning == VersioningMode.Local;
-        SubjectRow.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
+        SubjectRow.Visibility = Visibility.Collapsed; // o assunto fica no resumo do topo (com o botão Assuntos…)
         RepoRow.Visibility = local ? Visibility.Collapsed : Visibility.Visible;
         VersioningHint.Text = local
             ? T("Cada assunto é uma pasta comum, sem precisar de git. O NXPilot guarda o histórico à parte (a pasta não ganha .git) e só grava nela quando você aplicar o resultado. Dá para mover o assunto para outra pasta ou para o GitHub depois.",
@@ -511,13 +515,13 @@ public partial class NewTaskWindow : Window
         RefreshSubjectDefaultsState();
     }
 
-    /// <summary>Recarrega os assuntos (depois de editar na janela Assuntos) mantendo o escolhido.</summary>
+    /// <summary>Recarrega os assuntos mantendo o escolhido; sem escolha, fica em branco (nunca pega o primeiro sozinho).</summary>
     private void LoadSubjects(string? select)
     {
         var subjects = ShadowRepo.LoadSubjects();
         SubjectBox.ItemsSource = subjects;
         if (SummarySubjectBox != null) SummarySubjectBox.ItemsSource = subjects; // a mesma lista no resumo
-        SubjectBox.SelectedItem = subjects.FirstOrDefault(s => s.Name == select) ?? subjects.FirstOrDefault();
+        SubjectBox.SelectedItem = select == null ? null : subjects.FirstOrDefault(s => s.Name == select);
         UpdateSubjectHint();
     }
 
@@ -604,8 +608,11 @@ public partial class NewTaskWindow : Window
         if (SubjectHint == null) return;
         SubjectHint.Text = SelectedSubject is { } s
             ? s.Path + (s.WebUrl is { } url ? "  ·  GitHub: " + url : "")
-            : T("Nenhum assunto ainda — crie um em \"Assuntos…\" e coloque os arquivos na pasta dele.", "No subjects yet — create one in \"Subjects…\" and put the files in its folder.", "Aún no hay asuntos — cree uno en \"Asuntos…\" y ponga los archivos en su carpeta.");
+            : SubjectBox.Items.Count > 0
+                ? T("Escolha o assunto desta tarefa na lista (ou crie um em \"Assuntos…\").", "Choose this task's subject in the list (or create one in \"Subjects…\").", "Elija el asunto de esta tarea en la lista (o cree uno en \"Asuntos…\").")
+                : T("Nenhum assunto ainda — crie um em \"Assuntos…\" e coloque os arquivos na pasta dele.", "No subjects yet — create one in \"Subjects…\" and put the files in its folder.", "Aún no hay asuntos — cree uno en \"Asuntos…\" y ponga los archivos en su carpeta.");
         UpdateSummary();
+        if (SummarySubjectBox != null) SummarySubjectBox.ToolTip = SubjectHint.Text; // pasta (e GitHub) do assunto, ou o aviso de que não há nenhum
     }
 
     private void OnSubjectsClick(object sender, RoutedEventArgs e)
@@ -645,7 +652,7 @@ public partial class NewTaskWindow : Window
                     "Claude Code was not found on this machine. Install it and sign in, or choose Codex.",
                     "Claude Code no se encontró en esta máquina. Instálelo e inicie sesión, o elija Codex.");
         else if (versioning == VersioningMode.Local && SelectedSubject == null)
-            error = T("Escolha um assunto (botão \"Assuntos…\").", "Choose a subject (\"Subjects…\" button).", "Elija un asunto (botón \"Asuntos…\").");
+            error = T("Escolha o assunto na lista do topo ou crie um no botão \"Assuntos…\".", "Choose the subject in the list at the top or create one with the \"Subjects…\" button.", "Elija el asunto en la lista de arriba o cree uno con el botón \"Asuntos…\".");
         else if (versioning == VersioningMode.Git && !Directory.Exists(repo)) error = T("Escolha a pasta de um repositório git.", "Choose a git repository folder.", "Elija la carpeta de un repositorio git.");
         else if (versioning == VersioningMode.Git && !Directory.Exists(Path.Combine(repo, ".git")) && !File.Exists(Path.Combine(repo, ".git")))
             error = T("A pasta não tem .git — escolha a raiz de um repositório git, ou use o versionamento local.",
@@ -688,7 +695,11 @@ public partial class NewTaskWindow : Window
             CriteriaBox.Text.Trim().Length > 0 ? CriteriaBox.Text.Trim() : T("(não informados)", "(not provided)", "(no informado)"),
             model.Length > 0 ? model : null, reviewer, codexModel.Length > 0 ? codexModel : null, executor, versioning,
             subject?.Name, subject?.Path, AsTemplate: IsHookMode, WorkItem: _workItem,
-            AutoFixFindings: AutoFixBox.IsChecked == true && reviewer != ReviewerKind.None) { ImageQueries = _imageQueries };
+            AutoFixFindings: AutoFixBox.IsChecked == true && reviewer != ReviewerKind.None)
+        {
+            ImageQueries = _imageQueries,
+            GateLevel = Enum.TryParse<NXPilot.Risk.GateLevel>((GateLevelBox.SelectedItem as ComboBoxItem)?.Tag as string, out var gate) ? gate : NXPilot.Risk.GateLevel.Padrao,
+        };
         DialogResult = true;
     }
 }

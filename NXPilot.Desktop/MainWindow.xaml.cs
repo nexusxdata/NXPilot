@@ -105,7 +105,12 @@ public partial class MainWindow : Window
             await Vm.LoadTaskAsync(record);
         }
         else if (dialog.ToClone is { } clone)
-            await StartNewTaskAsync(new Views.NewTaskWindow(clone.Info with { ImageQueries = ImageQueriesOf(clone) }) { Owner = this });
+            // Tarefa concluída já foi feita e aprovada: o clone vem Confiante (dá para trocar na tela).
+            await StartNewTaskAsync(new Views.NewTaskWindow(clone.Info with
+            {
+                ImageQueries = ImageQueriesOf(clone),
+                GateLevel = clone.State == TaskState.Done ? NXPilot.Risk.GateLevel.Confiante : clone.Info.GateLevel,
+            }) { Owner = this });
     }
 
     /// <summary>Frases da busca de figuras que a pessoa usou na tarefa (log "Frase da busca de figuras → …"), na ordem.</summary>
@@ -249,26 +254,44 @@ public partial class MainWindow : Window
     /// Ferramentas: utilitários fora das tarefas e da configuração (sem IA). Hoje, a amostra de dados do
     /// Databricks (só leitura, até 50 registros) — habilitada quando o Databricks está configurado.
     /// </summary>
+    /// <summary>
+    /// Ferramentas como a área de trabalho do Windows, no lugar das abas (clicar de novo, ou ✕ Fechar, volta para a tarefa).
+    /// Ferramenta nova = mais um item na lista.
+    /// </summary>
     private void OnToolsClick(object sender, RoutedEventArgs e)
     {
+        if (ToolsHost.Visibility == Visibility.Visible) { CloseTools(); return; }
         var connection = NXPilot.Integrations.DatabricksSettings.LoadConnection();
-        var sample = new MenuItem
+        var tools = new List<Views.ToolsDesktop.Tool>
         {
-            Header = NxText.T("📊  Amostra de dados (Databricks)…", "📊  Data sample (Databricks)…", "📊  Muestra de datos (Databricks)…"),
-            IsEnabled = connection != null,
-            ToolTip = connection != null
-                ? NxText.T("Consulta de leitura com até 50 registros, na vertical ou horizontal; exporta para Excel.", "Read-only query with up to 50 rows, vertical or horizontal; exports to Excel.", "Consulta de lectura con hasta 50 registros, vertical u horizontal; exporta a Excel.")
-                : NxText.T("Configure o Databricks em Extensão MCP.", "Set up Databricks in MCP Extension.", "Configure Databricks en Extensión MCP."),
+            new("dbsample", Views.ToolIcons.Chart, NxText.T("Amostra de dados", "Data sample", "Muestra de datos"),
+                NxText.T("Databricks: consulta de leitura com até 50 registros, na vertical ou horizontal; exporta para Excel.", "Databricks: read-only query with up to 50 rows, vertical or horizontal; exports to Excel.", "Databricks: consulta de lectura con hasta 50 registros, vertical u horizontal; exporta a Excel."),
+                connection == null ? NxText.T("Configure o Databricks em Extensão MCP.", "Set up Databricks in MCP Extension.", "Configure Databricks en Extensión MCP.") : null,
+                () => new Views.DatabricksQueryWindow(connection!) { Owner = this }.Show()),
         };
-        ToolTipService.SetShowOnDisabled(sample, true);
-        sample.Click += (_, _) => new Views.DatabricksQueryWindow(connection!) { Owner = this }.Show();
-        var menu = new ContextMenu { PlacementTarget = (UIElement)sender, Placement = System.Windows.Controls.Primitives.PlacementMode.Right };
-        menu.Items.Add(sample);
-        menu.IsOpen = true;
+        var desk = new Views.ToolsDesktop(tools);
+        desk.CloseRequested += CloseTools;
+        ToolsHost.Content = desk;
+        ToolsHost.Visibility = Visibility.Visible;
+        MainTabs.Visibility = Visibility.Hidden;
+    }
+
+    private void CloseTools()
+    {
+        ToolsHost.Content = null;
+        ToolsHost.Visibility = Visibility.Collapsed;
+        MainTabs.Visibility = Visibility.Visible;
     }
 
     /// <summary>Configurar: versão instalada, verificar atualização e voltar versão.</summary>
-    private void OnSettingsClick(object sender, RoutedEventArgs e) => new Views.SettingsWindow { Owner = this }.ShowDialog();
+    private void OnSettingsClick(object sender, RoutedEventArgs e) =>
+        new Views.SettingsWindow { Owner = this, TaskRunning = () => Vm.IsBusy, AgentsChanged = () => _ = Vm.RefreshAgentsAfterChangeAsync() }.ShowDialog();
+
+    /// <summary>Botão direito na linha do agente (sem login, instalado pelo NXPilot): remover.</summary>
+    private async void OnRemoveAgentMenuClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is AgentLoginItem item) await Vm.RemoveAgentAsync(item);
+    }
 
     private void OnProviderClick(object sender, RoutedEventArgs e)
     {
@@ -374,6 +397,15 @@ public partial class MainWindow : Window
             if (Environment.GetEnvironmentVariable("NXPILOT_SHOT_XLSX") is { Length: > 0 } xlsx && query.Result is { } res)
                 NXPilot.Office.XlsxTable.Build(xlsx, Views.DatabricksQueryWindow.ExportSheets(res, vertical: true, Environment.GetEnvironmentVariable("NXPILOT_SHOT_SQL") ?? "", Environment.GetEnvironmentVariable("NXPILOT_SHOT_SQL") ?? "", DateTime.Now, 1));
             query.Close();
+            if (args.Contains("--exit")) Close();
+            return;
+        }
+
+        if (ArgValue(args, "--window") == "tools") // Ferramentas (área de trabalho com o papel de parede)
+        {
+            OnToolsClick(ToolsButton, new RoutedEventArgs());
+            await Task.Delay(1200);
+            SaveVisual((FrameworkElement)Content, this, shot);
             if (args.Contains("--exit")) Close();
             return;
         }
