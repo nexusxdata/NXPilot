@@ -1,0 +1,61 @@
+id_produto,sku,nome_produto,categoria,subcategoria,marca,fornecedor,preco_lista,custo_padrao,peso_kg,ativo,data_lancamento,cor,tamanho
+1,SKU-00001,Produto 001,Esporte,Corrida,Marca 2,Fornecedor 01,2606.11,1515.3,9.3,True,2024-10-17,Branco,P
+2,SKU-00002,Produto 002,Moda,Acessórios,Marca 6,Fornecedor 03,1264.6,606.46,2.59,True,2023-10-31,Preto,M
+3,SKU-00003,Produto 003,Casa,Cama e banho,Marca 5,Fornecedor 15,751.21,431.19,6.73,True,2024-09-22,Preto,M
+4,SKU-00004,Produto 004,Eletrônicos,Notebooks,Marca 5,Fornecedor 02,3626.41,1537.03,11.32,True,2021-10-06,Branco,Único
+5,SKU-00005,Produto 005,Moda,Acessórios,Marca 8,Fornecedor 03,3983.27,1763.43,3.03,True,2021-06-22,Cinza,Único
+6,SKU-00006,Produto 006,Moda,Camisetas,Marca 9,Fornecedor 08,1641.11,626.61,0.66,True,2023-07-09,Branco,Único
+7,SKU-00007,Produto 007,Eletrônicos,Fones,Marca 8,Fornecedor 09,1743.14,763.49,6.68,True,2023-10-25,Preto,G
+8,SKU-00008,Produto 008,Esporte,Ciclismo,Marca 3,Fornecedor 08,518.87,182.19,8.69,True,2022-10-22,Branco,P
+9,SKU-00009,Produto 009,Esporte,Corrida,Marca 4,Fornecedor 03,3790.52,1822.75,2.02,True,2022-12-22,Preto,G
+10,SKU-00010,Produto 010,Moda,Calçados,Marca 5,Fornecedor 04,106.28,39.35,10.55,True,2020-06-24,Vermelho,P
+11,SKU-00011,Produto 011,Casa,Cama e banho,Marca 9,Fornecedor 03,594.32,263.15,10.48,True,2021-03-09,Cinza,M
+12,SKU-00012,Produto 012,Esporte,Corrida,Marca 6,Fornecedor 08,1806.88,1201.33,5.47,True,2020-05-11,Azul,P
+13,SKU-00013,Produto 013,Casa,Cozinha,Marca 2,Fornecedor 12,2655.8,1516.16,2.82,True,2024-10-26,Azul,P
+14,SKU-00014,Produto 014,Casa,Cama e banho,Marca 4,Fornecedor 09,1266.86,502.07,11.23,True,2022-08-26,Branco,Único
+15,SKU-00015,Produto 015,Moda,Camisetas,Marca 7,Fornecedor 06,872.23,434.59,5.66,True,2023-10-11,Preto,P
+16,SKU-00016,Produto 016,Moda,Camisetas,Marca 4,Fornecedor 04,3282.13,1367.25,5.44,True,2021-07-24,Vermelho,M
+17,SKU-00017,Produto 017,Eletrônicos,Fones,Marca 2,Fornecedor 01,2004.67,1159.2,6.53,False,2020-07-10,Branco,M
+18,SKU-00018,Produto 018,Moda,Camisetas,Marca 7,Fornecedor 15,2195.16,813.36,4.61,True,2021-06-27,Vermelho,G
+19,SKU-00019,Produto 019,Moda,Acessórios,Marca 9,Fornecedor 11,3140.43,1888.79,1.94,True,2020-04-29,Cinza,P
+20,SKU-00020,Produto 020,Esporte,Corrida,Marca 8,Fornecedor 09,275.16,184.85,6.42,False,2022-11-06,Preto,M
+21,SKU-00021,Produto 021,Eletrônicos,Fones,Marca 4,Fornecedor 07,2685.35,1052.55,10.69,True,2023-05-02,Preto,P
+22,SKU-00022,Produto 022,Moda,Acessórios,Marca 9,Fornecedor 06,2964.69,2007.53,2.53,True,2021-05-03,Azul,Único
+23,SKU-00023,Produto 023,Casa,Cama e banho,Marca 8,Fornecedor 06,3028.84,2044.94,11.24,False,2023-06-26,Cinza,P
+24,SKU-00024,Produto 024,Eletrônicos,Fones,Marca 5,Fornecedor 03,2428.14,1642.98,10.58,True,2022-01-26,Azul,M
+25,SKU-00025,Produto 025,Moda,Acessórios,Marca 5,Fornecedor 10,3755.01,2607.29,9.7,True,2023-09-29,Cinza,G
+26,SKU-00026,Produto 026,Eletrônicos,Celulares,Marca 5,Fornecedor 02,4226.35,2795.31,8.93,True,2021-07-31,Cinza,M
+27,SKU-00027,Produto 027,Esporte,Corrida,Marca 5,Fornecedor 09,931.32,485.2,10.87,True,2020-07-08,Vermelho,G
+28,SKU-00028,Produto 028,Eletrônicos,Celulares,Marca 5,Fornecedor 03,34.89,21.26,6.66,True,2020-01-20,Preto,P
+29,SKU-00029,Produto 029,Casa,Cama e banho,Marca 9,Fornecedor 03,2463.79,1232.94,0.6,True,2024-06-18,Preto,G
+30,SKU-00030,Produto 030,Casa,Decoração,Marca 2,Fornecedor 06,3075.34,1916.06,10.62,True,2023-06-25,Branco,M
+31,SKU-00031,Produto 031,Casa,Cozinha,Marca 7,Fornecedor 01,4393.38,1813.48,11.1,True,2022-04-23,Branco,G
+32,SKU-00032,Produto 032,Casa,Cozinha,Marca 7,Fornecedor 14,3547.23,1289.61,5.7,True,2022-07-31,Azul,G
+33,SKU-00033,Produto 033,Casa,Decoração,Marca 4,Fornecedor 07,1017.92,473.22,10.39,True,2021-07-25,Azul,Único
+34,SKU-00034,Produto 034,Esporte,Academia,Marca 5,Fornecedor 03,4227.72,2338.8,11.8,False,2023-05-06,Vermelho,G
+35,SKU-00035,Produto 035,Esporte,Corrida,Marca 2,Fornecedor 07,1974.48,1312.69,2.36,False,2022-06-12,Preto,M
+36,SKU-00036,Produto 036,Esporte,Corrida,Marca 6,Fornecedor 10,1951.64,897.5,10.19,True,2021-09-07,Cinza,G
+37,SKU-00037,Produto 037,Moda,Acessórios,Marca 5,Fornecedor 09,1480.63,584.18,5.1,True,2023-10-19,Branco,G
+38,SKU-00038,Produto 038,Moda,Camisetas,Marca 5,Fornecedor 05,2474.31,1048.03,9.45,True,2021-10-21,Vermelho,Único
+39,SKU-00039,Produto 039,Moda,Acessórios,Marca 8,Fornecedor 13,3046.49,2027.17,9.57,True,2020-06-22,Azul,G
+40,SKU-00040,Produto 040,Eletrônicos,Celulares,Marca 5,Fornecedor 04,3686.36,2330.87,1.85,False,2022-08-31,Cinza,P
+41,SKU-00041,Produto 041,Moda,Acessórios,Marca 4,Fornecedor 12,1876.11,1113.89,5.98,True,2023-09-05,Preto,P
+42,SKU-00042,Produto 042,Moda,Acessórios,Marca 9,Fornecedor 08,999.63,367.44,3.07,True,2022-07-23,Branco,Único
+43,SKU-00043,Produto 043,Esporte,Ciclismo,Marca 9,Fornecedor 07,4276.13,2739.71,6.62,True,2024-03-03,Vermelho,Único
+44,SKU-00044,Produto 044,Esporte,Corrida,Marca 5,Fornecedor 13,3387.71,2107.79,5.87,True,2022-06-19,Preto,G
+45,SKU-00045,Produto 045,Casa,Cama e banho,Marca 9,Fornecedor 02,1236.56,492.68,2.85,True,2023-12-17,Branco,P
+46,SKU-00046,Produto 046,Moda,Acessórios,Marca 8,Fornecedor 07,1845.45,686.13,10.01,True,2024-04-25,Cinza,P
+47,SKU-00047,Produto 047,Moda,Calçados,Marca 5,Fornecedor 13,2156.35,1049.05,10.71,True,2023-01-07,Cinza,M
+48,SKU-00048,Produto 048,Moda,Calçados,Marca 8,Fornecedor 01,1002.23,487.18,8.06,True,2024-01-23,Branco,Único
+49,SKU-00049,Produto 049,Casa,Decoração,Marca 1,Fornecedor 15,4413.62,2153.44,6.82,False,2023-08-09,Vermelho,M
+50,SKU-00050,Produto 050,Moda,Calçados,Marca 7,Fornecedor 06,833.33,353.4,3.99,True,2022-02-15,Azul,Único
+51,SKU-00051,Produto 051,Esporte,Ciclismo,Marca 1,Fornecedor 12,3760.24,2026.0,12.0,True,2023-08-24,Preto,P
+52,SKU-00052,Produto 052,Eletrônicos,Celulares,Marca 1,Fornecedor 10,4274.21,1723.93,1.6,True,2023-03-01,Branco,Único
+53,SKU-00053,Produto 053,Esporte,Academia,Marca 2,Fornecedor 13,3455.47,2200.29,11.58,True,2020-02-22,Azul,Único
+54,SKU-00054,Produto 054,Moda,Camisetas,Marca 2,Fornecedor 10,4237.73,2507.53,7.56,True,2024-05-01,Azul,P
+55,SKU-00055,Produto 055,Eletrônicos,Notebooks,Marca 6,Fornecedor 02,1574.82,830.07,4.16,True,2024-08-11,Vermelho,P
+56,SKU-00056,Produto 056,Moda,Acessórios,Marca 8,Fornecedor 12,4324.29,1745.05,2.2,True,2023-08-25,Azul,Único
+57,SKU-00057,Produto 057,Moda,Acessórios,Marca 5,Fornecedor 06,1970.81,1277.28,9.99,False,2022-07-12,Branco,Único
+58,SKU-00058,Produto 058,Moda,Calçados,Marca 6,Fornecedor 03,1526.39,794.7,4.32,True,2021-07-26,Cinza,G
+59,SKU-00059,Produto 059,Eletrônicos,Celulares,Marca 2,Fornecedor 04,2334.01,1405.14,5.91,True,2023-11-15,Vermelho,Único
+60,SKU-00060,Produto 060,Moda,Camisetas,Marca 5,Fornecedor 04,3572.13,1755.85,3.0,True,2022-01-25,Vermelho,G

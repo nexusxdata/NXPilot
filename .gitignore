@@ -27,3 +27,9 @@ local-ai.json
 *.secret.json
 .env
 .env.*
+
+# Benchmark: pastas de trabalho das rodadas (projetos gerados pelo agente)
+benchmarks/*/.work/
+databricks-agent.json
+benchmarks/*/results/scripts-agente/
+__pycache__/

@@ -253,12 +253,20 @@ public static class CriticalTests
         new("Revisor: o outro agente quando existe; só um instalado → ele mesmo (sessão nova)", () =>
         {
             Func<AgentKind, bool> both = _ => true, onlyCodex = k => k == AgentKind.Codex, onlyClaude = k => k == AgentKind.Claude;
-            AssertEqual((AgentKind.Claude, false), ReviewerChoice.Choose(AgentKind.Codex, AgentKind.Codex, both), "Codex executa e pede Codex: com os dois, cruza para o Claude.");
+            AssertEqual((AgentKind.Codex, true), ReviewerChoice.Choose(AgentKind.Codex, AgentKind.Codex, both), "Codex executa e você escolheu Codex: a escolha vale (sessão nova, somente leitura).");
+            AssertEqual((AgentKind.Claude, false), ReviewerChoice.Choose(AgentKind.Claude, AgentKind.Codex, both), "Codex executa e você escolheu Claude: revisão cruzada.");
             AssertEqual((AgentKind.Codex, false), ReviewerChoice.Choose(AgentKind.Codex, AgentKind.Claude, both), "Claude executa, Codex revisa.");
             AssertEqual((AgentKind.Codex, true), ReviewerChoice.Choose(AgentKind.Codex, AgentKind.Codex, onlyCodex), "Só Codex: ele mesmo revisa.");
             AssertEqual((AgentKind.Codex, true), ReviewerChoice.Choose(AgentKind.Claude, AgentKind.Codex, onlyCodex), "Pediu Claude sem Claude instalado: Codex revisa.");
             AssertEqual((AgentKind.Claude, true), ReviewerChoice.Choose(AgentKind.Codex, AgentKind.Claude, onlyClaude), "Só Claude: ele mesmo revisa.");
             AssertTrue(ReviewerChoice.Choose(AgentKind.Codex, AgentKind.Codex, _ => false) == null, "Nenhum instalado: sem revisor.");
+            // Catálogo do Codex em páginas: lê o cursor, pula modelo escondido, última página sem cursor.
+            var (page1, next1) = NXPilot.Agents.CodexAppServerAdapter.ParseModelPage(System.Text.Json.Nodes.JsonNode.Parse(
+                """{"data":[{"model":"m-a","displayName":"A","isDefault":true},{"model":"m-oculto","hidden":true}],"nextCursor":"c2"}"""));
+            AssertEqual("m-a", string.Join(",", page1.Select(m => m.Id)), "Modelo escondido fica de fora.");
+            AssertEqual("c2", next1, "Cursor da próxima página lido.");
+            var (_, last) = NXPilot.Agents.CodexAppServerAdapter.ParseModelPage(System.Text.Json.Nodes.JsonNode.Parse("""{"data":[{"model":"m-b"}]}"""));
+            AssertTrue(last == null, "Última página: sem cursor.");
             return Task.CompletedTask;
         }),
         new("Nível do gate por tarefa: Confiante libera só MÉDIO local; Rigoroso pede até BAIXO (menos leitura); ALTO sempre pede", () =>
@@ -1593,6 +1601,191 @@ public static class CriticalTests
             }
             finally { try { Directory.Delete(wt, true); } catch { } }
         }),
+        new("Databricks Gate Agent: lista de modelos do AI Gateway (formato Anthropic), PAT sem escopo ai-gateway explicado, host normalizado", async () =>
+        {
+            var models = NXPilot.Integrations.DatabricksAgent.ParseModels("""
+                {"data":[{"id":"cat.sch.claude-haiku-4-5","display_name":"Claude Haiku 4.5"},{"id":"cat.sch.claude-sonnet-5","display_name":"Claude Sonnet 5"},
+                {"id":"cat.sch.claude-opus-5","display_name":"Claude Opus 5"},{"id":"cat.sch.claude-sonnet-4-6"},{"id":"cat.sch.claude-haiku-5"},{"id":"cat.sch.claude-opus-5"}]}
+                """);
+            AssertEqual("cat.sch.claude-opus-5|cat.sch.claude-sonnet-5|cat.sch.claude-haiku-5|cat.sch.claude-sonnet-4-6|cat.sch.claude-haiku-4-5", string.Join("|", models.Select(m => m.Id)),
+                "Do mais novo para o mais antigo (Opus, Sonnet, Haiku na mesma versão), sem repetição.");
+            AssertEqual("Claude Opus 5 — cat.sch.claude-opus-5", models[0].ToString(), "Combo mostra o nome amigável e o nome no Unity Catalog.");
+            AssertEqual("cat.sch.claude-sonnet-5", NXPilot.Integrations.DatabricksAgent.DefaultModel(models)?.Id, "Padrão: o Sonnet mais novo.");
+            AssertEqual("cat.sch.claude-haiku-5", NXPilot.Integrations.DatabricksAgent.FastModel(models)?.Id, "Modelo rápido: o Haiku mais novo.");
+            AssertEqual(1, NXPilot.Integrations.DatabricksAgent.ParseModels("""["m1"]""").Count, "Lista simples também.");
+            // Lista geral do gateway: todos os modelos, com as APIs; só quem fala a API da Anthropic serve para o Claude Code.
+            var general = NXPilot.Integrations.DatabricksAgent.ParseModels("""
+                {"object":"list","data":[
+                  {"query_name":"cat.sch.gpt-oss-20b","display_name":"GPT OSS 20B","api_types":["mlflow/v1/chat/completions","mlflow/v1/responses"]},
+                  {"query_name":"cat.sch.bge-large","display_name":"BGE Large","api_types":["mlflow/v1/embeddings"]},
+                  {"query_name":"cat.sch.claude-sonnet-5","display_name":"Claude Sonnet 5","api_types":["mlflow/v1/chat/completions","anthropic/v1/messages"]},
+                  {"query_name":"cat.sch.claude-haiku-5","display_name":"Claude Haiku 5","api_types":["anthropic/v1/messages"]}]}
+                """);
+            AssertEqual(4, general.Count, "Todos os modelos do workspace na lista.");
+            AssertEqual("cat.sch.claude-sonnet-5|cat.sch.claude-haiku-5", string.Join("|", general.Take(2).Select(m => m.Id)), "Os que servem para o Claude Code vêm primeiro.");
+            AssertFalse(general.First(m => m.Id.EndsWith("gpt-oss-20b")).ForClaudeCode, "Modelo sem a API da Anthropic: não serve (fica desabilitado).");
+            AssertContains("embeddings", general.First(m => m.Id.EndsWith("bge-large")).WhyNot, "Embeddings: motivo explicado.");
+            AssertEqual("cat.sch.claude-sonnet-5", NXPilot.Integrations.DatabricksAgent.DefaultModel(general)?.Id, "Padrão nunca é um modelo que não serve.");
+            AssertContains("ai-gateway", NXPilot.Integrations.DatabricksAgent.Explain(System.Net.HttpStatusCode.Forbidden,
+                """{"error_code":403,"message":"Provided access token does not have required scopes: ai-gateway"}"""), "PAT sem escopo: diz qual escopo criar.");
+            AssertEqual("https://exemplo.cloud.databricks.com", NXPilot.Integrations.DatabricksAgent.NormalizeHost(" exemplo.cloud.databricks.com/ "), "Host sem https e com barra: normalizado.");
+            AssertTrue(NXPilot.Integrations.DatabricksAgent.LooksLikeTokenId(new string('a', 32) + new string('0', 32)), "ID do token (64 hexadecimais) colado no lugar do token: reconhecido.");
+            AssertFalse(NXPilot.Integrations.DatabricksAgent.LooksLikeTokenId("dapi" + new string('0', 32)), "Token de verdade (dapi…): aceito.");
+            var none = false;
+            try { await NXPilot.Integrations.DatabricksAgent.ListModelsAsync("", ""); } catch (InvalidOperationException) { none = true; }
+            AssertTrue(none, "Sem workspace e PAT: erro claro, sem chamada.");
+        }),
+        new("Laboratório IA: exemplo ensinado fica salvo (reabrir recupera), corrigir o rótulo não duplica, arquivo inválido é preservado", async () =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "nx-examples-" + Guid.NewGuid().ToString("N")[..8]);
+            try
+            {
+                var file = Path.Combine(dir, "risk-examples.json");
+                var store = new NXPilot.Risk.RiskExampleStore(file);
+                AssertEqual(0, store.Load().Count, "Sem arquivo: nenhum exemplo.");
+                store.Upsert(new NXPilot.Risk.RiskExample("  git push origin main ", RiskLevel.Alto));
+                store.Upsert(new NXPilot.Risk.RiskExample("dotnet test", RiskLevel.Baixo));
+                var reopened = new NXPilot.Risk.RiskExampleStore(file).Load();
+                AssertEqual(2, reopened.Count, "Reabrir (outra instância, como recarregar o gate) recupera os exemplos.");
+                AssertTrue(reopened.Any(e => e.Action == "git push origin main"), "Ação gravada sem espaços nas pontas.");
+                store.Upsert(new NXPilot.Risk.RiskExample("dotnet test", RiskLevel.Medio));
+                var fixedLabel = store.Load();
+                AssertEqual(2, fixedLabel.Count, "Corrigir o rótulo não duplica o exemplo.");
+                AssertEqual(RiskLevel.Medio, fixedLabel.Single(e => e.Action == "dotnet test").Level, "Vale o último rótulo.");
+                AssertFalse(Directory.GetFiles(dir, "*.tmp").Any(), "Nenhum arquivo temporário sobrando.");
+                File.WriteAllText(file, "{ isto não é json");
+                var invalid = false;
+                try { store.Load(); } catch (InvalidDataException) { invalid = true; }
+                AssertTrue(invalid, "Arquivo inválido: erro claro, não exemplo vazio silencioso.");
+                AssertEqual("{ isto não é json", File.ReadAllText(file), "Arquivo inválido é preservado.");
+            }
+            finally { try { Directory.Delete(dir, true); } catch { } }
+            await Task.CompletedTask;
+        }),
+        new("Gate Databricks: o agente recebe só a chave da sessão (nunca o PAT); o repasse aceita só essa chave e só /v1/…", async () =>
+        {
+            var g = new NXPilot.Agents.ClaudeGateway("http://localhost:1234", "chave-sessao", "cat.sch.claude-sonnet-5", "cat.sch.claude-haiku-5");
+            var env = NXPilot.Agents.DatabricksGatewayProxy.Environment(g);
+            AssertEqual("chave-sessao", env["ANTHROPIC_AUTH_TOKEN"], "Ambiente do Claude: a chave da sessão.");
+            AssertEqual("http://localhost:1234", env["ANTHROPIC_BASE_URL"], "Claude fala com o repasse local, não com a Databricks.");
+            AssertFalse(env.Values.Any(v => v.Contains("dapi", StringComparison.OrdinalIgnoreCase)), "Nada parecido com PAT no ambiente.");
+            AssertEqual("cat.sch.claude-haiku-5", env["ANTHROPIC_DEFAULT_HAIKU_MODEL"], "Modelo rápido mapeado (tarefas de fundo do Claude Code).");
+            AssertEqual("cat.sch.claude-sonnet-5", env["ANTHROPIC_DEFAULT_OPUS_MODEL"], "Apelidos apontam para o modelo escolhido.");
+            AssertContains("coding-agent-mode", env["ANTHROPIC_CUSTOM_HEADERS"], "Cabeçalho que o AI Gateway pede.");
+            AssertTrue(NXPilot.Agents.DatabricksGatewayProxy.Allowed("Bearer k", null, "/v1/messages", "k"), "Chave certa + /v1/messages: passa.");
+            AssertTrue(NXPilot.Agents.DatabricksGatewayProxy.Allowed(null, "k", "/v1/messages/count_tokens", "k"), "x-api-key também.");
+            AssertFalse(NXPilot.Agents.DatabricksGatewayProxy.Allowed("Bearer outra", null, "/v1/messages", "k"), "Chave errada: recusado.");
+            AssertFalse(NXPilot.Agents.DatabricksGatewayProxy.Allowed("Bearer k", null, "/api/2.0/sql/statements", "k"), "Outra API da Databricks: recusado (o repasse só serve modelo).");
+            AssertFalse(NXPilot.Agents.DatabricksGatewayProxy.Allowed("Bearer k", null, "/v1/../api/2.0/clusters", "k"), "Caminho com .. : recusado.");
+            // Rota do Codex (API Responses): mesma chave, outro destino; o parâmetro que os modelos abertos recusam sai.
+            AssertTrue(NXPilot.Agents.DatabricksGatewayProxy.Allowed("Bearer k", null, "/codex/v1/responses", "k"), "Codex: /codex/v1/responses passa.");
+            AssertFalse(NXPilot.Agents.DatabricksGatewayProxy.Allowed("Bearer k", null, "/codex/api/2.0/jobs", "k"), "Codex: só /codex/v1/… (outra API recusada).");
+            AssertEqual("https://h/ai-gateway/codex/v1/responses", NXPilot.Agents.DatabricksGatewayProxy.Target("https://h", "/codex/v1/responses"), "Codex vai para a rota dele.");
+            AssertEqual("https://h/ai-gateway/anthropic/v1/messages", NXPilot.Agents.DatabricksGatewayProxy.Target("https://h", "/v1/messages"), "Claude vai para a rota da Anthropic.");
+            var body = System.Text.Encoding.UTF8.GetString(NXPilot.Agents.DatabricksGatewayProxy.CodexBody(System.Text.Encoding.UTF8.GetBytes("""{"model":"m","parallel_tool_calls":true,"input":"x"}""")));
+            AssertFalse(body.Contains("parallel_tool_calls"), "parallel_tool_calls removido (GPT OSS recusa).");
+            AssertContains("\"input\":\"x\"", body, "O resto do pedido segue igual.");
+            await Task.CompletedTask;
+        }),
+        new("Power BI: projeto a partir do model.json do fluxo de dados — tabelas e tipos, nomes com ponto/espaço, workspace configurado, tema base, válido, não sobrescreve", async () =>
+        {
+            if (!OperatingSystem.IsWindows()) return;
+            var wt = Path.Combine(Path.GetTempPath(), "nx-pbi-df-" + Guid.NewGuid().ToString("N")[..8]);
+            Directory.CreateDirectory(wt);
+            try
+            {
+                // Fluxo fictício com os casos reais: uma entidade com prefixo "01." e outra com espaços/acentos, data e inteiro.
+                var df = Path.Combine(wt, "fluxo.json");
+                File.WriteAllText(df, """
+                    {"name":"Fluxo Exemplo - Vendas","culture":"en-US","entities":[
+                      {"$type":"LocalEntity","name":"vw_ft-Vendas","attributes":[{"name":"01.CD_LOJA","dataType":"string"},{"name":"01.VL_TOTAL","dataType":"double"},{"name":"01.DT_VENDA","dataType":"date"}]},
+                      {"$type":"LocalEntity","name":"Tabela Preço","attributes":[{"name":"Faixa (km)","dataType":"int64"},{"name":"Ativo","dataType":"boolean"},{"name":"Estranho","dataType":"geo"}]},
+                      {"$type":"LocalEntity","name":"Vazia","attributes":[]}]}
+                    """);
+                var theme = Path.Combine(wt, "tema", "CY99SU01.json");
+                Directory.CreateDirectory(Path.GetDirectoryName(theme)!);
+                File.WriteAllText(theme, """{"name":"CY99SU01","dataColors":["#118DFF"]}""");
+                var r = NXPilot.Integrations.PowerBiDataflowModel.Generate(df, wt, "Vendas", "Workspace Exemplo", "", theme);
+                AssertEqual(2, r.Tables, "Duas tabelas (a entidade sem colunas fica de fora, com aviso).");
+                AssertEqual(6, r.Columns, "Todas as colunas.");
+                AssertTrue(r.Notes.Any(n => n.Contains("Vazia")) && r.Notes.Any(n => n.Contains("geo")), "Avisos: entidade vazia e tipo desconhecido.");
+
+                var def = Path.Combine(wt, "Vendas.SemanticModel", "definition");
+                var vendas = File.ReadAllText(Path.Combine(def, "tables", "vw_ft-Vendas.tmdl"));
+                AssertContains("table 'vw_ft-Vendas'", vendas, "Nome com hífen entre aspas.");
+                AssertContains("column '01.VL_TOTAL'\n\t\tdataType: double", vendas, "Coluna com ponto entre aspas, tipo double.");
+                AssertContains("sourceColumn: 01.DT_VENDA", vendas, "sourceColumn com o nome original.");
+                AssertContains("annotation UnderlyingDateTimeDataType = Date", vendas, "Data vira dateTime com Date por baixo.");
+                AssertContains("Fonte{[entity=\"vw_ft-Vendas\",version=\"\"]}[Data]", vendas, "Partição lê a entidade publicada pelo fluxo.");
+                AssertFalse(vendas.Split('\n').Any(l => l.StartsWith("  ")), "TMDL indentado só com TAB.");
+                var preco = File.ReadAllText(Path.Combine(def, "tables", "Tabela Preço.tmdl"));
+                AssertContains("dataType: int64\n\t\tformatString: 0", preco, "Inteiro com formato 0.");
+                AssertContains("column Estranho\n\t\tdataType: string", preco, "Tipo desconhecido vira texto.");
+                var expr = File.ReadAllText(Path.Combine(def, "expressions.tmdl"));
+                AssertContains("\"Workspace Exemplo\"", expr, "Workspace configurado nos parâmetros (nunca provisório).");
+                AssertContains("\"Fluxo Exemplo - Vendas\"", expr, "Nome do fluxo nos parâmetros.");
+                AssertContains("PowerPlatform.Dataflows(null)", expr, "Conector do fluxo de dados.");
+                AssertContains("culture: en-US", File.ReadAllText(Path.Combine(def, "model.tmdl")), "Cultura do fluxo.");
+                AssertContains("cache.abf", File.ReadAllText(Path.Combine(wt, ".gitignore")), "Cache local fora do repositório.");
+
+                var pbi = PowerBiProject.Detect(wt)!;
+                var host = new NxToolHost(CoreTools.All());
+                var valid = await host.CallAsync("powerbi_validate", new JsonObject(), new ToolContext { Worktree = wt, PowerBiInstalled = true, Approve = (_, _, _) => Task.FromResult(true) }, default);
+                AssertFalse(valid.IsError, "Projeto gerado passa no powerbi_validate: " + valid.Content[0].Text);
+                AssertEqual(0, NXPilot.Integrations.PowerBiReport.Problems(pbi.ReportDir!, wt).Count, "Relatório com tema base, sem layoutOptimization.");
+
+                // Mesmo nome de novo: não sobrescreve (o agente pode ter acrescentado medidas e páginas).
+                var tag = vendas;
+                var overwritten = false;
+                try { NXPilot.Integrations.PowerBiDataflowModel.Generate(df, wt, "Vendas", "", "", theme); overwritten = true; } catch (InvalidOperationException) { }
+                AssertFalse(overwritten, "Projeto existente não é sobrescrito.");
+                var wt2 = Path.Combine(wt, "outra");
+                NXPilot.Integrations.PowerBiDataflowModel.Generate(df, wt2, "Vendas", "Workspace Exemplo", "", theme);
+                AssertEqual(tag, File.ReadAllText(Path.Combine(wt2, "Vendas.SemanticModel", "definition", "tables", "vw_ft-Vendas.tmdl")), "Gerar de novo dá o mesmo arquivo (lineageTag estável).");
+                AssertThrows(() => NXPilot.Integrations.PowerBiDataflowModel.Generate(df, wt, "../fora", "", "", theme), "Nome com caminho é recusado.");
+
+                // Dados locais (CSV por entidade): cada tabela lê SÓ o CSV — juntar com o fluxo faz o Power BI pedir níveis de privacidade.
+                var csvDir = Path.Combine(wt, "csv");
+                Directory.CreateDirectory(csvDir);
+                File.WriteAllText(Path.Combine(csvDir, "vw_ft-Vendas.csv"), "01.CD_LOJA,01.VL_TOTAL,01.DT_VENDA\nL1,10.5,2025-01-02\n");
+                var wt3 = Path.Combine(wt, "local");
+                var rl = NXPilot.Integrations.PowerBiDataflowModel.Generate(df, wt3, "Vendas", "Workspace Exemplo", "", theme, csvDir);
+                var lv = File.ReadAllText(Path.Combine(wt3, "Vendas.SemanticModel", "definition", "tables", "vw_ft-Vendas.tmdl"));
+                AssertContains("Csv.Document(File.Contents(", lv, "Modo local: a tabela lê o CSV.");
+                AssertContains("{\"01.VL_TOTAL\", type number}", lv, "Tipos do fluxo aplicados ao CSV.");
+                AssertContains("{\"01.DT_VENDA\", type date}", lv, "Data do CSV vira data.");
+                AssertFalse(lv.Contains("[entity="), "Modo local: a tabela não cita o fluxo (uma origem só, sem pedido de privacidade).");
+                AssertTrue(rl.Notes.Any(n => n.Contains("Tabela Preço.csv")), "CSV que falta na pasta: avisado.");
+                AssertContains(csvDir.Replace("\\", "\\"), File.ReadAllText(Path.Combine(wt3, "Vendas.SemanticModel", "definition", "expressions.tmdl")), "Pasta local no parâmetro.");
+                AssertFalse(vendas.Contains("Csv.Document"), "Sem pasta local: só o fluxo, como antes.");
+
+                // Relatório em uma chamada: medidas, relacionamento e página; campo inexistente = nada gravado.
+                var pbiLocal = PowerBiProject.Detect(wt3)!;
+                var bad = JsonNode.Parse("""{"pages":[{"name":"P","visuals":[{"type":"card","values":["[NaoExiste]"]}]}]}""")!.AsObject();
+                var refused = false;
+                try { NXPilot.Integrations.PowerBiReportBuilder.Build(pbiLocal, bad); } catch (InvalidOperationException ex) { refused = ex.Message.Contains("NaoExiste"); }
+                AssertTrue(refused, "Campo que não existe: recusado com o nome do campo.");
+                var spec = JsonNode.Parse("""
+                    {"measures":[{"table":"vw_ft-Vendas","name":"Total","expression":"SUM('vw_ft-Vendas'[01.VL_TOTAL])","format":"#,0.00"}],
+                     "relationships":[{"from":"vw_ft-Vendas[01.CD_LOJA]","to":"Tabela Preço[Estranho]"}],
+                     "pages":[{"name":"Visão","visuals":[{"type":"slicer","title":"Loja","values":["vw_ft-Vendas[01.CD_LOJA]"]},
+                       {"type":"card","title":"Total","values":["[Total]"]},
+                       {"type":"clusteredColumnChart","title":"Por loja","category":"vw_ft-Vendas[01.CD_LOJA]","values":["[Total]"]}]}]}
+                    """)!.AsObject();
+                NXPilot.Integrations.PowerBiReportBuilder.Build(pbiLocal, spec);
+                var vt = File.ReadAllText(Path.Combine(wt3, "Vendas.SemanticModel", "definition", "tables", "vw_ft-Vendas.tmdl"));
+                AssertContains("\tmeasure Total = SUM('vw_ft-Vendas'[01.VL_TOTAL])", vt, "Medida gravada no TMDL da tabela.");
+                AssertContains("toColumn: 'Tabela Preço'.Estranho", File.ReadAllText(Path.Combine(wt3, "Vendas.SemanticModel", "definition", "relationships.tmdl")), "Relacionamento com nomes entre aspas.");
+                var rep = JsonNode.Parse(File.ReadAllText(Path.Combine(wt3, "Vendas.Report", "report.json")))!;
+                AssertEqual(1, rep["sections"]!.AsArray().Count, "A página vazia do projeto novo dá lugar à página do relatório.");
+                AssertEqual(3, rep["sections"]![0]!["visualContainers"]!.AsArray().Count, "Três visuais na página.");
+                AssertContains("\"Measure\"", rep["sections"]![0]!["visualContainers"]![1]!["config"]!.GetValue<string>(), "Cartão usa a medida.");
+                var host2 = new NxToolHost(CoreTools.All());
+                var valid2 = await host2.CallAsync("powerbi_validate", new JsonObject(), new ToolContext { Worktree = wt3, PowerBiInstalled = true, Approve = (_, _, _) => Task.FromResult(true) }, default);
+                AssertFalse(valid2.IsError, "Projeto com relatório continua válido: " + valid2.Content[0].Text);
+            }
+            finally { try { Directory.Delete(wt, true); } catch { } }
+        }),
         new("Power BI: ferramentas visíveis antes do .pbip existir; projeto criado depois é achado; relatório sem tema base é apontado e corrigido (antigo e PBIR)", async () =>
         {
             if (!OperatingSystem.IsWindows()) return;
@@ -1630,6 +1823,10 @@ public static class CriticalTests
                     "Home\nInsert\nYour report has issues that could not be resolved\nList of issues (1):\nAn additional property 'layoutOptimization' was included in the root property of report.json.\nContinue"),
                     "Aviso dentro da janela do Power BI é lido, com a lista de problemas.");
                 AssertTrue(NXPilot.Integrations.PowerBiReport.LoadErrorFromText("Home\nInsert\nModeling\nNew visual") == null, "Janela normal: sem aviso.");
+                AssertContains("Bing", NXPilot.Integrations.PowerBiReport.InfoNoticeIn("Home\nBing map visuals are going away\nBing Maps is scheduled for deprecation\nUpgrade to Azure Maps"),
+                    "Aviso informativo conhecido (fim dos mapas do Bing): o NXPilot fecha e segue.");
+                AssertTrue(NXPilot.Integrations.PowerBiReport.InfoNoticeIn("Your report has issues that could not be resolved\nList of issues (1):\nBing map visuals are going away") == null,
+                    "Erro de carga nunca vira aviso informativo (não é fechado).");
                 AssertEqual(0, json["sections"]![0]!["ordinal"]!.GetValue<int>(), "Páginas com ordinal.");
 
                 // PBIR (definition/report.json): mesma regra.

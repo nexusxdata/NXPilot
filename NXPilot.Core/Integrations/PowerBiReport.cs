@@ -114,6 +114,22 @@ public static class PowerBiReport
         return string.Join(" | ", lines.Skip(start).Take(10));
     }
 
+    /// <summary>
+    /// Avisos INFORMATIVOS do Power BI Desktop que não impedem o relatório de carregar (novidades, fim de recurso):
+    /// o NXPilot fecha no X e segue a conferência. Erro de carga (LoadErrorFromText) nunca entra aqui — precisa ser corrigido.
+    /// </summary>
+    public static readonly (string Marker, string What)[] InfoNotices =
+    [
+        ("Bing map visuals are going away", "aviso de fim dos mapas do Bing (Azure Maps)"),
+        ("Upgrade to Azure Maps", "aviso de fim dos mapas do Bing (Azure Maps)"),
+        ("Os visuais de mapa do Bing", "aviso de fim dos mapas do Bing (Azure Maps)"),
+    ];
+
+    /// <summary>Qual aviso informativo conhecido está no texto (nulo se nenhum — ou se o texto é de erro de carga).</summary>
+    public static string? InfoNoticeIn(string? text) =>
+        string.IsNullOrWhiteSpace(text) || LoadErrorFromText(text) != null ? null
+        : InfoNotices.FirstOrDefault(n => text.Contains(n.Marker, StringComparison.OrdinalIgnoreCase)).What;
+
     public static string ThemeFile(string reportDir, string theme) =>
         System.IO.Path.Combine(reportDir, "StaticResources", "SharedResources", ThemesFolder, theme + ".json");
 

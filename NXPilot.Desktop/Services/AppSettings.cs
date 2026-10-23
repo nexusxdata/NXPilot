@@ -14,7 +14,7 @@ namespace NXPilot.Desktop.Services;
 /// uma preferência apague outra.
 /// </summary>
 /// <summary>O que o "Gravar como padrão do assunto" guarda.</summary>
-public sealed record SubjectDefaults(string Executor, string? Model, string Reviewer, string? CodexModel, DateTime SavedAt);
+public sealed record SubjectDefaults(string Executor, string? Model, string Reviewer, string? CodexModel, DateTime SavedAt, string? ReviewerModel = null);
 
 public sealed class AppSettings
 {
@@ -29,10 +29,16 @@ public sealed class AppSettings
     public string? SubjectsRoot { get; set; }
     public string? LastModel { get; set; }
     public string? CodexModel { get; set; }
+    /// <summary>Último modelo do Gate Databricks e do revisor escolhidos na Nova tarefa.</summary>
+    public string? DatabricksModel { get; set; }
+    public string? ReviewerModel { get; set; }
     public string? Reviewer { get; set; }
     public string? Executor { get; set; }
     /// <summary>MCP NXPilot parado em Configurar: continua parado ao reabrir o app (padrão: ligado).</summary>
     public bool McpStopped { get; set; }
+
+    /// <summary>API para scripts (Python etc.): ferramentas do NXPilot fora de tarefa, cada chamada pelo gate. Padrão: desligada.</summary>
+    public bool McpScriptApi { get; set; }
 
     /// <summary>Regras do plano (fim de todo pedido de plano) por agente; nulo = padrão de <see cref="NXPilot.Planning.PlanRules"/>.</summary>
     public string? PlanRulesClaude { get; set; }

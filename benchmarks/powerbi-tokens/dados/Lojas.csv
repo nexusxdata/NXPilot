@@ -1,0 +1,13 @@
+id_loja,nome_loja,tipo_loja,cidade,uf,regiao,area_m2,data_abertura,gerente,ativa
+1,Loja 01 São Paulo,Quiosque,São Paulo,SP,Sudeste,171.3,2018-01-31,Gerente 01,True
+2,Loja 02 Rio de Janeiro,Rua,Rio de Janeiro,RJ,Sudeste,683.9,2022-08-03,Gerente 02,True
+3,Loja 03 Belo Horizonte,Quiosque,Belo Horizonte,MG,Sudeste,151.3,2019-09-25,Gerente 03,False
+4,Loja 04 Vitória,Rua,Vitória,ES,Sudeste,259.3,2020-08-31,Gerente 04,True
+5,Loja 05 Curitiba,Quiosque,Curitiba,PR,Sul,243.0,2022-04-15,Gerente 05,True
+6,Loja 06 Porto Alegre,Shopping,Porto Alegre,RS,Sul,260.8,2021-08-10,Gerente 06,True
+7,Loja 07 Salvador,Rua,Salvador,BA,Nordeste,702.2,2016-10-15,Gerente 07,True
+8,Loja 08 Recife,Shopping,Recife,PE,Nordeste,307.9,2017-05-31,Gerente 08,True
+9,Loja 09 Fortaleza,Shopping,Fortaleza,CE,Nordeste,163.8,2019-04-06,Gerente 09,True
+10,Loja 10 Goiânia,Shopping,Goiânia,GO,Centro-Oeste,575.1,2015-06-27,Gerente 10,True
+11,Loja 11 Manaus,Quiosque,Manaus,AM,Norte,182.4,2019-03-31,Gerente 11,False
+12,Loja 12 Belém,Shopping,Belém,PA,Norte,760.1,2021-12-08,Gerente 12,True

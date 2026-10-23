@@ -36,9 +36,14 @@ public static class McpServer
         "Databricks big results come in pages (size and maximum set by the user in the extension): page 1 is free and tells the total, pages and estimated time; " +
         "page 2+ needs the user's approval — prefer WHERE/GROUP BY/aggregations over reading many pages, never pull a whole big table. " +
         "Power BI: before CREATING a PBIP project call powerbi_info — it gives the workspace the user configured for new reports (use it in the parameters, never a placeholder); " +
+        "when the data comes from a dataflow model.json, create the project with powerbi_from_dataflow (tables, columns, types, parameters, theme; local_data_folder = read sample CSVs) " +
+        "and then build measures, relationships and pages with powerbi_build_report (one JSON call) — do not write scripts or report JSON by hand for that; " +
         "after creating or editing a PBIP project, review it through these tools before saying the phase is done — powerbi_validate (fix every problem; " +
         "a report without its base theme needs powerbi_fix_report), then powerbi_capture to open it in Power BI Desktop and look at the image: an error dialog or a blank page " +
         "means it is not done — fix and repeat until the report loads. " +
+        "If you need a script (Python, PowerShell…) to generate or change Power BI files, save it in a 'scripts' folder next to the .pbip, with a clear name " +
+        "and a header comment saying what it does — never in a temp folder, and do not delete it: the scripts are kept to become NXPilot tools. " +
+        "Reuse a script already in that folder before writing a new one. Never put tokens, passwords or connection secrets in a script. " +
         "Every call passes the NXPilot gate: a denial means the user said no — do not retry the same call; adjust the plan or ask.";
 
     /// <summary>
@@ -127,6 +132,20 @@ public static class McpPipe
 {
     public const string PipeEnvVar = "NXPILOT_MCP_PIPE";
 
+    /// <summary>
+    /// API para scripts (Configurar → MCP, desligada por padrão): o app grava aqui o nome do pipe para um script
+    /// local achar o NXPilot aberto (`NxPilot.exe --mcp --workdir &lt;pasta&gt;`). Só o nome — nada de segredo.
+    /// </summary>
+    public static string DiscoveryFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXPilot", "run", "mcp-pipe.txt");
+
+    /// <summary>Pipe da tarefa (variável que o app passa ao agente) ou, sem ela, o publicado para scripts.</summary>
+    public static string? FindPipe()
+    {
+        if (Environment.GetEnvironmentVariable(PipeEnvVar) is { Length: > 0 } fromTask) return fromTask;
+        try { return File.Exists(DiscoveryFile) ? File.ReadAllText(DiscoveryFile).Trim() : null; }
+        catch { return null; }
+    }
+
     public static async Task ServeAsync(string pipeName, Func<JsonObject, CancellationToken, Task<JsonObject>> handle, CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -173,12 +192,20 @@ public static class McpPipe
         return JsonNode.Parse(line) as JsonObject ?? throw new IOException("?");
     }
 
-    /// <summary>Corpo de `NxPilot.exe --mcp`: stdio UTF-8 sem BOM ↔ pipe do app.</summary>
-    public static async Task<int> RunBridgeAsync(Stream stdin, Stream stdout, string? pipeName)
+    /// <summary>
+    /// Corpo de `NxPilot.exe --mcp [--workdir pasta]`: stdio UTF-8 sem BOM ↔ pipe do app. Com <paramref name="workdir"/>
+    /// (script, fora de tarefa), cada pedido leva a pasta: o app só atende com a API para scripts ligada.
+    /// </summary>
+    public static async Task<int> RunBridgeAsync(Stream stdin, Stream stdout, string? pipeName, string? workdir = null)
     {
         using var reader = new StreamReader(stdin, new UTF8Encoding(false));
         await using var writer = new StreamWriter(stdout, new UTF8Encoding(false)) { AutoFlush = true };
-        await McpServer.RunAsync(reader, writer, (req, ct) => RequestAsync(pipeName, req, ct));
+        var dir = workdir is { Length: > 0 } ? Path.GetFullPath(workdir) : null;
+        await McpServer.RunAsync(reader, writer, (req, ct) =>
+        {
+            if (dir != null) req["workdir"] = dir;
+            return RequestAsync(pipeName, req, ct);
+        });
         return 0;
     }
 }

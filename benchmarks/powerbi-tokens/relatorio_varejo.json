@@ -1,0 +1,51 @@
+{
+  "measures": [
+    { "table": "Vendas", "name": "Receita Líquida", "expression": "SUM(Vendas[valor_liquido])", "format": "\"R$\" #,0.00", "folder": "Indicadores" },
+    { "table": "Vendas", "name": "Margem Total", "expression": "SUM(Vendas[margem])", "format": "\"R$\" #,0.00", "folder": "Indicadores" },
+    { "table": "Vendas", "name": "Margem %", "expression": "DIVIDE([Margem Total], [Receita Líquida])", "format": "0.0%", "folder": "Indicadores" },
+    { "table": "Vendas", "name": "Pedidos", "expression": "DISTINCTCOUNT(Vendas[id_venda])", "format": "#,0", "folder": "Indicadores" },
+    { "table": "Vendas", "name": "Ticket Médio", "expression": "DIVIDE([Receita Líquida], [Pedidos])", "format": "\"R$\" #,0.00", "folder": "Indicadores" },
+    { "table": "Vendas", "name": "Itens Vendidos", "expression": "SUM(Vendas[quantidade])", "format": "#,0", "folder": "Indicadores" },
+    { "table": "Metas", "name": "Meta", "expression": "SUM(Metas[meta_valor])", "format": "\"R$\" #,0.00", "folder": "Indicadores" },
+    { "table": "Metas", "name": "% da Meta", "expression": "DIVIDE([Receita Líquida], [Meta])", "format": "0.0%", "folder": "Indicadores" }
+  ],
+  "relationships": [
+    { "from": "Vendas[id_produto]", "to": "Produtos[id_produto]" },
+    { "from": "Vendas[id_cliente]", "to": "Clientes[id_cliente]" },
+    { "from": "Vendas[id_loja]", "to": "Lojas[id_loja]" },
+    { "from": "Metas[id_loja]", "to": "Lojas[id_loja]" }
+  ],
+  "pages": [
+    {
+      "name": "Visão Geral",
+      "visuals": [
+        { "type": "textbox", "text": "Varejo — Visão Geral (dados fictícios)" },
+        { "type": "slicer", "title": "Região", "values": ["Lojas[regiao]"] },
+        { "type": "slicer", "title": "Categoria", "values": ["Produtos[categoria]"] },
+        { "type": "slicer", "title": "Canal", "values": ["Vendas[canal]"] },
+        { "type": "slicer", "title": "Pagamento", "values": ["Vendas[forma_pagamento]"] },
+        { "type": "card", "title": "Receita Líquida", "values": ["[Receita Líquida]"] },
+        { "type": "card", "title": "Margem %", "values": ["[Margem %]"] },
+        { "type": "card", "title": "Pedidos", "values": ["[Pedidos]"] },
+        { "type": "card", "title": "Ticket Médio", "values": ["[Ticket Médio]"] },
+        { "type": "card", "title": "% da Meta", "values": ["[% da Meta]"] },
+        { "type": "clusteredColumnChart", "title": "Receita por região", "category": "Lojas[regiao]", "values": ["[Receita Líquida]"] },
+        { "type": "clusteredBarChart", "title": "Receita por categoria", "category": "Produtos[categoria]", "values": ["[Receita Líquida]"] },
+        { "type": "donutChart", "title": "Pedidos por canal", "category": "Vendas[canal]", "values": ["[Pedidos]"] },
+        { "type": "tableEx", "title": "Lojas: receita x meta", "values": ["Lojas[nome_loja]", "[Receita Líquida]", "[Meta]", "[% da Meta]"] }
+      ]
+    },
+    {
+      "name": "Produtos e Clientes",
+      "visuals": [
+        { "type": "slicer", "title": "Região", "values": ["Lojas[regiao]"] },
+        { "type": "slicer", "title": "Segmento", "values": ["Clientes[segmento]"] },
+        { "type": "lineChart", "title": "Receita por dia", "category": "Vendas[data_venda]", "values": ["[Receita Líquida]"] },
+        { "type": "clusteredBarChart", "title": "Receita por subcategoria", "category": "Produtos[subcategoria]", "values": ["[Receita Líquida]"] },
+        { "type": "lineClusteredColumnComboChart", "title": "Receita e margem % por marca", "category": "Produtos[marca]", "values": ["[Receita Líquida]"], "line_values": ["[Margem %]"] },
+        { "type": "pieChart", "title": "Pedidos por segmento", "category": "Clientes[segmento]", "values": ["[Pedidos]"] },
+        { "type": "tableEx", "title": "Produtos", "values": ["Produtos[nome_produto]", "[Itens Vendidos]", "[Receita Líquida]", "[Margem %]"] }
+      ]
+    }
+  ]
+}

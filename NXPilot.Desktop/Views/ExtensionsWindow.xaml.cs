@@ -22,6 +22,7 @@ namespace NXPilot.Desktop.Views;
 public partial class ExtensionsWindow : Window
 {
     private readonly DatabricksSettings _db;
+    private readonly NXPilot.Integrations.DatabricksAgentSettings _dbAgent;
     private readonly GitRepoSettings _git;
     private readonly MailSettings _mail;
     private readonly WorkItemSettings _wi;
@@ -33,6 +34,7 @@ public partial class ExtensionsWindow : Window
         InitializeComponent();
         MaxHeight = SystemParameters.WorkArea.Height - 40;
         _db = DatabricksSettings.Load();
+        _dbAgent = NXPilot.Integrations.DatabricksAgentSettings.Load();
         _git = GitRepoSettings.Load();
         _mail = MailSettings.Load();
         _wi = WorkItemSettings.Load();
@@ -65,6 +67,18 @@ public partial class ExtensionsWindow : Window
         DbWriteSchemasBox.Text = _db.WriteSchemas;
         DbRowsPerPageBox.Text = _db.PageSize.ToString();
         DbMaxPagesBox.Text = _db.PageLimit.ToString();
+        DbAgentHostBox.Text = _dbAgent.Host;
+        if (_dbAgent.ClaudeModel.Length > 0)
+        {
+            DbAgentModelBox.Items.Add(ModelItem(new NXPilot.Integrations.GatewayModel(_dbAgent.ClaudeModel, _dbAgent.ClaudeModel)));
+            DbAgentModelBox.SelectedIndex = 0;
+        }
+        // PAT já salvo: a lista vem sozinha ao abrir (sem precisar clicar em Testar).
+        if (_dbAgent.Token.Length > 0) Loaded += async (_, _) => await LoadGatewayModelsAsync(quiet: true);
+        // O PAT é do workspace: trocar o workspace (aqui ou no Databricks SQL, quando este fica vazio) pede o PAT do novo.
+        DbAgentHostBox.TextChanged += (_, _) => RefreshAgentToken();
+        DbHostBox.TextChanged += (_, _) => RefreshAgentToken();
+        DbAgentTokenBox.PasswordChanged += (_, _) => RefreshAgentToken();
         AdoOrgBox.Text = _git.AzureDevOpsOrganizationUrl;
         OutlookClientBox.Text = _mail.OutlookClientId;
         OutlookTenantBox.Text = _mail.OutlookTenant;
@@ -77,6 +91,7 @@ public partial class ExtensionsWindow : Window
             "teams" => TeamsTab,
             "mail" or "email" => MailTab,
             "powerbi" => PowerBiTab,
+            "databricks-agent" or "dbagent" => DatabricksAgentTab,
             "powerpoint" or "pptx" => PowerPointTab,
             "windows" or "janelas" => WindowsTab,
             "nxproject" => NXProjectTab,
@@ -150,6 +165,8 @@ public partial class ExtensionsWindow : Window
         RefreshTeams();
 
         Dot(DatabricksDot, _db.ToConnection().IsComplete);
+        Dot(DatabricksAgentDot, _dbAgent.IsComplete);
+        RefreshAgentToken();
         Dot(GitDot, _git.GitHubToken.Length > 0 || _git.AzureDevOpsToken.Length > 0);
         var outlook = Session(MailProvider.Outlook);
         var gmail = Session(MailProvider.Gmail);
@@ -481,6 +498,114 @@ public partial class ExtensionsWindow : Window
                   $"Conectado en {sw.Elapsed.TotalSeconds:F1}s. Catálogos: {string.Join(", ", catalogs.Take(8))}{(catalogs.Count > 8 ? "…" : "")}"), Brushes.Green);
     });
 
+    // ------------------------------------------------------------ Databricks Gate Agent
+
+    private List<NXPilot.Integrations.GatewayModel> _gatewayModels = [];
+
+    /// <summary>Item da combo (só modelos que o Claude Code usa).</summary>
+    private static ComboBoxItem ModelItem(NXPilot.Integrations.GatewayModel m) => new()
+    {
+        Content = m.ToString(), Tag = m,
+        ToolTip = m.ApiTypes is { Count: > 0 } apis ? string.Join(", ", apis) : null,
+    };
+
+    /// <summary>Aviso abaixo da combo: os outros modelos do workspace, agrupados pelo motivo de não servirem.</summary>
+    private void ShowOtherModels(IReadOnlyList<NXPilot.Integrations.GatewayModel> others)
+    {
+        DbAgentOtherModels.Visibility = others.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        if (others.Count == 0) return;
+        var groups = others.GroupBy(m => m.WhyNot!).Select(g => $"{string.Join(", ", g.Select(m => m.Name))} ({g.Key})");
+        DbAgentOtherModels.Text = T($"ⓘ O workspace tem mais {others.Count} modelo(s) que o Gate Databricks não usa: ", $"ⓘ The workspace has {others.Count} more model(s) Gate Databricks does not use: ",
+            $"ⓘ El workspace tiene {others.Count} modelo(s) más que Gate Databricks no usa: ") + string.Join("; ", groups) + ".";
+    }
+
+    private NXPilot.Integrations.GatewayModel? SelectedGatewayModel => (DbAgentModelBox.SelectedItem as ComboBoxItem)?.Tag as NXPilot.Integrations.GatewayModel;
+
+    /// <summary>Workspace em uso: o desta aba ou, vazio, o do Databricks SQL.</summary>
+    private string AgentHost() => NXPilot.Integrations.DatabricksAgent.NormalizeHost(DbAgentHostBox.Text.Trim().Length > 0 ? DbAgentHostBox.Text : DbHostBox.Text);
+
+    /// <summary>PAT salvo, se for deste workspace.</summary>
+    private string SavedAgentToken() =>
+        _dbAgent.Token.Length > 0 && string.Equals(NXPilot.Integrations.DatabricksAgent.NormalizeHost(_dbAgent.TokenHost), AgentHost(), StringComparison.OrdinalIgnoreCase) ? _dbAgent.Token : "";
+
+    /// <summary>Linha abaixo do PAT: para qual workspace ele vale — o campo fica vazio depois de salvar, mas o PAT continua.</summary>
+    private void RefreshAgentToken()
+    {
+        var host = AgentHost();
+        var name = Uri.TryCreate(host, UriKind.Absolute, out var uri) ? uri.Host : host;
+        if (NXPilot.Integrations.DatabricksAgent.LooksLikeTokenId(DbAgentTokenBox.Password))
+            (DbAgentTokenState.Text, DbAgentTokenState.Foreground) = (NXPilot.Integrations.DatabricksAgent.TokenIdHint, Brushes.Firebrick);
+        else if (DbAgentTokenBox.Password.Length > 0)
+            (DbAgentTokenState.Text, DbAgentTokenState.Foreground) = (T($"PAT novo para {name} — clique em Salvar.", $"New PAT for {name} — click Save.", $"PAT nuevo para {name}: haga clic en Guardar."), Brushes.DimGray);
+        else if (SavedAgentToken().Length > 0)
+            (DbAgentTokenState.Text, DbAgentTokenState.Foreground) = (T($"✓ PAT salvo para {name} (cifrado). Deixe em branco para manter; cole outro só para trocar.",
+                $"✓ PAT saved for {name} (encrypted). Leave blank to keep it; paste another only to replace it.",
+                $"✓ PAT guardado para {name} (cifrado). Déjelo en blanco para mantenerlo; pegue otro solo para cambiarlo."), Brushes.SeaGreen);
+        else if (host.Length > "https://".Length)
+            (DbAgentTokenState.Text, DbAgentTokenState.Foreground) = (T($"Este workspace ({name}) ainda não tem PAT — cole o PAT dele.", $"This workspace ({name}) has no PAT yet — paste its PAT.", $"Este workspace ({name}) aún no tiene PAT: pegue su PAT."), Brushes.DarkOrange);
+        else
+            (DbAgentTokenState.Text, DbAgentTokenState.Foreground) = (T("Informe o workspace.", "Enter the workspace.", "Indique el workspace."), Brushes.DimGray);
+    }
+
+    private NXPilot.Integrations.DatabricksAgentSettings CollectDatabricksAgent()
+    {
+        // O ID do token colado por engano não substitui o PAT salvo.
+        var typed = DbAgentTokenBox.Password.Trim();
+        var token = typed.Length > 0 && !NXPilot.Integrations.DatabricksAgent.LooksLikeTokenId(typed) ? typed : SavedAgentToken();
+        var sameWorkspace = string.Equals(NXPilot.Integrations.DatabricksAgent.NormalizeHost(_dbAgent.TokenHost), AgentHost(), StringComparison.OrdinalIgnoreCase);
+        return new()
+        {
+            Host = DbAgentHostBox.Text.Trim(),
+            // Modelo é escolha deste workspace: workspace novo sem lista carregada = sem modelo (os nomes podem não existir lá).
+            ClaudeModel = SelectedGatewayModel is { ForClaudeCode: true } chosen ? chosen.Id : sameWorkspace ? _dbAgent.ClaudeModel : "",
+            FastModel = NXPilot.Integrations.DatabricksAgent.FastModel(_gatewayModels)?.Id ?? (sameWorkspace ? _dbAgent.FastModel : ""),
+            Token = token,
+            TokenHost = token.Length > 0 ? AgentHost() : "",
+            Models = _gatewayModels.Count > 0 ? _gatewayModels.Where(m => m.ForClaudeCode).ToDictionary(m => m.Id, m => m.Name)
+                : sameWorkspace ? _dbAgent.Models : [],
+        };
+    }
+
+    private async void OnDatabricksAgentTestClick(object sender, RoutedEventArgs e) => await LoadGatewayModelsAsync(quiet: false);
+
+    /// <summary>
+    /// Chama o gateway com o PAT da tela e enche a combo, do mais novo para o mais antigo. Fica selecionado o
+    /// modelo já salvo (se ainda existir) ou o padrão (Sonnet mais novo). <paramref name="quiet"/>: ao abrir a tela.
+    /// </summary>
+    private Task LoadGatewayModelsAsync(bool quiet) => Run(DbAgentTestButton, DbAgentStatus, async () =>
+    {
+        var s = CollectDatabricksAgent();
+        var host = s.Host.Length > 0 ? s.Host : DbHostBox.Text.Trim();
+        Status(DbAgentStatus, T("Consultando o AI Gateway…", "Querying the AI Gateway…", "Consultando el AI Gateway…"), Brushes.DimGray);
+        var all = await NXPilot.Integrations.DatabricksAgent.ListModelsAsync(host, s.Token);
+        // Na combo só o que o Claude Code usa (API da Anthropic); os outros modelos do workspace vão no aviso abaixo.
+        _gatewayModels = all;
+        var claude = all.Where(m => m.ForClaudeCode).ToList();
+        var chosen = SelectedGatewayModel?.Id ?? _dbAgent.ClaudeModel;
+        DbAgentModelBox.Items.Clear();
+        foreach (var m in claude) DbAgentModelBox.Items.Add(ModelItem(m));
+        ShowOtherModels(all.Where(m => !m.ForClaudeCode).ToList());
+        var pick = claude.FirstOrDefault(m => m.Id == chosen) ?? NXPilot.Integrations.DatabricksAgent.DefaultModel(all);
+        DbAgentModelBox.SelectedItem = DbAgentModelBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => ReferenceEquals(i.Tag, pick));
+        if (claude.Count == 0)
+            return (T("Conectado, mas nenhum modelo liberado para este PAT — peça ao admin acesso a um modelo Claude.", "Connected, but no model is enabled for this PAT — ask the admin for access to a Claude model.", "Conectado, pero ningún modelo habilitado para este PAT: pida al admin acceso a un modelo Claude."), Brushes.DarkOrange);
+        if (!quiet)
+        {
+            // Teste completo: uma chamada mínima ao modelo (o que o agente faz) e o tamanho do PAT.
+            var probe = NXPilot.Integrations.DatabricksAgent.FastModel(all) ?? claude[0];
+            await NXPilot.Integrations.DatabricksAgent.CallModelAsync(host, s.Token, probe.Id);
+            if (await NXPilot.Integrations.DatabricksAgent.HasExtraAccessAsync(host, s.Token) == true)
+                return (T($"Funciona ({claude.Count} modelos Claude), mas este PAT tem acesso além do necessário (vale para outras APIs do workspace). Recomendado: um PAT só com o escopo ai-gateway — veja \"Como criar o PAT certo\".",
+                          $"It works ({claude.Count} Claude models), but this PAT can do more than needed (other workspace APIs). Recommended: a PAT with only the ai-gateway scope — see \"How to create the right PAT\".",
+                          $"Funciona ({claude.Count} modelos Claude), pero este PAT tiene más acceso del necesario (otras API del workspace). Recomendado: un PAT solo con el alcance ai-gateway; vea \"Cómo crear el PAT correcto\"."), Brushes.DarkOrange);
+        }
+        return quiet
+            ? (T($"{claude.Count} modelos para o Gate Databricks.", $"{claude.Count} models for Gate Databricks.", $"{claude.Count} modelos para Gate Databricks."), Brushes.Green)
+            : (T($"✓ PAT certo: chamou o modelo e só tem o acesso necessário. {claude.Count} modelos Claude — escolha o padrão e salve.",
+                 $"✓ Right PAT: it called the model and has only the access needed. {claude.Count} Claude models — pick the default and save.",
+                 $"✓ PAT correcto: llamó al modelo y solo tiene el acceso necesario. {claude.Count} modelos Claude: elija el predeterminado y guarde."), Brushes.Green);
+    });
+
     // ------------------------------------------------------------ Git
 
     private async void OnGitHubTestClick(object sender, RoutedEventArgs e) => await TestGit(GhTestButton, GitProvider.GitHub);
@@ -625,6 +750,7 @@ public partial class ExtensionsWindow : Window
         try
         {
             CollectDatabricks().Save();
+            CollectDatabricksAgent().Save();
             CollectGit().Save();
             CollectMail().Save();
             CollectWorkItems().Save();

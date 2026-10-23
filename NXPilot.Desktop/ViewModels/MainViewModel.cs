@@ -163,6 +163,7 @@ public sealed partial class MainViewModel : ObservableObject
         _ = GatePipe.ServeAsync(_gatePipe, OnGateRequestAsync, _gateCts.Token);
         // MCP NXPilot: as extensões viram ferramentas do agente (no estado em que você deixou em Configurar).
         McpHost.CurrentContext = McpContextAsync;
+        McpHost.ScriptContext = ScriptContextAsync;
         McpHost.StartFromSettings();
     }
 
@@ -700,10 +701,20 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
         // Os dois revisores rodam SOMENTE LEITURA numa sessão nova (Codex: sandbox read-only; Claude: modo plan).
+        // Revisor pelo gateway: o Gate Databricks escolhido, ou o próprio executor Gate Databricks revisando (sem outro agente).
+        var reviewerGateway = task.Info.Reviewer == ReviewerKind.Databricks || (choice.SameAsExecutor && task.Info.Executor == ExecutorKind.Databricks);
+        var reviewerModel = task.Info.ReviewerModel is { Length: > 0 } rm ? rm
+            : choice.Reviewer == AgentKind.Codex ? CodexModelFor(task)
+            : reviewerGateway || task.Info.Executor == ExecutorKind.Claude ? task.Info.Model : null;
         IAgentAdapter reviewer = choice.Reviewer == AgentKind.Codex
-            ? new CodexAdapter(CodexModelFor(task)) { OutputSchema = TaskPlanning.VerificationSchema, Mcp = McpHost.Launch }
-            : NewClaude();
-        if (choice.SameAsExecutor && SignedOut(other))
+            ? new CodexAdapter(reviewerModel ?? CodexModelFor(task)) { OutputSchema = TaskPlanning.VerificationSchema, Mcp = McpHost.Launch }
+            : NewClaude(reviewerGateway, reviewerGateway ? reviewerModel : null);
+        var wanted = task.Info.Reviewer == ReviewerKind.Codex ? AgentKind.Codex : AgentKind.Claude;
+        if (choice.Reviewer != wanted)
+            AddLog("Gate", "info", T($"O revisor escolhido ({AgentName(wanted)}) não está disponível nesta máquina — quem revisa é o {reviewer.Name}.",
+                $"The chosen reviewer ({AgentName(wanted)}) is not available on this machine — {reviewer.Name} reviews instead.",
+                $"El revisor elegido ({AgentName(wanted)}) no está disponible en esta máquina; revisa {reviewer.Name}."));
+        else if (choice.SameAsExecutor && SignedOut(other))
             AddLog("Gate", "info", T($"{AgentName(other)} está instalado, mas sem login nesta máquina — o {reviewer.Name} revisa numa sessão nova, somente leitura.",
                 $"{AgentName(other)} is installed but not signed in on this machine — {reviewer.Name} reviews in a new read-only session.",
                 $"{AgentName(other)} está instalado, pero sin inicio de sesión en esta máquina — {reviewer.Name} revisa en una sesión nueva, de solo lectura."));
@@ -714,7 +725,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         SetAgent(reviewer.Name, "Revisando", T("verificação cruzada (somente leitura)", "cross-verification (read-only)", "verificación cruzada (solo lectura)"));
         var answer = await RunAgentAsync(task, reviewer, new AgentRequest(prompt, task.Worktree!, AgentMode.Plan,
-            Model: reviewer is CodexAdapter ? CodexModelFor(task) : task.Info.Model), failTask: false);
+            Model: reviewerModel), failTask: false);
 
         var result = TaskPlanning.ParseVerification(answer, reviewer.Name);
         if (task.PowerBi != null && NXPilot.Integrations.PowerBiProject.ValidateChangedFiles(task.Worktree!, diff) is { Count: > 0 } pbiFindings)
@@ -978,14 +989,24 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var window = await PowerBiDesktop.OpenAndCaptureAsync(pbi.PbipPath, png);
             using var ui = new NXPilot.WindowsUi.WindowsUiService(NXPilot.WindowsUi.WindowsUiPolicy.PowerBiOnly);
+            // Aviso informativo (ex.: fim dos mapas do Bing) não é erro: fecha no X e segue; erro de carga continua sendo achado.
+            void Dismiss()
+            {
+                foreach (var what in PowerBiDesktop.DismissInfoNotices(ui, window))
+                    AddLog("Power BI", "info", T($"Fechei o aviso informativo do Power BI: {what}.", $"Closed Power BI's informational notice: {what}.", $"Cerré el aviso informativo de Power BI: {what}."));
+            }
             string? Problem() => PowerBiDesktop.InWindowLoadError(ui, window)
-                ?? PowerBiDesktop.ErrorDialogs(ui, window).Select(d => $"{d.Title}: {Trim(ui.ReadText(d, 1500), 600)}").FirstOrDefault();
+                ?? PowerBiDesktop.ErrorDialogs(ui, window).Select(d => (d, text: ui.ReadText(d, 1500)))
+                    .Where(x => NXPilot.Integrations.PowerBiReport.InfoNoticeIn(x.text) == null)
+                    .Select(x => $"{x.d.Title}: {Trim(x.text, 600)}").FirstOrDefault();
+            Dismiss();
+            ui.Capture(window, png);
             var problem = Problem();
             var refreshed = false;
             if (problem == null)
             {
                 refreshed = await PowerBiDesktop.RefreshAsync(ui, window);
-                if (refreshed) { ui.Capture(window, png); problem = Problem(); }
+                if (refreshed) { Dismiss(); ui.Capture(window, png); problem = Problem(); }
             }
             if (problem != null)
                 findings.Add(new Finding("Critico", rel, null, T($"O Power BI Desktop não carregou o relatório: {problem}", $"Power BI Desktop did not load the report: {problem}", $"Power BI Desktop no cargó el informe: {problem}")));
@@ -1006,9 +1027,11 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Revisor efetivo: o outro agente se instalado; senão o mesmo, em sessão nova (ver ReviewerChoice).</summary>
     private static (AgentKind Reviewer, bool SameAsExecutor)? ChooseReviewer(TaskSession task) =>
         task.Info.Reviewer == ReviewerKind.None ? null : ReviewerChoice.Choose(
-            task.Info.Reviewer == ReviewerKind.Codex ? AgentKind.Codex : AgentKind.Claude,
+            task.Info.Reviewer == ReviewerKind.Codex ? AgentKind.Codex : AgentKind.Claude, // Gate Databricks revisa com o Claude Code
             task.Info.Executor == ExecutorKind.Codex ? AgentKind.Codex : AgentKind.Claude,
-            kind => ReviewerChoice.IsInstalled(kind) && !SignedOut(kind));
+            // Gate Databricks: o Claude revisa pelo mesmo gateway — o login na Anthropic não conta.
+            kind => ReviewerChoice.IsInstalled(kind) && (!SignedOut(kind) || kind == AgentKind.Claude
+                && (task.Info.Executor == ExecutorKind.Databricks || task.Info.Reviewer == ReviewerKind.Databricks)));
 
     /// <summary>
     /// Agentes instalados mas SEM login nesta máquina (ex.: Claude Code que veio com o VS Code e ninguém entrou):
@@ -1158,6 +1181,10 @@ public sealed partial class MainViewModel : ObservableObject
             if (_updating.TryGetValue(kind, out var step)) AgentLogins[^1] = AgentLogins[^1] with { UpdateProgress = step };
             if (outNow && AgentUpdates.CanUninstall(kind)) AgentLogins[^1] = AgentLogins[^1] with { CanRemove = true }; // botão direito: remover
         }
+        // Gate Databricks: aparece quando o Databricks Gate Agent está configurado (o login é o PAT do workspace, não a Anthropic).
+        if (NXPilot.Integrations.DatabricksAgentSettings.Load() is { IsComplete: true } gw && ClaudeCodeAdapter.Locate() != null)
+            AgentLogins.Add(new AgentLoginItem(null, "in", ClaudeCodeAdapter.DatabricksName,
+                T($"AI Gateway da Databricks · {gw.ClaudeModel}", $"Databricks AI Gateway · {gw.ClaudeModel}", $"AI Gateway de Databricks · {gw.ClaudeModel}"), ActivityOf(ClaudeCodeAdapter.DatabricksName)));
         AgentLogins.Add(new AgentLoginItem(null, "build", "NXAgentic", T("Em construção", "Under construction", "En construcción"), ActivityOf("NXAgentic")));
         // Atividade de quem não tem linha de login (ex.: login ainda não conferido).
         foreach (var a in Agents.Where(a => AgentLogins.All(l => l.Title != a.Name)))
@@ -1205,11 +1232,23 @@ public sealed partial class MainViewModel : ObservableObject
         return planner;
     }
 
-    private ClaudeCodeAdapter NewClaude() => new($"\"{Environment.ProcessPath}\" --hook", _gatePipe) { Mcp = McpHost.Launch };
+    /// <summary>Claude Code executor da tarefa; no Gate Databricks, com o modelo escolhido na tarefa (ou o da extensão).</summary>
+    private ClaudeCodeAdapter NewClaude(TaskSession task) =>
+        NewClaude(task.Info.Executor == ExecutorKind.Databricks, task.Info.Model);
+
+    /// <summary>Claude Code; <paramref name="gateway"/> = pelo repasse local até o AI Gateway da Databricks.</summary>
+    private ClaudeCodeAdapter NewClaude(bool gateway, string? model) => new($"\"{Environment.ProcessPath}\" --hook", _gatePipe)
+    {
+        Mcp = McpHost.Launch,
+        Gateway = !gateway ? null : DatabricksGatewayProxy.Start() is { } g ? (model is { Length: > 0 } m ? g with { Model = m } : g) : throw new InvalidOperationException(T(
+            "Gate Databricks sem configuração: em Configurar → Extensões → Databricks Gate Agent, informe o workspace, o PAT (escopo ai-gateway) e escolha o modelo.",
+            "Gate Databricks is not configured: in Settings → Extensions → Databricks Gate Agent, set the workspace, the PAT (ai-gateway scope) and pick the model.",
+            "Gate Databricks sin configurar: en Configurar → Extensiones → Databricks Gate Agent, indique el workspace, el PAT (alcance ai-gateway) y elija el modelo.")),
+    };
 
     /// <summary>Executor da tarefa atual; o Codex mantém um processo/thread por tarefa (descartado no fim).</summary>
     private IAgentAdapter _executor = null!;
-    private string ExecutorName => CurrentTask?.Info.Executor == ExecutorKind.Codex ? "Codex" : "Claude Code";
+    private string ExecutorName => CurrentTask?.ExecutorName ?? "Claude Code";
 
     /// <summary>Fim da tarefa: encerra o processo do Codex (o Claude roda um processo por chamada).</summary>
     private void EndExecutor()
@@ -1223,7 +1262,7 @@ public sealed partial class MainViewModel : ObservableObject
         (_executor as IDisposable)?.Dispose();
         _executor = task.Info.Executor == ExecutorKind.Codex
             ? new CodexAppServerAdapter(OnGateRequestAsync, CodexModelFor(task)) { Mcp = McpHost.Launch }
-            : NewClaude();
+            : NewClaude(task);
         return _executor;
     }
 
@@ -1267,6 +1306,7 @@ public sealed partial class MainViewModel : ObservableObject
                 ReadOnlyPhase = task.State is not TaskState.Executing,
                 PowerBi = task.PowerBi ??= NXPilot.Integrations.PowerBiProject.Detect(wt), // .pbip criado depois do início da tarefa
                 PowerBiInstalled = Services.PowerBiDesktop.IsInstalled,
+                PowerBiBaseTheme = Services.PowerBiDesktop.BaseThemeFile,
                 // Arquivos/pastas citados na tarefa: o agente lê sem pedir (você já apontou). Gravar fora continua ALTO.
                 CitedPaths = NXPilot.Planning.TaskCitations.SplitLegend(task.Info.Intent).Citations
                     .Select(c => c.FullPath).Where(p => Path.IsPathRooted(p)).ToList(),
@@ -1275,6 +1315,22 @@ public sealed partial class MainViewModel : ObservableObject
                 NextImageQuery = () => task.Info.ImageQueries is { } q && task.ImageQueryIndex < q.Count ? q[task.ImageQueryIndex++] : null,
             }
             : null);
+
+    /// <summary>
+    /// API para scripts (Configurar → MCP): um script local usa as ferramentas numa pasta, fora de tarefa. O gate é o
+    /// mesmo — BAIXO passa sozinho, o resto aparece no painel e espera você. Gravar fora da pasta continua ALTO.
+    /// </summary>
+    private Task<NXPilot.Mcp.ToolContext?> ScriptContextAsync(string workdir) => OnUiGet<NXPilot.Mcp.ToolContext?>(() => new NXPilot.Mcp.ToolContext
+    {
+        Worktree = workdir,
+        PowerBiInstalled = Services.PowerBiDesktop.IsInstalled,
+        PowerBiBaseTheme = Services.PowerBiDesktop.BaseThemeFile,
+        CitedPaths = [workdir],
+        Approve = async (action, risk, _) => (await DecideAsync(ScriptAgentName, action, risk, workdir)).Allow,
+        UserChoice = text => _ = OnUi(() => AddLog(T("Você", "You", "Usted"), ChoiceKind, text)),
+    });
+
+    private static string ScriptAgentName => T("Script (API)", "Script (API)", "Script (API)");
 
     /// <summary>Depois do risco: BAIXO passa sozinho; regra da tarefa; senão vai para o painel e espera você.</summary>
     private async Task<GateResponse> DecideAsync(string agent, string action, RiskResult r, string? worktree)
@@ -1397,7 +1453,7 @@ public sealed partial class MainViewModel : ObservableObject
             var vStatus = task.Verification != null ? "Concluido" : task.State == TaskState.Verifying ? "Rodando" : "Pendente";
             var (last, lastError) = LastPhaseEvent(task, task.Phases.Count + 1);
             Phases.Add(new PhaseItem(task.Phases.Count + 1, T("Verificação cruzada", "Cross-verification", "Verificación cruzada"), vStatus,
-                ChooseReviewer(task)?.Reviewer == AgentKind.Codex ? "Codex" : "Claude Code", vStatus == "Concluido" ? 1 : vStatus == "Rodando" ? 0.5 : 0, Array.Empty<FileChangeItem>(),
+                ChooseReviewer(task)?.Reviewer == AgentKind.Codex ? "Codex" : task.Info.Reviewer == ReviewerKind.Databricks ? ClaudeCodeAdapter.DatabricksName : "Claude Code", vStatus == "Concluido" ? 1 : vStatus == "Rodando" ? 0.5 : 0, Array.Empty<FileChangeItem>(),
                 last, lastError));
         }
         // Rodadas de "analisar e corrigir achados": cada uma é uma linha, com os achados enviados.
@@ -1531,7 +1587,17 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         var device = Lab.UseGpu ? OnnxDevice.DirectML : OnnxDevice.Cpu;
-        var onnx = new OnnxRiskClassifier(OnnxStore, device);
+        // Exemplos ensinados no Laboratório IA (perfil local). Arquivo ilegível: o ONNX segue com a semente, o arquivo é
+        // preservado (sem store, nada é regravado por cima) e o motivo vai ao Log.
+        RiskExampleStore? examples = new();
+        try { _ = examples.Load(); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            AddLog("Gate", T("aviso", "warning", "aviso"), ex.Message + T(" — o gate segue com os exemplos de fábrica; o arquivo foi preservado.",
+                " — the gate keeps the built-in examples; the file was kept.", " — el gate sigue con los ejemplos de fábrica; el archivo se conservó."));
+            examples = null;
+        }
+        var onnx = new OnnxRiskClassifier(OnnxStore, device, exampleStore: examples);
         try
         {
             await onnx.InitializeAsync();
@@ -1541,7 +1607,7 @@ public sealed partial class MainViewModel : ObservableObject
             onnx.Dispose();
             AddLog("Gate", T("aviso", "warning", "aviso"), T($"GPU (DirectML) indisponível: {ex.Message} — voltando para CPU.", $"GPU (DirectML) unavailable: {ex.Message} — falling back to CPU.", $"GPU (DirectML) no disponible: {ex.Message} — volviendo a CPU."));
             Lab.ReportGpuUnavailable();
-            onnx = new OnnxRiskClassifier(OnnxStore, OnnxDevice.Cpu);
+            onnx = new OnnxRiskClassifier(OnnxStore, OnnxDevice.Cpu, exampleStore: examples);
             await onnx.InitializeAsync();
         }
         GateOnnx = onnx;

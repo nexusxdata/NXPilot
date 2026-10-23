@@ -1,0 +1,121 @@
+id_cliente,nome_cliente,segmento,genero,faixa_etaria,data_cadastro,cidade,uf,regiao,cep_prefixo,canal_aquisicao,cliente_vip,limite_credito,score,ultima_compra,aceita_marketing
+1,Cliente 0001,Corporativo,Não informado,35-44,2021-12-12,Salvador,BA,Nordeste,997,App,False,4995.49,497,2025-06-11,False
+2,Cliente 0002,Corporativo,F,25-34,2020-06-05,Fortaleza,CE,Nordeste,714,App,True,16736.25,603,2025-04-27,False
+3,Cliente 0003,Varejo,Não informado,60+,2019-06-03,Curitiba,PR,Sul,450,Loja,False,14099.64,429,2025-11-23,True
+4,Cliente 0004,Varejo,F,60+,2021-03-10,Recife,PE,Nordeste,707,Indicação,False,19327.2,558,2025-09-02,False
+5,Cliente 0005,Atacado,M,18-24,2024-06-21,Rio de Janeiro,RJ,Sudeste,900,Site,False,11475.37,611,2025-02-13,True
+6,Cliente 0006,Corporativo,M,60+,2024-09-07,Rio de Janeiro,RJ,Sudeste,893,Indicação,False,9133.06,902,2025-08-08,False
+7,Cliente 0007,Varejo,Não informado,18-24,2020-05-01,Goiânia,GO,Centro-Oeste,903,App,False,3562.61,477,2025-10-10,False
+8,Cliente 0008,Atacado,M,60+,2023-04-09,São Paulo,SP,Sudeste,470,Site,False,6013.01,764,2025-02-06,True
+9,Cliente 0009,Corporativo,Não informado,25-34,2022-10-08,Curitiba,PR,Sul,248,Site,False,18214.02,445,2025-02-06,False
+10,Cliente 0010,Corporativo,Não informado,60+,2021-03-28,Curitiba,PR,Sul,661,Indicação,False,14144.81,578,2025-09-14,True
+11,Cliente 0011,Varejo,Não informado,18-24,2022-11-05,Recife,PE,Nordeste,519,App,False,4964.03,889,2025-10-28,True
+12,Cliente 0012,Atacado,Não informado,18-24,2019-12-19,Manaus,AM,Norte,708,Indicação,True,4039.04,899,2025-08-12,True
+13,Cliente 0013,Varejo,M,35-44,2022-07-31,Recife,PE,Nordeste,525,Loja,True,6931.17,807,2025-05-28,True
+14,Cliente 0014,Corporativo,F,45-59,2018-12-27,Salvador,BA,Nordeste,504,App,False,15564.68,826,2025-01-01,True
+15,Cliente 0015,Atacado,M,18-24,2020-02-08,Fortaleza,CE,Nordeste,765,Indicação,False,15319.82,508,2025-05-17,True
+16,Cliente 0016,Atacado,Não informado,45-59,2019-05-13,Curitiba,PR,Sul,139,Site,False,6559.63,314,2025-10-10,True
+17,Cliente 0017,Varejo,M,18-24,2019-09-23,Vitória,ES,Sudeste,734,App,False,9908.74,783,2025-05-05,True
+18,Cliente 0018,Atacado,F,60+,2023-09-13,Belo Horizonte,MG,Sudeste,271,App,False,17161.04,648,2025-09-17,False
+19,Cliente 0019,Atacado,Não informado,35-44,2024-08-01,São Paulo,SP,Sudeste,847,Site,False,9944.66,640,2025-10-10,True
+20,Cliente 0020,Atacado,M,25-34,2020-09-05,Salvador,BA,Nordeste,836,Site,True,8510.11,625,2025-08-31,True
+21,Cliente 0021,Atacado,Não informado,25-34,2023-07-22,Salvador,BA,Nordeste,142,App,True,17546.71,750,2025-02-21,True
+22,Cliente 0022,Varejo,Não informado,25-34,2022-08-07,Recife,PE,Nordeste,932,Loja,False,19399.47,646,2025-11-16,True
+23,Cliente 0023,Varejo,M,60+,2022-04-06,Manaus,AM,Norte,507,Loja,False,5078.02,594,2025-04-27,True
+24,Cliente 0024,Varejo,Não informado,18-24,2022-12-23,Salvador,BA,Nordeste,314,Loja,False,16024.8,600,2025-07-03,False
+25,Cliente 0025,Varejo,Não informado,45-59,2024-05-07,Belo Horizonte,MG,Sudeste,972,Site,False,12385.09,691,2025-11-14,True
+26,Cliente 0026,Corporativo,F,25-34,2023-03-04,Recife,PE,Nordeste,914,Indicação,False,683.25,776,2025-05-28,True
+27,Cliente 0027,Varejo,M,35-44,2024-08-03,Belo Horizonte,MG,Sudeste,486,App,False,6391.37,693,2025-09-05,False
+28,Cliente 0028,Corporativo,M,60+,2021-04-26,Salvador,BA,Nordeste,994,Loja,True,13335.48,581,2025-01-05,True
+29,Cliente 0029,Corporativo,F,60+,2023-07-28,Manaus,AM,Norte,463,App,False,4207.57,556,2025-12-14,True
+30,Cliente 0030,Corporativo,F,18-24,2018-06-11,Manaus,AM,Norte,497,Loja,False,14781.02,392,2025-06-01,False
+31,Cliente 0031,Varejo,F,25-34,2024-01-19,Salvador,BA,Nordeste,568,App,False,5510.92,793,2025-06-01,True
+32,Cliente 0032,Varejo,M,18-24,2019-07-31,Porto Alegre,RS,Sul,386,App,False,8194.2,570,2025-10-02,False
+33,Cliente 0033,Corporativo,Não informado,35-44,2024-07-22,Porto Alegre,RS,Sul,585,Loja,False,9693.8,934,2025-10-15,False
+34,Cliente 0034,Varejo,Não informado,18-24,2023-03-17,Goiânia,GO,Centro-Oeste,994,Indicação,False,1384.26,338,2025-06-05,True
+35,Cliente 0035,Varejo,F,60+,2019-07-10,Rio de Janeiro,RJ,Sudeste,597,App,False,14991.23,853,2025-08-03,True
+36,Cliente 0036,Varejo,M,18-24,2023-06-28,Belém,PA,Norte,886,App,False,7725.33,754,2025-08-16,True
+37,Cliente 0037,Varejo,Não informado,35-44,2024-02-09,Porto Alegre,RS,Sul,925,Loja,False,4201.27,425,2025-08-21,False
+38,Cliente 0038,Corporativo,Não informado,60+,2018-03-29,Vitória,ES,Sudeste,165,Site,True,15846.07,510,2025-02-05,True
+39,Cliente 0039,Varejo,Não informado,25-34,2020-08-12,Fortaleza,CE,Nordeste,522,Loja,False,19688.55,433,2025-10-04,False
+40,Cliente 0040,Varejo,Não informado,18-24,2019-06-24,Belo Horizonte,MG,Sudeste,115,Site,False,807.73,571,2025-01-27,False
+41,Cliente 0041,Corporativo,F,18-24,2023-05-05,Salvador,BA,Nordeste,675,Loja,False,4820.22,929,2025-01-23,True
+42,Cliente 0042,Corporativo,M,45-59,2018-05-08,Manaus,AM,Norte,177,Indicação,False,2605.26,754,2025-02-07,True
+43,Cliente 0043,Corporativo,F,18-24,2019-06-01,Porto Alegre,RS,Sul,459,App,False,12149.14,601,2025-08-21,True
+44,Cliente 0044,Varejo,Não informado,18-24,2024-03-08,Salvador,BA,Nordeste,376,Indicação,True,8569.36,764,2025-07-24,True
+45,Cliente 0045,Atacado,M,35-44,2020-11-10,Rio de Janeiro,RJ,Sudeste,572,Indicação,False,16719.55,395,2025-08-10,False
+46,Cliente 0046,Atacado,F,60+,2018-09-03,Belém,PA,Norte,858,App,False,8510.77,733,2025-01-27,True
+47,Cliente 0047,Atacado,M,18-24,2024-06-25,Goiânia,GO,Centro-Oeste,743,Site,False,4872.77,410,2025-06-29,True
+48,Cliente 0048,Varejo,M,60+,2020-07-15,Porto Alegre,RS,Sul,648,Loja,False,13327.71,573,2025-01-15,False
+49,Cliente 0049,Atacado,M,35-44,2018-01-26,Belém,PA,Norte,332,Indicação,False,14948.9,331,2025-02-16,True
+50,Cliente 0050,Atacado,M,45-59,2021-10-28,Vitória,ES,Sudeste,305,App,False,15648.29,881,2025-11-02,False
+51,Cliente 0051,Varejo,F,60+,2018-07-23,São Paulo,SP,Sudeste,961,App,False,8768.29,921,2025-08-15,True
+52,Cliente 0052,Corporativo,F,35-44,2022-10-27,Vitória,ES,Sudeste,244,Indicação,False,6514.18,525,2025-07-22,True
+53,Cliente 0053,Varejo,F,35-44,2020-05-15,São Paulo,SP,Sudeste,274,App,False,650.73,740,2025-03-31,False
+54,Cliente 0054,Corporativo,F,60+,2024-04-07,Fortaleza,CE,Nordeste,955,Loja,False,14969.81,746,2025-01-10,True
+55,Cliente 0055,Atacado,Não informado,45-59,2024-06-06,Rio de Janeiro,RJ,Sudeste,616,App,False,906.7,632,2025-03-29,True
+56,Cliente 0056,Atacado,Não informado,35-44,2018-12-27,Goiânia,GO,Centro-Oeste,651,Site,False,8308.77,380,2025-07-22,True
+57,Cliente 0057,Atacado,F,35-44,2019-11-20,Belém,PA,Norte,198,Loja,False,4281.12,657,2025-06-29,True
+58,Cliente 0058,Varejo,F,18-24,2019-08-23,Manaus,AM,Norte,423,Site,False,15324.2,377,2025-04-01,True
+59,Cliente 0059,Atacado,M,60+,2024-07-01,Manaus,AM,Norte,679,App,True,12730.74,454,2025-08-14,False
+60,Cliente 0060,Corporativo,M,35-44,2024-08-19,Recife,PE,Nordeste,175,Loja,False,9312.32,358,2025-07-08,True
+61,Cliente 0061,Corporativo,F,60+,2024-08-30,Rio de Janeiro,RJ,Sudeste,746,Indicação,False,19107.51,342,2025-08-19,True
+62,Cliente 0062,Corporativo,F,35-44,2024-10-14,Goiânia,GO,Centro-Oeste,708,Site,True,9285.2,651,2025-02-13,True
+63,Cliente 0063,Varejo,F,45-59,2022-12-05,Belo Horizonte,MG,Sudeste,778,Site,False,18399.77,696,2025-07-29,True
+64,Cliente 0064,Corporativo,F,35-44,2018-09-27,Manaus,AM,Norte,521,Indicação,False,14612.81,917,2025-03-18,False
+65,Cliente 0065,Corporativo,F,35-44,2021-06-24,Goiânia,GO,Centro-Oeste,936,Site,False,18791.04,617,2025-10-14,False
+66,Cliente 0066,Varejo,Não informado,60+,2019-01-18,Porto Alegre,RS,Sul,926,App,False,6522.89,519,2025-06-24,True
+67,Cliente 0067,Varejo,F,25-34,2019-09-27,Recife,PE,Nordeste,194,Loja,False,11025.53,839,2025-01-20,True
+68,Cliente 0068,Varejo,Não informado,45-59,2019-09-24,Goiânia,GO,Centro-Oeste,302,Site,False,1352.0,673,2025-12-13,True
+69,Cliente 0069,Corporativo,M,45-59,2020-08-16,Recife,PE,Nordeste,783,App,True,15795.22,498,2025-07-08,True
+70,Cliente 0070,Atacado,M,35-44,2022-04-14,Goiânia,GO,Centro-Oeste,748,Indicação,True,16429.38,919,2025-03-12,True
+71,Cliente 0071,Corporativo,M,35-44,2024-03-21,São Paulo,SP,Sudeste,238,Loja,False,15380.78,579,2025-08-19,True
+72,Cliente 0072,Atacado,F,25-34,2023-01-22,Belo Horizonte,MG,Sudeste,540,Indicação,False,10289.14,541,2025-07-17,True
+73,Cliente 0073,Varejo,F,35-44,2019-02-10,Porto Alegre,RS,Sul,935,Site,False,6094.15,783,2025-12-23,True
+74,Cliente 0074,Atacado,M,60+,2018-01-22,Belém,PA,Norte,200,App,False,3415.63,923,2025-09-28,True
+75,Cliente 0075,Varejo,M,18-24,2018-07-15,Curitiba,PR,Sul,406,Indicação,False,16815.41,811,2025-11-02,True
+76,Cliente 0076,Corporativo,Não informado,25-34,2019-08-12,Manaus,AM,Norte,476,Loja,False,5191.0,726,2025-04-06,True
+77,Cliente 0077,Corporativo,M,18-24,2023-11-25,Rio de Janeiro,RJ,Sudeste,798,Loja,False,9667.63,950,2025-07-18,True
+78,Cliente 0078,Corporativo,F,35-44,2018-10-04,Curitiba,PR,Sul,543,Loja,False,14836.15,640,2025-03-10,False
+79,Cliente 0079,Atacado,Não informado,25-34,2023-03-19,Fortaleza,CE,Nordeste,997,Site,False,1730.46,768,2025-01-19,False
+80,Cliente 0080,Varejo,F,35-44,2021-06-24,São Paulo,SP,Sudeste,756,Indicação,False,15189.17,495,2025-05-27,False
+81,Cliente 0081,Corporativo,M,35-44,2019-05-25,São Paulo,SP,Sudeste,576,Indicação,False,17945.43,695,2025-06-23,True
+82,Cliente 0082,Corporativo,M,35-44,2023-10-28,Recife,PE,Nordeste,441,Indicação,False,12247.84,484,2025-10-07,False
+83,Cliente 0083,Varejo,M,35-44,2021-06-09,Rio de Janeiro,RJ,Sudeste,679,Indicação,False,9156.21,757,2025-01-22,True
+84,Cliente 0084,Corporativo,M,35-44,2018-08-23,Porto Alegre,RS,Sul,196,App,False,15123.01,463,2025-01-16,False
+85,Cliente 0085,Corporativo,M,18-24,2019-06-02,Goiânia,GO,Centro-Oeste,183,App,False,19014.61,333,2025-11-06,False
+86,Cliente 0086,Atacado,M,45-59,2018-11-11,Recife,PE,Nordeste,832,App,False,13166.43,555,2025-02-28,False
+87,Cliente 0087,Atacado,Não informado,45-59,2024-04-19,Belo Horizonte,MG,Sudeste,254,App,False,4684.12,926,2025-05-27,True
+88,Cliente 0088,Varejo,F,25-34,2018-10-31,Recife,PE,Nordeste,672,Indicação,True,16305.01,627,2025-12-08,False
+89,Cliente 0089,Corporativo,Não informado,35-44,2021-05-13,Rio de Janeiro,RJ,Sudeste,302,App,False,2866.57,505,2025-03-13,False
+90,Cliente 0090,Varejo,M,60+,2024-06-02,Recife,PE,Nordeste,577,Site,False,2181.2,616,2025-07-23,True
+91,Cliente 0091,Atacado,Não informado,45-59,2022-08-05,Belém,PA,Norte,831,Site,True,13025.6,760,2025-08-27,True
+92,Cliente 0092,Varejo,Não informado,60+,2020-01-16,Porto Alegre,RS,Sul,266,Loja,False,10602.99,611,2025-03-26,False
+93,Cliente 0093,Varejo,M,60+,2021-03-09,Belém,PA,Norte,204,Site,False,11241.41,428,2025-11-17,False
+94,Cliente 0094,Varejo,Não informado,25-34,2024-08-21,Fortaleza,CE,Nordeste,842,Site,False,14552.34,919,2025-06-22,True
+95,Cliente 0095,Varejo,F,18-24,2018-07-06,Goiânia,GO,Centro-Oeste,929,App,False,15455.7,726,2025-11-13,True
+96,Cliente 0096,Corporativo,Não informado,35-44,2021-05-22,Recife,PE,Nordeste,713,Indicação,False,1922.97,361,2025-03-22,True
+97,Cliente 0097,Atacado,F,35-44,2024-10-20,Recife,PE,Nordeste,285,App,False,17285.16,708,2025-03-08,True
+98,Cliente 0098,Corporativo,F,35-44,2020-09-17,Fortaleza,CE,Nordeste,691,App,False,3247.11,351,2025-05-29,True
+99,Cliente 0099,Atacado,F,25-34,2021-09-03,Goiânia,GO,Centro-Oeste,835,Site,False,10216.18,827,2025-08-28,True
+100,Cliente 0100,Atacado,F,18-24,2022-05-30,Curitiba,PR,Sul,747,Site,False,7381.45,351,2025-05-25,True
+101,Cliente 0101,Corporativo,M,35-44,2024-01-08,Manaus,AM,Norte,111,Indicação,False,5657.22,674,2025-07-26,False
+102,Cliente 0102,Varejo,Não informado,60+,2020-03-08,Salvador,BA,Nordeste,568,App,False,10332.98,863,2025-05-24,True
+103,Cliente 0103,Corporativo,Não informado,18-24,2019-06-12,Goiânia,GO,Centro-Oeste,226,App,False,7112.16,674,2025-03-15,False
+104,Cliente 0104,Atacado,Não informado,18-24,2018-07-05,Fortaleza,CE,Nordeste,142,App,False,10626.99,452,2025-11-07,True
+105,Cliente 0105,Atacado,Não informado,35-44,2019-10-28,Belo Horizonte,MG,Sudeste,609,App,False,10392.64,821,2025-09-30,True
+106,Cliente 0106,Atacado,M,18-24,2022-02-17,Goiânia,GO,Centro-Oeste,521,Indicação,False,16036.72,944,2025-01-14,True
+107,Cliente 0107,Corporativo,Não informado,60+,2020-07-21,Curitiba,PR,Sul,169,Indicação,False,12765.99,934,2025-07-14,False
+108,Cliente 0108,Varejo,F,60+,2019-03-27,Manaus,AM,Norte,340,Indicação,False,3452.91,508,2025-07-30,True
+109,Cliente 0109,Atacado,Não informado,18-24,2019-07-20,Goiânia,GO,Centro-Oeste,763,App,True,9828.23,685,2025-06-10,True
+110,Cliente 0110,Corporativo,M,60+,2021-12-22,Recife,PE,Nordeste,964,Indicação,False,5307.12,871,2025-06-02,False
+111,Cliente 0111,Atacado,Não informado,25-34,2023-06-26,Curitiba,PR,Sul,507,App,False,18722.47,580,2025-05-28,False
+112,Cliente 0112,Corporativo,M,45-59,2021-11-14,Manaus,AM,Norte,284,Loja,False,14425.76,654,2025-08-15,True
+113,Cliente 0113,Atacado,F,25-34,2024-01-16,Belém,PA,Norte,448,App,False,12505.7,900,2025-05-03,False
+114,Cliente 0114,Corporativo,F,25-34,2018-08-04,Manaus,AM,Norte,226,App,False,2460.63,440,2025-01-03,True
+115,Cliente 0115,Atacado,Não informado,45-59,2023-05-10,Belo Horizonte,MG,Sudeste,933,App,False,13095.01,391,2025-11-30,True
+116,Cliente 0116,Corporativo,Não informado,18-24,2019-12-19,Fortaleza,CE,Nordeste,632,Loja,True,8241.39,807,2025-04-06,True
+117,Cliente 0117,Varejo,F,35-44,2024-05-15,Curitiba,PR,Sul,871,App,False,19787.44,856,2025-09-26,True
+118,Cliente 0118,Corporativo,M,35-44,2020-02-29,Belo Horizonte,MG,Sudeste,245,Site,False,13141.56,490,2025-01-08,True
+119,Cliente 0119,Corporativo,Não informado,25-34,2019-12-20,Curitiba,PR,Sul,886,Indicação,False,2191.39,397,2025-04-05,True
+120,Cliente 0120,Atacado,F,18-24,2020-12-04,Recife,PE,Nordeste,593,Indicação,False,19103.68,609,2025-10-26,True

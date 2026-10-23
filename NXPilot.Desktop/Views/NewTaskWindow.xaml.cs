@@ -89,11 +89,11 @@ public partial class NewTaskWindow : Window
         else LoadSubjects(clone.Subject);
         Select(TaskModeBox, clone.AsTemplate ? "Hook" : "Online"); // clonar um hook cria outro hook
         Select(AgentBox, clone.Executor.ToString());
+        RefreshAgentModels(clone.Executor == ExecutorKind.Codex ? clone.CodexModel : clone.Model);
         Select(ReviewerBox, clone.Reviewer.ToString());
+        RefreshReviewerModels(clone.ReviewerModel ?? (clone.Reviewer == ReviewerKind.Codex ? clone.CodexModel : null));
         AutoFixBox.IsChecked = clone.AutoFixFindings;
         Select(GateLevelBox, clone.GateLevel.ToString());
-        Select(ModelBox, clone.Model ?? "");
-        if (clone.CodexModel is { Length: > 0 } codexModel) CodexModelBox.Text = codexModel;
         Title = T("Nova tarefa (clonada do Histórico)", "New task (cloned from History)", "Nueva tarea (clonada del Historial)");
         _workItem = clone.WorkItem; // o vínculo com o work item vem junto
     }
@@ -117,10 +117,6 @@ public partial class NewTaskWindow : Window
         MaxHeight = SystemParameters.WorkArea.Height - 40;
         var s = AppSettings.Load();
         RepoBox.Text = s.LastRepo ?? "";
-        // Antes da consulta à conta (e se ela falhar), o modelo testado já está na lista e escolhido.
-        CodexModelBox.ItemsSource = NXPilot.Agents.CodexAppServerAdapter.TestedModels.ToList();
-        CodexModelBox.Text = s.CodexModel is { Length: > 0 } saved ? saved : NXPilot.Agents.CodexAppServerAdapter.TestedModels[0];
-        Select(ModelBox, s.LastModel ?? "");
         Select(ReviewerBox, s.Reviewer ?? nameof(ReviewerKind.Codex));
         Select(VersioningBox, s.Versioning ?? nameof(VersioningMode.Local));
         UpdateVersioningHint();
@@ -134,7 +130,16 @@ public partial class NewTaskWindow : Window
         AgentClaudeItem.Content = "Claude Code" + (_claudeInstalled ? "" : notInstalled);
         AgentCodexItem.Content = "Codex" + (_codexInstalled ? "" : notInstalled);
         AgentNXAgenticItem.Content = "🚧 NXAgentic" + T(" — em construção", " — under construction", " — en construcción");
+        // Gate Databricks: o mesmo Claude Code, com o modelo do AI Gateway (só aparece configurado).
+        var gateway = NXPilot.Integrations.DatabricksAgentSettings.Load();
+        _databricksReady = _claudeInstalled && gateway.IsComplete;
+        _databricksDefault = gateway.ClaudeModel;
+        foreach (var (id, name) in gateway.Models) _databricksModels[id] = name;
+        if (gateway.ClaudeModel.Length > 0) _databricksModels.TryAdd(gateway.ClaudeModel, gateway.ClaudeModel);
+        AgentDatabricksItem.Visibility = ReviewerDatabricksItem.Visibility = gateway.IsComplete ? Visibility.Visible : Visibility.Collapsed;
         Select(AgentBox, s.Executor ?? (!_claudeInstalled && _codexInstalled ? nameof(ExecutorKind.Codex) : nameof(ExecutorKind.Claude)));
+        RefreshAgentModels(null);
+        RefreshReviewerModels(null);
         UpdateAgentHint();
 
         // "+ Opções" abre ou recolhido como a pessoa deixou na última tarefa.
@@ -164,14 +169,12 @@ public partial class NewTaskWindow : Window
         var tested = string.Join(", ", NXPilot.Agents.CodexAppServerAdapter.TestedModels);
         CodexModelHint.Text = T("Consultando os modelos da sua conta no Codex…", "Querying your account's Codex models…", "Consultando los modelos de Codex de su cuenta…");
         var models = await NXPilot.Agents.CodexAppServerAdapter.ListModelsAsync();
-        var typed = CodexModelBox.Text.Trim();
         // Testados primeiro (sempre na lista, mesmo fora da resposta da conta); depois os da conta.
-        CodexModelBox.ItemsSource = NXPilot.Agents.CodexAppServerAdapter.TestedModels
+        _codexModels = NXPilot.Agents.CodexAppServerAdapter.TestedModels
             .Concat(models.Select(m => m.Id)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        // Vazio, ou um modelo que a conta não aceita (ex.: o padrão do config.toml): volta para o testado.
-        if (typed.Length == 0 || (models.Count > 0 && !models.Any(m => string.Equals(m.Id, typed, StringComparison.OrdinalIgnoreCase))
-                                  && !NXPilot.Agents.CodexAppServerAdapter.TestedModels.Contains(typed, StringComparer.OrdinalIgnoreCase)))
-            CodexModelBox.Text = NXPilot.Agents.CodexAppServerAdapter.TestedModels[0];
+        // Combos do Codex (agente e/ou revisor) com a lista nova, mantendo o que estava escolhido.
+        if (SelectedExecutor == ExecutorKind.Codex) RefreshAgentModels(Picked(ModelBox, ModelCustomBox));
+        if (ReviewerTag == nameof(ReviewerKind.Codex)) RefreshReviewerModels(Picked(ReviewerModelBox, ReviewerModelCustomBox));
         CodexModelHint.Text = models.Count == 0
             ? T($"Não deu para listar (Codex instalado e logado?). Testado com o NXPilot: {tested}.", $"Could not list models (is Codex installed and signed in?). Tested with NXPilot: {tested}.", $"No se pudieron listar los modelos (¿Codex está instalado y con sesión iniciada?). Probado con NXPilot: {tested}.")
             : T($"{models.Count} modelo(s) da sua conta · testado com o NXPilot: {string.Join(", ", models.Where(m => m.Tested).Select(m => m.Id + " ✓").DefaultIfEmpty(tested + " (não está na sua lista)"))}",
@@ -180,6 +183,107 @@ public partial class NewTaskWindow : Window
     }
 
     private readonly bool _claudeInstalled, _codexInstalled;
+    /// <summary>Gate Databricks pronto (Claude Code instalado + Databricks Gate Agent completo).</summary>
+    private readonly bool _databricksReady;
+
+    // ------------------------------------------------------------ modelos (agente e revisor)
+
+    private const string CustomTag = "__custom__";
+    private List<string> _codexModels = NXPilot.Agents.CodexAppServerAdapter.TestedModels.ToList();
+    /// <summary>Modelos do Gate Databricks (nome no Unity Catalog → nome amigável), gravados pela extensão.</summary>
+    private readonly Dictionary<string, string> _databricksModels = [];
+    private readonly string _databricksDefault = "";
+    private bool _fillingModels;
+
+    /// <summary>Modelos de cada agente: (valor, rótulo). Valor vazio = o padrão daquele agente.</summary>
+    private IEnumerable<(string Value, string Label)> ModelsFor(string agent) => agent switch
+    {
+        nameof(ExecutorKind.Codex) => _codexModels.Select(m => (m, m)),
+        nameof(ExecutorKind.Databricks) => _databricksModels.Select(kv => (kv.Key, kv.Value == kv.Key ? kv.Key : $"{kv.Value} — {kv.Key}")),
+        _ => [("", (string)FindResource("NewTask_ModeloPadrao")), ("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku")],
+    };
+
+    /// <summary>
+    /// Enche a combo com os modelos do agente e escolhe <paramref name="value"/>; um modelo fora da lista vira
+    /// "Personalizado…", com o nome no campo de baixo (para um modelo que a lista não trouxe).
+    /// </summary>
+    private void FillModels(ComboBox box, TextBox custom, string agent, string? value)
+    {
+        _fillingModels = true;
+        box.Items.Clear();
+        foreach (var (v, label) in ModelsFor(agent)) box.Items.Add(new ComboBoxItem { Content = label, Tag = v });
+        box.Items.Add(new ComboBoxItem { Content = T("Personalizado… (digitar o nome)", "Custom… (type the name)", "Personalizado… (escribir el nombre)"), Tag = CustomTag });
+        var items = box.Items.OfType<ComboBoxItem>().ToList();
+        var match = items.FirstOrDefault(i => i.Tag as string != CustomTag && string.Equals(i.Tag as string, value ?? "", StringComparison.OrdinalIgnoreCase));
+        if (match == null && !string.IsNullOrWhiteSpace(value)) { box.SelectedItem = items[^1]; custom.Text = value; }
+        else box.SelectedItem = match ?? items[0];
+        custom.Visibility = (box.SelectedItem as ComboBoxItem)?.Tag as string == CustomTag ? Visibility.Visible : Visibility.Collapsed;
+        _fillingModels = false;
+    }
+
+    /// <summary>Modelo escolhido: o da lista, o digitado (Personalizado) ou "" (padrão do agente).</summary>
+    private static string Picked(ComboBox box, TextBox custom) =>
+        (box.SelectedItem as ComboBoxItem)?.Tag as string == CustomTag ? custom.Text.Trim() : (box.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+
+    private static bool IsCustom(ComboBox box) => (box.SelectedItem as ComboBoxItem)?.Tag as string == CustomTag;
+
+    private string ReviewerTag => (ReviewerBox.SelectedItem as ComboBoxItem)?.Tag as string ?? nameof(ReviewerKind.Codex);
+
+    /// <summary>Último modelo usado com cada agente (cada um lembra o seu).</summary>
+    private string? RememberedModel(string agent)
+    {
+        var s = AppSettings.Load();
+        return agent switch
+        {
+            nameof(ExecutorKind.Codex) => s.CodexModel is { Length: > 0 } c ? c : NXPilot.Agents.CodexAppServerAdapter.TestedModels[0],
+            nameof(ExecutorKind.Databricks) => s.DatabricksModel is { Length: > 0 } d ? d : _databricksDefault,
+            _ => s.LastModel,
+        };
+    }
+
+    private void RefreshAgentModels(string? value)
+    {
+        if (ModelBox == null || ModelCustomBox == null) return; // durante o InitializeComponent
+        var agent = SelectedExecutor.ToString();
+        FillModels(ModelBox, ModelCustomBox, agent, value ?? RememberedModel(agent));
+    }
+
+    private void RefreshReviewerModels(string? value)
+    {
+        if (ReviewerModelBox == null || ReviewerModelCustomBox == null) return;
+        var tag = ReviewerTag;
+        ReviewerModelBox.IsEnabled = tag != nameof(ReviewerKind.None);
+        if (tag == nameof(ReviewerKind.None)) { ReviewerModelBox.Items.Clear(); ReviewerModelCustomBox.Visibility = Visibility.Collapsed; return; }
+        var s = AppSettings.Load();
+        // O modelo do revisor da última tarefa vale se o revisor é o mesmo; senão, o último daquele agente (Claude: padrão da conta).
+        FillModels(ReviewerModelBox, ReviewerModelCustomBox, tag, value ?? (s.Reviewer == tag && s.ReviewerModel != null ? s.ReviewerModel
+            : tag == nameof(ReviewerKind.Claude) ? "" : RememberedModel(tag)));
+    }
+
+    private void OnModelChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_fillingModels || sender is not ComboBox box) return;
+        var custom = box == ModelBox ? ModelCustomBox : ReviewerModelCustomBox;
+        custom.Visibility = IsCustom(box) ? Visibility.Visible : Visibility.Collapsed;
+        if (IsCustom(box)) custom.Focus();
+        UpdateSummary();
+    }
+
+    private void OnReviewerChanged(object sender, SelectionChangedEventArgs e)
+    {
+        RefreshReviewerModels(null);
+        UpdateSummary();
+    }
+
+    private static string AgentDisplay(string agent) => agent switch
+    {
+        nameof(ExecutorKind.Codex) => "Codex",
+        nameof(ExecutorKind.Databricks) => NXPilot.Agents.ClaudeCodeAdapter.DatabricksName,
+        _ => "Claude Code",
+    };
+
+    private static string ModelSuffix(string? model) =>
+        model is { Length: > 0 } m ? $" ({m})" : T(" (padrão)", " (default)", " (predeterminado)");
 
     /// <summary>
     /// Claude Code sem login (precisa de assinatura paga) e Codex instalado (funciona com a conta
@@ -417,7 +521,12 @@ public partial class NewTaskWindow : Window
     private bool ConfigLooksReady()
     {
         var folderOk = SelectedVersioning == VersioningMode.Local ? SelectedSubject != null : Directory.Exists(Path.Combine(RepoBox.Text.Trim(), ".git")) || File.Exists(Path.Combine(RepoBox.Text.Trim(), ".git"));
-        var agentOk = !NXAgenticSelected && (SelectedExecutor == ExecutorKind.Codex ? _codexInstalled && CodexModelBox.Text.Trim().Length > 0 : _claudeInstalled);
+        var agentOk = !NXAgenticSelected && SelectedExecutor switch
+        {
+            ExecutorKind.Codex => _codexInstalled && Picked(ModelBox, ModelCustomBox).Length > 0,
+            ExecutorKind.Databricks => _databricksReady,
+            _ => _claudeInstalled,
+        };
         return folderOk && agentOk;
     }
 
@@ -426,7 +535,7 @@ public partial class NewTaskWindow : Window
     /// <summary>"📁 Local · testePilot01  ·  🤖 Claude Code (padrão da conta)  ·  🔍 revisor Codex (gpt-5.6-terra)"</summary>
     private void UpdateSummary()
     {
-        if (SummaryText == null || ReviewerBox == null || ModelBox == null || CodexModelBox == null) return; // durante o InitializeComponent
+        if (SummaryText == null || ReviewerBox == null || ModelBox == null || ReviewerModelBox == null || ModelCustomBox == null || ReviewerModelCustomBox == null) return; // durante o InitializeComponent
         // Local: o assunto (com o agrupador, "NXPilot › testePilot01") é uma lista no próprio resumo.
         // Git: o repositório vai no texto.
         var local = SelectedVersioning == VersioningMode.Local;
@@ -435,16 +544,9 @@ public partial class NewTaskWindow : Window
         SummarySubjectBox.ToolTip = SelectedSubject?.Path;
         var folder = local ? null
             : "📁 Git · " + (RepoBox.Text.Trim() is { Length: > 0 } repo ? Path.GetFileName(repo.TrimEnd('\\', '/')) : T("(escolha o repositório)", "(choose the repository)", "(elija el repositorio)"));
-        var codexModel = CodexModelBox.Text.Trim();
-        var agent = NXAgenticSelected ? "NXAgentic"
-            : SelectedExecutor == ExecutorKind.Codex ? "Codex" + (codexModel.Length > 0 ? $" ({codexModel})" : "")
-            : "Claude Code" + ((ModelBox.SelectedItem as ComboBoxItem)?.Tag is string { Length: > 0 } m ? $" ({m})" : T(" (padrão da conta)", " (account default)", " (predeterminado de la cuenta)"));
-        var reviewer = ((ReviewerBox.SelectedItem as ComboBoxItem)?.Tag as string) switch
-        {
-            "Claude" => "Claude",
-            "None" => T("nenhum", "none", "ninguno"),
-            _ => "Codex" + (codexModel.Length > 0 ? $" ({codexModel})" : ""),
-        };
+        var agent = NXAgenticSelected ? "NXAgentic" : AgentDisplay(SelectedExecutor.ToString()) + ModelSuffix(Picked(ModelBox, ModelCustomBox));
+        var reviewer = ReviewerTag == nameof(ReviewerKind.None) ? T("nenhum", "none", "ninguno")
+            : AgentDisplay(ReviewerTag) + ModelSuffix(Picked(ReviewerModelBox, ReviewerModelCustomBox));
         // Rótulo antes de cada valor: "Agente: Claude Code (…) · Revisor: Codex (…)".
         // Sem revisor não há achados para corrigir.
         var hasReviewer = (ReviewerBox.SelectedItem as ComboBoxItem)?.Tag as string != "None";
@@ -468,7 +570,18 @@ public partial class NewTaskWindow : Window
     private ExecutorKind SelectedExecutor =>
         Enum.TryParse<ExecutorKind>((AgentBox.SelectedItem as ComboBoxItem)?.Tag as string, out var kind) ? kind : ExecutorKind.Claude;
 
-    private void OnAgentChanged(object sender, SelectionChangedEventArgs e) => UpdateAgentHint();
+    private void OnAgentChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // Trocou o agente e o revisor é o mesmo: sugere o outro (revisão cruzada), se instalado — a escolha continua sua.
+        if (IsLoaded && !_editing && ReviewerBox != null)
+        {
+            var exec = SelectedExecutor;
+            if (exec == ExecutorKind.Codex && ReviewerTag == nameof(ReviewerKind.Codex) && _claudeInstalled) Select(ReviewerBox, nameof(ReviewerKind.Claude));
+            else if (exec == ExecutorKind.Claude && ReviewerTag == nameof(ReviewerKind.Claude) && _codexInstalled) Select(ReviewerBox, nameof(ReviewerKind.Codex));
+        }
+        RefreshAgentModels(null);
+        UpdateAgentHint();
+    }
 
     /// <summary>Explica, embaixo do Agente, que o gate vale igual e quem vai revisar.</summary>
     private void UpdateAgentHint()
@@ -477,9 +590,8 @@ public partial class NewTaskWindow : Window
         UpdateSummary();
         if (NXAgenticSelected) { AgentHint.Text = NXAgenticUnderConstruction; return; }
         var codex = SelectedExecutor == ExecutorKind.Codex;
-        ModelBox.IsEnabled = !codex; // o modelo do Claude só vale com o Claude executando (o do Codex fica abaixo)
-        ModelBox.ToolTip = codex ? T("Modelo do Claude Code — com o Codex executando, vale o \"Modelo do Codex\" abaixo.", "Claude Code model — with Codex executing, the \"Codex model\" below applies.", "Modelo de Claude Code — con Codex ejecutando, vale el \"Modelo de Codex\" de abajo.") : null;
-        var name = codex ? "Codex" : "Claude Code";
+        var databricks = SelectedExecutor == ExecutorKind.Databricks;
+        var name = codex ? "Codex" : databricks ? NXPilot.Agents.ClaudeCodeAdapter.DatabricksName : "Claude Code";
         var hint = T($"O {name} executa sob o mesmo gate: cada comando e arquivo passa pela cascata e pelas suas decisões.",
                      $"{name} runs under the same gate: every command and file goes through the cascade and your decisions.",
                      $"{name} se ejecuta bajo el mismo gate: cada comando y archivo pasa por la cascada y por sus decisiones.");
@@ -540,13 +652,13 @@ public partial class NewTaskWindow : Window
     /// <summary>Assunto com padrão gravado: agente, modelos e revisor voltam sozinhos.</summary>
     private void ApplySubjectDefaults()
     {
-        if (AgentBox == null || ReviewerBox == null || CodexModelBox == null) return; // durante o InitializeComponent
+        if (AgentBox == null || ReviewerBox == null || ReviewerModelBox == null) return; // durante o InitializeComponent
         if (SelectedVersioning == VersioningMode.Local && CurrentSubjectDefaults is { } d)
         {
             Select(AgentBox, d.Executor);
-            Select(ModelBox, d.Model ?? "");
+            RefreshAgentModels(d.Executor == nameof(ExecutorKind.Codex) ? d.CodexModel : d.Model);
             Select(ReviewerBox, d.Reviewer);
-            if (d.CodexModel is { Length: > 0 } codex) CodexModelBox.Text = codex;
+            RefreshReviewerModels(d.ReviewerModel ?? (d.Reviewer == nameof(ReviewerKind.Codex) ? d.CodexModel : null));
         }
         RefreshSubjectDefaultsState();
     }
@@ -555,10 +667,11 @@ public partial class NewTaskWindow : Window
     {
         if (SelectedSubject is not { } subject) return;
         if (NXAgenticSelected) { ErrorText.Text = NXAgenticUnderConstruction; ErrorText.Visibility = Visibility.Visible; return; }
-        var model = (ModelBox.SelectedItem as ComboBoxItem)?.Tag as string;
-        var defaults = new SubjectDefaults(SelectedExecutor.ToString(), string.IsNullOrEmpty(model) ? null : model,
-            (ReviewerBox.SelectedItem as ComboBoxItem)?.Tag as string ?? nameof(ReviewerKind.Codex),
-            CodexModelBox.Text.Trim() is { Length: > 0 } codex ? codex : null, DateTime.Now);
+        var model = Picked(ModelBox, ModelCustomBox);
+        var codex = SelectedExecutor == ExecutorKind.Codex;
+        var reviewerModel = Picked(ReviewerModelBox, ReviewerModelCustomBox);
+        var defaults = new SubjectDefaults(SelectedExecutor.ToString(), codex || model.Length == 0 ? null : model, ReviewerTag,
+            codex && model.Length > 0 ? model : null, DateTime.Now, reviewerModel.Length > 0 ? reviewerModel : null);
         AppSettings.Update(s => s.SubjectDefaults[subject.Path] = defaults);
         RefreshSubjectDefaultsState();
     }
@@ -589,8 +702,9 @@ public partial class NewTaskWindow : Window
             SubjectDefaultsState.Foreground = (Brush)Application.Current.FindResource("SecondaryTextBrush");
             return;
         }
-        var agent = d.Executor == nameof(ExecutorKind.Codex) ? "Codex" + (d.CodexModel is { } c ? $" ({c})" : "") : "Claude Code" + (d.Model is { } m ? $" ({m})" : "");
-        var reviewer = d.Reviewer switch { "Claude" => "Claude", "None" => T("nenhum", "none", "ninguno"), _ => "Codex" + (d.CodexModel is { } c2 ? $" ({c2})" : "") };
+        var agent = AgentDisplay(d.Executor) + ModelSuffix(d.Executor == nameof(ExecutorKind.Codex) ? d.CodexModel : d.Model);
+        var reviewer = d.Reviewer == nameof(ReviewerKind.None) ? T("nenhum", "none", "ninguno")
+            : AgentDisplay(d.Reviewer) + ModelSuffix(d.ReviewerModel ?? (d.Reviewer == nameof(ReviewerKind.Codex) ? d.CodexModel : null));
         SubjectDefaultsState.Text = T($"✔ Padrão de \"{SelectedSubject!.Name}\": Agente {agent} · Revisor {reviewer} — gravado em {d.SavedAt:dd/MM HH:mm}.",
                                       $"✔ Default for \"{SelectedSubject!.Name}\": Agent {agent} · Reviewer {reviewer} — saved {d.SavedAt:MM/dd HH:mm}.",
                                       $"✔ Predeterminado de \"{SelectedSubject!.Name}\": Agente {agent} · Revisor {reviewer} — guardado el {d.SavedAt:dd/MM HH:mm}.");
@@ -638,12 +752,22 @@ public partial class NewTaskWindow : Window
     private void OnCreateClick(object sender, RoutedEventArgs e)
     {
         var repo = RepoBox.Text.Trim();
-        var reviewer = Enum.Parse<ReviewerKind>((ReviewerBox.SelectedItem as ComboBoxItem)?.Tag as string ?? nameof(ReviewerKind.Codex));
+        var reviewer = Enum.Parse<ReviewerKind>(ReviewerTag);
         var executor = SelectedExecutor;
+        var agentModel = Picked(ModelBox, ModelCustomBox);
+        var reviewerModel = reviewer == ReviewerKind.None ? "" : Picked(ReviewerModelBox, ReviewerModelCustomBox);
         var versioning = SelectedVersioning;
         string? error = null;
         if (NXAgenticSelected) error = NXAgenticUnderConstruction;
-        else if (executor == ExecutorKind.Codex ? !_codexInstalled : !_claudeInstalled)
+        else if (executor == ExecutorKind.Databricks && !_databricksReady)
+            error = !_claudeInstalled
+                ? T("O Gate Databricks usa o Claude Code, que não foi encontrado nesta máquina. Instale o Claude Code (não precisa de login na Anthropic).",
+                    "Gate Databricks uses Claude Code, which was not found on this machine. Install Claude Code (no Anthropic sign-in needed).",
+                    "Gate Databricks usa Claude Code, que no se encontró en esta máquina. Instale Claude Code (no necesita iniciar sesión en Anthropic).")
+                : T("Configure o Gate Databricks em Configurar → Extensões → Databricks Gate Agent (workspace, PAT e modelo).",
+                    "Set up Gate Databricks in Settings → Extensions → Databricks Gate Agent (workspace, PAT and model).",
+                    "Configure Gate Databricks en Configurar → Extensiones → Databricks Gate Agent (workspace, PAT y modelo).");
+        else if (executor != ExecutorKind.Databricks && (executor == ExecutorKind.Codex ? !_codexInstalled : !_claudeInstalled))
             error = executor == ExecutorKind.Codex
                 ? T("O Codex não foi encontrado nesta máquina (PATH, NXProject ou extensão do VS Code). Instale e faça login, ou escolha o Claude Code.",
                     "Codex was not found on this machine (PATH, NXProject or VS Code extension). Install it and sign in, or choose Claude Code.",
@@ -660,8 +784,14 @@ public partial class NewTaskWindow : Window
                       "La carpeta no tiene .git — elija la raíz de un repositorio git, o use el versionado local.");
         else if (TitleBox.Text.Trim().Length == 0) error = T("Dê um título à tarefa.", "Give the task a title.", "Dé un título a la tarea.");
         else if (IntentBox.Text.Trim().Length < 10) error = T("Descreva a intenção (o que deve ser feito).", "Describe the intent (what should be done).", "Describa la intención (qué se debe hacer).");
-        else if (executor == ExecutorKind.Codex && CodexModelBox.Text.Trim().Length == 0)
+        else if (executor == ExecutorKind.Codex && agentModel.Length == 0)
             error = T("Com o Codex executando, informe o modelo do Codex (ex.: gpt-5.6-terra).", "With Codex executing, set the Codex model (e.g. gpt-5.6-terra).", "Con Codex como ejecutor, defina el modelo de Codex (p. ej., gpt-5.6-terra).");
+        else if ((IsCustom(ModelBox) && agentModel.Length == 0) || (reviewer != ReviewerKind.None && IsCustom(ReviewerModelBox) && reviewerModel.Length == 0))
+            error = T("Em \"Personalizado…\", digite o nome do modelo.", "In \"Custom…\", type the model name.", "En \"Personalizado…\", escriba el nombre del modelo.");
+        else if (reviewer == ReviewerKind.Databricks && !_databricksReady)
+            error = T("Para revisar com o Gate Databricks, configure-o em Configurar → Extensões → Databricks Gate Agent.",
+                "To review with Gate Databricks, set it up in Settings → Extensions → Databricks Gate Agent.",
+                "Para revisar con Gate Databricks, configúrelo en Configurar → Extensiones → Databricks Gate Agent.");
         // Texto vindo do DevOps/GitHub não passa pelo MaxLength da caixa: o limite vale aqui.
         else if (TitleBox.Text.Trim().Length > TitleMax || IntentBox.Text.Trim().Length > IntentMax || CriteriaBox.Text.Trim().Length > CriteriaMax)
             error = T($"Passou do limite de caracteres (título {TitleMax:N0}, intenção {IntentMax:N0}, critérios {CriteriaMax:N0}): veja o contador em vermelho e resuma.",
@@ -677,16 +807,22 @@ public partial class NewTaskWindow : Window
             return;
         }
 
-        var model = (ModelBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
-        var codexModel = CodexModelBox.Text.Trim();
+        // Codex: o modelo do agente (ou o do revisor Codex) vai no CodexModel, como antes; Claude e Gate Databricks no Model.
+        var codexModel = executor == ExecutorKind.Codex ? agentModel : reviewer == ReviewerKind.Codex ? reviewerModel : "";
+        var model = executor == ExecutorKind.Codex ? "" : agentModel;
         var subject = versioning == VersioningMode.Local ? SelectedSubject : null;
         AppSettings.Update(s =>
         {
             if (subject == null) s.LastRepo = repo;
             else s.LastSubject = subject.Name;
             s.Versioning = versioning.ToString();
-            s.LastModel = model;
-            s.CodexModel = codexModel;
+            switch (executor)
+            {
+                case ExecutorKind.Codex: s.CodexModel = agentModel; break;
+                case ExecutorKind.Databricks: s.DatabricksModel = agentModel; break;
+                default: s.LastModel = agentModel; break;
+            }
+            s.ReviewerModel = reviewerModel;
             s.Reviewer = reviewer.ToString();
             s.Executor = executor.ToString();
         });
@@ -697,6 +833,7 @@ public partial class NewTaskWindow : Window
             subject?.Name, subject?.Path, AsTemplate: IsHookMode, WorkItem: _workItem,
             AutoFixFindings: AutoFixBox.IsChecked == true && reviewer != ReviewerKind.None)
         {
+            ReviewerModel = reviewerModel.Length > 0 ? reviewerModel : null,
             ImageQueries = _imageQueries,
             GateLevel = Enum.TryParse<NXPilot.Risk.GateLevel>((GateLevelBox.SelectedItem as ComboBoxItem)?.Tag as string, out var gate) ? gate : NXPilot.Risk.GateLevel.Padrao,
         };

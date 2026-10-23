@@ -13,10 +13,14 @@ namespace NXPilot.Desktop.ViewModels;
 public enum TaskState { Preparing, Planning, AwaitingApproval, Executing, Verifying, Done, Failed, Discarded, Stopped, Armed }
 
 /// <summary>Quem revisa o resultado: Codex (somente leitura), o próprio Claude, ou ninguém.</summary>
-public enum ReviewerKind { Codex, Claude, None }
+/// <summary>Quem revisa (verificação cruzada). Databricks = Gate Databricks (Claude Code pelo AI Gateway).</summary>
+public enum ReviewerKind { Codex, Claude, None, Databricks }
 
-/// <summary>Quem executa a tarefa (planeja e escreve) — sempre sob o DecisionGate.</summary>
-public enum ExecutorKind { Claude, Codex }
+/// <summary>
+/// Quem executa a tarefa (planeja e escreve) — sempre sob o DecisionGate. Databricks = Gate Databricks:
+/// o Claude Code com o modelo no AI Gateway da Databricks (Extensões → Databricks Gate Agent).
+/// </summary>
+public enum ExecutorKind { Claude, Codex, Databricks }
 
 /// <summary>O que a pessoa preencheu no assistente de Nova tarefa.</summary>
 /// <param name="RepoPath">Raiz do repositório git, ou o repositório-sombra do assunto (modo local).</param>
@@ -31,6 +35,9 @@ public sealed record NewTaskInfo(string RepoPath, string Title, string Intent, s
     bool AsTemplate = false, string? TemplateId = null, NXPilot.Integrations.WorkItemLink? WorkItem = null,
     bool AutoFixFindings = false)
 {
+    /// <summary>Modelo do revisor (vazio = o padrão daquele agente). Antes só o Codex tinha modelo de revisor (CodexModel).</summary>
+    public string? ReviewerModel { get; init; }
+
     /// <summary>Rodadas automáticas de "analisar e corrigir achados" por tarefa (depois disso, você decide).</summary>
     public const int MaxAutoFixRounds = 2;
 
@@ -217,7 +224,12 @@ public sealed partial class TaskSession(NewTaskInfo info, string id) : Observabl
     };
 
     /// <summary>Nome do agente que executa ESTA tarefa (o escolhido na Nova tarefa ou na edição).</summary>
-    public string ExecutorName => Info.Executor == ExecutorKind.Codex ? "Codex" : "Claude Code";
+    public string ExecutorName => Info.Executor switch
+    {
+        ExecutorKind.Codex => "Codex",
+        ExecutorKind.Databricks => NXPilot.Agents.ClaudeCodeAdapter.DatabricksName,
+        _ => "Claude Code",
+    };
 
     /// <summary>Atualiza os textos calculados (troca de idioma, mudança de fase).</summary>
     public void RefreshTexts()

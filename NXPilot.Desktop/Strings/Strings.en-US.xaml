@@ -206,6 +206,7 @@
     <sys:String x:Key="NewTask_RevisorClaude">Claude — in a new session</sys:String>
     <sys:String x:Key="NewTask_RevisorNenhum">No verification</sys:String>
     <sys:String x:Key="NewTask_ModeloCodex">Codex model (one your account supports)</sys:String>
+    <sys:String x:Key="NewTask_ModeloRevisor">Reviewer model</sys:String>
     <sys:String x:Key="Hist_Titulo">Task history</sys:String>
     <sys:String x:Key="Hist_Subtitulo">Each task is kept with its plan, phases, verification, tokens and audit log. Opening shows the task on screen, where you can resume it, fix findings or apply the result.</sys:String>
     <sys:String x:Key="Hist_Data">Date</sys:String>
@@ -282,6 +283,13 @@
     <sys:String x:Key="Ext_PptNc">Include "non-commercial" licenses (CC BY-NC) — fine for class; turn off for material that is sold</sys:String>
     <sys:String x:Key="Ext_PowerBiComo">The agent edits the Power BI project (.pbip) as code — model in TMDL, report in PBIR — and NXPilot validates the files. To check the result, NXPilot opens the project in Power BI Desktop and captures the screen. It never clicks.</sys:String>
     <sys:String x:Key="Ext_PowerBiTestar">Open a .pbip and capture…</sys:String>
+    <sys:String x:Key="Ext_DbAgentComo">Claude Code runs through the Databricks AI Gateway: the models are the ones enabled in your workspace and usage stays under the Databricks contract. Approvals still go through the NXPilot gate. The PAT is its own (ai-gateway scope), separate from the SQL PAT, and never reaches the agent.</sys:String>
+    <sys:String x:Key="Ext_DbAgentHost">Workspace (empty = same as Databricks SQL)</sys:String>
+    <sys:String x:Key="Ext_DbAgentToken">PAT with the ai-gateway scope</sys:String>
+    <sys:String x:Key="Ext_DbAgentTestar">Test and list models</sys:String>
+    <sys:String x:Key="Ext_DbAgentModelo">Claude model</sys:String>
+    <sys:String x:Key="Ext_DbAgentComoPat">How to create the right PAT</sys:String>
+    <sys:String x:Key="Ext_DbAgentPassos" xml:space="preserve">1. In Databricks: your picture (top right) → Settings → Developer → Access tokens → Manage → Generate new token.&#10;2. Name: NXPilot Gate Databricks. Lifetime: what your company allows (e.g. 90 days).&#10;3. Scope: Other APIs. API scopes: only ai-gateway (shown as Unity Gateway). Do not leave it empty — empty means all APIs.&#10;4. Copy the token shown right away (starts with dapi; it is shown only once). The code in the token list is the ID, not the token.&#10;5. Paste it here and click Test and list models. A scope changed just now can take up to 10 minutes to apply.&#10;Use a PAT just for the agent — the Databricks SQL one stays separate.</sys:String>
     <sys:String x:Key="Ext_PowerBiWorkspace">Workspace for new reports</sys:String>
     <sys:String x:Key="Ext_PowerBiWorkspaceNome">Name</sys:String>
     <sys:String x:Key="Ext_PowerBiWorkspaceId">ID (optional)</sys:String>
@@ -305,6 +313,8 @@
     <sys:String x:Key="Cfg_Fechar">Close</sys:String>
     <sys:String x:Key="Cfg_Mcp">MCP NXPilot</sys:String>
     <sys:String x:Key="Cfg_McpNota">The extensions (Power BI, PowerPoint, Databricks, Git, e-mail, work items, Teams, Windows apps) become Claude Code and Codex tools in tasks — every call goes through the gate. When stopped, tasks start without it. The state is kept when NXPilot closes.</sys:String>
+    <sys:String x:Key="Cfg_McpScriptApi">Expose API for scripts (Python and others)</sys:String>
+    <sys:String x:Key="Cfg_McpScriptApiDica">Off (default): only tasks use the MCP. On: a script on this machine uses NXPilot tools in a folder, with "NxPilot.exe --mcp --workdir &lt;folder&gt;" (e.g. benchmarks/powerbi-tokens). Every call goes through the gate: low risk passes by itself, the rest shows in the panel and waits for you. Needs NXPilot open and the MCP running.</sys:String>
     <sys:String x:Key="Cfg_McpFerramentas">Show tools</sys:String>
     <sys:String x:Key="Cfg_PlanoRegrasVer">Show agents and planning rules</sys:String>
     <sys:String x:Key="Ext_JanelasLerApp">Read / monitor an app…</sys:String>

@@ -52,6 +52,9 @@ public sealed class ToolContext
     /// <summary>O projeto PBIP do worktree agora — procura de novo quando ele foi criado depois do início da tarefa.</summary>
     public PowerBiProject? PowerBiNow => PowerBi ?? PowerBiProject.Detect(Worktree);
 
+    /// <summary>Tema base do Power BI Desktop instalado (o app sabe onde fica); nulo = projeto novo sem tema (powerbi_fix_report depois).</summary>
+    public Func<string?>? PowerBiBaseTheme { get; init; }
+
     /// <summary>Ferramentas Power BI disponíveis: há um .pbip ou o Power BI Desktop está instalado.</summary>
     public bool PowerBiToolsAvailable => PowerBi != null || PowerBiInstalled;
     public Action<string>? Log { get; init; }

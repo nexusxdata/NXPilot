@@ -37,6 +37,11 @@
             <TextBlock x:Name="McpStatusText" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center"/>
         </DockPanel>
         <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap" Text="{DynamicResource Cfg_McpNota}"/>
+        <!-- API para scripts: desligada por padrão; ligada, um script local usa as ferramentas numa pasta — cada chamada pelo gate. -->
+        <CheckBox x:Name="McpScriptApiBox" Margin="0,8,0,0" Checked="OnMcpScriptApiChanged" Unchecked="OnMcpScriptApiChanged">
+            <TextBlock Text="{DynamicResource Cfg_McpScriptApi}" TextWrapping="Wrap"/>
+        </CheckBox>
+        <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="22,2,0,0" TextWrapping="Wrap" Text="{DynamicResource Cfg_McpScriptApiDica}"/>
         <Expander Header="{DynamicResource Cfg_McpFerramentas}" Margin="0,6,0,0" FontSize="12">
             <TextBlock x:Name="McpToolsText" TextWrapping="Wrap" FontSize="11" Margin="16,4,0,0"/>
         </Expander>

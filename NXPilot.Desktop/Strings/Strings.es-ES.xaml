@@ -206,6 +206,7 @@
     <sys:String x:Key="NewTask_RevisorClaude">Claude — en una sesión nueva</sys:String>
     <sys:String x:Key="NewTask_RevisorNenhum">Sin verificación</sys:String>
     <sys:String x:Key="NewTask_ModeloCodex">Modelo de Codex (el de su cuenta)</sys:String>
+    <sys:String x:Key="NewTask_ModeloRevisor">Modelo del revisor</sys:String>
     <sys:String x:Key="Hist_Titulo">Historial de tareas</sys:String>
     <sys:String x:Key="Hist_Subtitulo">Cada tarea se guarda con plan, fases, verificación, tokens y el log de auditoría. Abrir muestra la tarea en pantalla, donde puede reanudarla, corregir hallazgos o aplicar el resultado.</sys:String>
     <sys:String x:Key="Hist_Data">Fecha</sys:String>
@@ -282,6 +283,13 @@
     <sys:String x:Key="Ext_PptNc">Incluir licencias "no comercial" (CC BY-NC) — sirven para clase; desactívelo para material que se vende</sys:String>
     <sys:String x:Key="Ext_PowerBiComo">El agente edita el proyecto de Power BI (.pbip) como código — modelo en TMDL e informe en PBIR — y NXPilot valida los archivos. Para revisarlo, NXPilot abre el proyecto en Power BI Desktop y captura la pantalla. No hace clic en nada.</sys:String>
     <sys:String x:Key="Ext_PowerBiTestar">Abrir un .pbip y capturar…</sys:String>
+    <sys:String x:Key="Ext_DbAgentComo">Claude Code se ejecuta por el AI Gateway de Databricks: los modelos son los habilitados en su workspace y el consumo queda en el contrato de Databricks. Las aprobaciones siguen en el gate de NXPilot. El PAT es propio (alcance ai-gateway), separado del PAT de SQL, y nunca llega al agente.</sys:String>
+    <sys:String x:Key="Ext_DbAgentHost">Workspace (vacío = el mismo de Databricks SQL)</sys:String>
+    <sys:String x:Key="Ext_DbAgentToken">PAT con alcance ai-gateway</sys:String>
+    <sys:String x:Key="Ext_DbAgentTestar">Probar y listar modelos</sys:String>
+    <sys:String x:Key="Ext_DbAgentModelo">Modelo Claude</sys:String>
+    <sys:String x:Key="Ext_DbAgentComoPat">Cómo crear el PAT correcto</sys:String>
+    <sys:String x:Key="Ext_DbAgentPassos" xml:space="preserve">1. En Databricks: su foto (arriba a la derecha) → Configuración → Desarrollador → Tokens de acceso → Administrar → Generar nuevo token.&#10;2. Nombre: NXPilot Gate Databricks. Vigencia: la que permita su empresa (p. ej., 90 días).&#10;3. Ámbito: Otras API. Ámbitos de la API: solo ai-gateway (aparece como Unity Gateway). No lo deje vacío: vacío vale para todas las API.&#10;4. Copie el token que aparece en ese momento (empieza con dapi; solo se muestra una vez). El código de la lista de tokens es el ID, no el token.&#10;5. Péguelo aquí y haga clic en Probar y listar modelos. Un alcance cambiado ahora puede tardar hasta 10 minutos en aplicarse.&#10;Use un PAT solo para el agente; el de Databricks SQL sigue separado.</sys:String>
     <sys:String x:Key="Ext_PowerBiWorkspace">Workspace de nuevos PBI</sys:String>
     <sys:String x:Key="Ext_PowerBiWorkspaceNome">Nombre</sys:String>
     <sys:String x:Key="Ext_PowerBiWorkspaceId">ID (opcional)</sys:String>
@@ -305,6 +313,8 @@
     <sys:String x:Key="Cfg_Fechar">Cerrar</sys:String>
     <sys:String x:Key="Cfg_Mcp">MCP NXPilot</sys:String>
     <sys:String x:Key="Cfg_McpNota">Las extensiones (Power BI, PowerPoint, Databricks, Git, correo, work items, Teams, aplicaciones de Windows) se convierten en herramientas de Claude Code y Codex en las tareas; cada llamada pasa por el gate. Detenido, las tareas se inician sin él. El estado se guarda al cerrar NXPilot.</sys:String>
+    <sys:String x:Key="Cfg_McpScriptApi">Exponer API para scripts (Python y otros)</sys:String>
+    <sys:String x:Key="Cfg_McpScriptApiDica">Desactivado (predeterminado): solo las tareas usan el MCP. Activado: un script en esta máquina usa las herramientas de NXPilot en una carpeta, con "NxPilot.exe --mcp --workdir &lt;carpeta&gt;" (p. ej., benchmarks/powerbi-tokens). Cada llamada pasa por el gate: lo de riesgo bajo pasa solo, lo demás aparece en el panel y espera su decisión. Requiere NXPilot abierto y el MCP activo.</sys:String>
     <sys:String x:Key="Cfg_McpFerramentas">Ver herramientas</sys:String>
     <sys:String x:Key="Cfg_PlanoRegrasVer">Ver agentes y reglas del plan</sys:String>
     <sys:String x:Key="Ext_JanelasLerApp">Leer / monitorear una aplicación…</sys:String>

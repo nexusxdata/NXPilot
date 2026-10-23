@@ -158,10 +158,24 @@ public partial class SettingsWindow : Window
         if (McpHost.Running) McpHost.Stop(); else McpHost.Start();
     }
 
+    private bool _loadingScriptApi;
+
+    /// <summary>Liga/desliga a API para scripts na hora (grava e publica ou tira o pipe para scripts).</summary>
+    private void OnMcpScriptApiChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loadingScriptApi) return;
+        var on = McpScriptApiBox.IsChecked == true;
+        AppSettings.Update(s => s.McpScriptApi = on);
+        McpHost.PublishScriptApi();
+    }
+
     /// <summary>Estado, quantas ferramentas o agente vê e a lista por extensão (configurada ou não).</summary>
     private void RefreshMcp()
     {
         var on = McpHost.Running;
+        _loadingScriptApi = true;
+        McpScriptApiBox.IsChecked = McpHost.ScriptApiEnabled;
+        _loadingScriptApi = false;
         McpDot.Fill = on ? Brushes.SeaGreen : Brushes.Gray;
         McpButton.Content = on ? T("Parar", "Stop", "Detener") : T("Iniciar", "Start", "Iniciar");
 

@@ -21,10 +21,19 @@ namespace NXPilot.Agents;
 /// </summary>
 public sealed class ClaudeCodeAdapter(string hookCommand, string gatePipeName, string? executablePath = null) : IAgentAdapter
 {
-    public string Name => "Claude Code";
+    /// <summary>Nome do Gate Databricks (o mesmo Claude Code, com o modelo no AI Gateway da Databricks).</summary>
+    public const string DatabricksName = "Gate Databricks";
+
+    public string Name => Gateway != null ? DatabricksName : "Claude Code";
 
     /// <summary>MCP NXPilot desta execução (nulo = parado em Configurar: o Claude sobe sem ele).</summary>
     public McpLaunch? Mcp { get; set; }
+
+    /// <summary>
+    /// Gate Databricks: o modelo roda no AI Gateway da Databricks, pelo repasse local do NXPilot (o PAT não
+    /// chega ao agente). Sem login na Anthropic; o modelo é o escolhido em Extensões → Databricks Gate Agent.
+    /// </summary>
+    public ClaudeGateway? Gateway { get; set; }
 
     public string? ExecutablePath { get; } = executablePath ?? Locate();
 
@@ -75,9 +84,13 @@ public sealed class ClaudeCodeAdapter(string hookCommand, string gatePipeName, s
                 $"Claude Code {version} es demasiado antiguo para NXPilot (le falta la opción --permission-prompts, que garantiza que solo el gate permite las acciones). Actualícelo: en NXPilot-Setup, botón Actualizar de Claude Code, o ejecute 'claude update'. Ejecutable: {ExecutablePath}"), IsError: true);
             yield break;
         }
-        var blocked = false;
-        await foreach (var ev in AgentLogin.EnsureAsync(Name, ExecutablePath, ct)) { blocked |= ev.IsError; yield return ev; }
-        if (blocked) yield break;
+        // Pelo gateway não há login na Anthropic: quem autentica é o repasse do NXPilot.
+        if (Gateway == null)
+        {
+            var blocked = false;
+            await foreach (var ev in AgentLogin.EnsureAsync(Name, ExecutablePath, ct)) { blocked |= ev.IsError; yield return ev; }
+            if (blocked) yield break;
+        }
 
         var settingsPath = WriteHookSettings();
         var psi = new ProcessStartInfo(ExecutablePath)
@@ -97,11 +110,19 @@ public sealed class ClaudeCodeAdapter(string hookCommand, string gatePipeName, s
             psi.ArgumentList.Add(a);
         if (request.Mode == AgentMode.Plan) { psi.ArgumentList.Add("--permission-mode"); psi.ArgumentList.Add("plan"); }
         if (request.ResumeSessionId is { } resume) { psi.ArgumentList.Add("--resume"); psi.ArgumentList.Add(resume); }
-        if (!string.IsNullOrWhiteSpace(request.Model)) { psi.ArgumentList.Add("--model"); psi.ArgumentList.Add(request.Model); }
+        // Gateway: o modelo do Unity Catalog (o apelido da tarefa, ex. "opus", não existe lá).
+        var model = Gateway?.Model ?? request.Model;
+        if (!string.IsNullOrWhiteSpace(model)) { psi.ArgumentList.Add("--model"); psi.ArgumentList.Add(model); }
         // MCP NXPilot: só ele nesta tarefa (--strict-mcp-config ignora outros MCP do usuário).
         var mcpPath = Mcp?.WriteClaudeConfig();
         if (mcpPath != null) foreach (var a in new[] { "--mcp-config", mcpPath, "--strict-mcp-config" }) psi.ArgumentList.Add(a);
         psi.Environment[GatePipe.PipeEnvVar] = gatePipeName;
+        if (Gateway != null)
+        {
+            // Uma chave da Anthropic no ambiente teria prioridade sobre o gateway: fora.
+            psi.Environment.Remove("ANTHROPIC_API_KEY");
+            foreach (var (k, v) in DatabricksGatewayProxy.Environment(Gateway)) psi.Environment[k] = v;
+        }
 
         using var process = new Process { StartInfo = psi };
         process.Start();

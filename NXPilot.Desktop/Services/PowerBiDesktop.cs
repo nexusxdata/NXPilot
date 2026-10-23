@@ -103,13 +103,53 @@ public static class PowerBiDesktop
     }
 
     /// <summary>
-    /// Clica no botão Atualizar (Refresh) da faixa de opções e espera os dados carregarem. Falso se o botão
-    /// não foi achado (outro idioma ou layout). Usa a ação do próprio botão — não mexe no mouse.
+    /// Fecha (no X) só os avisos informativos conhecidos (<see cref="NXPilot.Integrations.PowerBiReport.InfoNotices"/>),
+    /// em janela à parte ou dentro da janela do relatório. Erro de carga nunca é fechado nem confirmado. Devolve o que fechou.
+    /// </summary>
+    public static List<string> DismissInfoNotices(WindowsUiService ui, WindowInfo main)
+    {
+        var closed = new List<string>();
+        for (var round = 0; round < 3; round++) // um aviso pode vir atrás do outro
+        {
+            var any = false;
+            try
+            {
+                foreach (var dialog in ui.ChildWindows(main))
+                    if (NXPilot.Integrations.PowerBiReport.InfoNoticeIn(ui.ReadText(dialog, 3000)) is { } what && TryClose(ui.Driver(dialog)))
+                    { closed.Add(what); any = true; }
+                if (!any && NXPilot.Integrations.PowerBiReport.InfoNoticeIn(ui.ReadText(main, 8000)) is { } inside && TryClose(ui.Driver(main)))
+                { closed.Add(inside); any = true; }
+            }
+            catch { /* janela mudou durante a leitura: tenta de novo na próxima volta */ }
+            if (!any) break;
+            Thread.Sleep(800);
+        }
+        return closed;
+    }
+
+    /// <summary>Botão X do aviso ("Close"/"Fechar"/"Cerrar"); só clica se houver exatamente um — nunca adivinha.</summary>
+    private static bool TryClose(IUiDriver driver)
+    {
+        foreach (var name in new[] { "Close", "Fechar", "Cerrar" })
+        {
+            var target = new UiTarget("Button", null, name);
+            if (driver.Count(target) != 1) continue;
+            driver.Click(target);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Clica no botão Atualizar (Refresh) da faixa de opções — ou, sem ele, no "Refresh now" das faixas amarelas
+    /// ("tables have incomplete or no data") — e espera os dados carregarem. Falso se nenhum foi achado. Usa a ação
+    /// do próprio botão — não mexe no mouse.
     /// </summary>
     public static async Task<bool> RefreshAsync(WindowsUiService ui, WindowInfo window, CancellationToken ct = default)
     {
         var driver = ui.Driver(window);
-        foreach (var name in new[] { "Refresh", "Atualizar", "Actualizar" })
+        // Faixa de opções primeiro; sem ela, o "Refresh now" da faixa amarela (só se houver um — nunca adivinha).
+        foreach (var name in new[] { "Refresh", "Atualizar", "Actualizar", "Refresh now", "Atualizar agora", "Actualizar ahora" })
         {
             var target = new UiTarget("Button", null, name);
             if (driver.Count(target) != 1) continue;

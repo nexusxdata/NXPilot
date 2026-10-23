@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+<style>.lab{font-size:22px;font-weight:600;fill:#1F2328}.row{font-size:19px;fill:#57606A}.val{font-size:19px;font-weight:600;fill:#1F2328}.small{font-size:15px;fill:#57606A}</style>
+<rect width="1280" height="720" fill="#FFFFFF"/><rect width="1280" height="10" fill="#1F6FEB"/>
+<text x="80" y="88" style="font-size:30px;font-weight:600;fill:#57606A">Power BI Desktop com o NXPilot</text>
+<text x="80" y="160" style="font-size:66px;font-weight:700;fill:#1F6FEB">42% menos tokens</text>
+<text x="80" y="204" style="font-size:26px;font-weight:600;fill:#1A7F37">54% menos custo</text>
+<text x="80" y="232" class="small">Mesmo pedido ao Claude Code (sonnet): relatório Power BI completo a partir de um fluxo de dados</text>
+<text x="80" y="254" class="small">5 tabelas, 8 medidas, 4 relacionamentos, 2 páginas, 21 visuais (dados fictícios)</text>
+<text x="80" y="302" class="lab">Tokens (total)</text>
+<text x="80" y="344" class="row">Sem NXPilot</text>
+<rect x="360" y="320" width="640" height="34" rx="6" fill="#9AA5B1"/>
+<text x="1012" y="344" class="val">478.691</text>
+<text x="80" y="390" class="row">Com NXPilot</text>
+<rect x="360" y="366" width="372" height="34" rx="6" fill="#1F6FEB"/>
+<text x="744" y="390" class="val">278.330</text>
+<text x="80" y="462" class="lab">Custo estimado (US$)</text>
+<text x="80" y="504" class="row">Sem NXPilot</text>
+<rect x="360" y="480" width="640" height="34" rx="6" fill="#9AA5B1"/>
+<text x="1012" y="504" class="val">US$ 0,25</text>
+<text x="80" y="550" class="row">Com NXPilot</text>
+<rect x="360" y="526" width="293" height="34" rx="6" fill="#1F6FEB"/>
+<text x="665" y="550" class="val">US$ 0,11</text>
+<text x="80" y="630" class="small">Tempo: 71s → 25s</text>
+<text x="80" y="662" class="small">Fonte do teste: github.com/nexusxdata/NXPilot/tree/main/benchmarks/powerbi-tokens</text>
+<text x="80" y="690" class="small">3 rodadas de cada · 2026-10-23 · 2.1.307 (Claude Code)</text>
+</svg>

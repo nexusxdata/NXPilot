@@ -162,32 +162,31 @@
                         <ComboBox x:Name="AgentBox" SelectedIndex="0" Padding="6,4" SelectionChanged="OnAgentChanged">
                             <ComboBoxItem x:Name="AgentClaudeItem" Content="Claude Code" Tag="Claude"/>
                             <ComboBoxItem x:Name="AgentCodexItem" Content="Codex" Tag="Codex"/>
+                            <ComboBoxItem x:Name="AgentDatabricksItem" Content="Gate Databricks" Tag="Databricks"/>
                             <ComboBoxItem x:Name="AgentNXAgenticItem" Content="NXAgentic" Tag="NXAgentic"/>
                         </ComboBox>
                     </StackPanel>
                     <StackPanel Grid.Column="2">
                         <TextBlock Text="{DynamicResource NewTask_Modelo}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
-                        <ComboBox x:Name="ModelBox" SelectedIndex="0" Padding="6,4" SelectionChanged="OnOptionChanged">
-                            <ComboBoxItem Content="{DynamicResource NewTask_ModeloPadrao}" Tag=""/>
-                            <ComboBoxItem Content="Opus" Tag="opus"/>
-                            <ComboBoxItem Content="Sonnet" Tag="sonnet"/>
-                            <ComboBoxItem Content="Haiku" Tag="haiku"/>
-                        </ComboBox>
+                        <!-- Modelos do agente escolhido; "Personalizado…" abre o campo para digitar um que não está na lista. -->
+                        <ComboBox x:Name="ModelBox" Padding="6,4" SelectionChanged="OnModelChanged"/>
+                        <TextBox x:Name="ModelCustomBox" Padding="4,3" Margin="0,4,0,0" Visibility="Collapsed" FontFamily="{StaticResource MonoFont}" FontSize="12" TextChanged="OnOptionChanged"/>
                     </StackPanel>
                     <TextBlock x:Name="AgentHint" Grid.Row="1" Grid.ColumnSpan="3" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0"/>
 
                     <StackPanel Grid.Row="2" Margin="0,10,0,0">
                         <TextBlock Text="{DynamicResource NewTask_Revisor}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
-                        <ComboBox x:Name="ReviewerBox" SelectedIndex="0" Padding="6,4" SelectionChanged="OnOptionChanged">
+                        <ComboBox x:Name="ReviewerBox" SelectedIndex="0" Padding="6,4" SelectionChanged="OnReviewerChanged">
                             <ComboBoxItem Content="{DynamicResource NewTask_RevisorCodex}" Tag="Codex"/>
                             <ComboBoxItem Content="{DynamicResource NewTask_RevisorClaude}" Tag="Claude"/>
+                            <ComboBoxItem x:Name="ReviewerDatabricksItem" Content="Gate Databricks" Tag="Databricks"/>
                             <ComboBoxItem Content="{DynamicResource NewTask_RevisorNenhum}" Tag="None"/>
                         </ComboBox>
                     </StackPanel>
                     <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,10,0,0">
-                        <TextBlock Text="{DynamicResource NewTask_ModeloCodex}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
-                        <ComboBox x:Name="CodexModelBox" IsEditable="True" Padding="4,3" FontFamily="{StaticResource MonoFont}" FontSize="12"
-                                  SelectionChanged="OnOptionChanged" LostFocus="OnOptionChanged"/>
+                        <TextBlock Text="{DynamicResource NewTask_ModeloRevisor}" Style="{StaticResource Muted}" Margin="0,0,0,2"/>
+                        <ComboBox x:Name="ReviewerModelBox" Padding="6,4" SelectionChanged="OnModelChanged"/>
+                        <TextBox x:Name="ReviewerModelCustomBox" Padding="4,3" Margin="0,4,0,0" Visibility="Collapsed" FontFamily="{StaticResource MonoFont}" FontSize="12" TextChanged="OnOptionChanged"/>
                     </StackPanel>
                 </Grid>
                 <TextBlock x:Name="CodexModelHint" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0"/>

@@ -113,6 +113,169 @@ if (args.Length > 2 && args[0] == "--pbi-copy-theme")
     return 0;
 }
 
+// --gateway-probe: quais rotas do AI Gateway da Databricks respondem com o PAT do Databricks Gate Agent (só status e nomes; nunca o token).
+if (args.Length > 0 && args[0] == "--gateway-probe" && OperatingSystem.IsWindows())
+{
+    var agent = NXPilot.Integrations.DatabricksAgentSettings.Load();
+    var token = agent.Token.Length > 0 ? agent.Token : NXPilot.Integrations.DatabricksSettings.Load().Token;
+    Console.WriteLine(agent.Token.Length > 0 ? "PAT: Databricks Gate Agent" : "PAT: Databricks SQL (o Databricks Gate Agent ainda sem PAT)");
+    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(40) };
+    http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+    http.DefaultRequestHeaders.Add("x-databricks-use-coding-agent-mode", "true");
+    http.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+    var host = agent.EffectiveHost;
+    Console.WriteLine("Acesso além do ai-gateway: " + (await NXPilot.Integrations.DatabricksAgent.HasExtraAccessAsync(host, token) switch { true => "SIM (PAT maior que o necessário)", false => "não", null => "não deu para saber" }));
+    // A chamada que o agente faz de verdade (1 token): a recusa da Databricks diz qual escopo falta.
+    var fast = agent.FastModel.Length > 0 ? agent.FastModel : agent.ClaudeModel;
+    try { await NXPilot.Integrations.DatabricksAgent.CallModelAsync(host, token, fast); Console.WriteLine($"== POST /v1/messages ({fast}): OK"); }
+    catch (Exception ex) { Console.WriteLine($"== POST /v1/messages ({fast}): {ex.Message}"); }
+    foreach (var path in new[] { "/ai-gateway/anthropic/v1/models", "/ai-gateway/codex/v1/models", "/api/2.0/serving-endpoints" })
+    {
+        try
+        {
+            var resp = await http.GetAsync(host + path);
+            var body = await resp.Content.ReadAsStringAsync();
+            Console.WriteLine($"== {path}: {(int)resp.StatusCode} ({body.Length} chars)");
+            var names = System.Text.RegularExpressions.Regex.Matches(body, "\"(?:id|name|display_name)\"\\s*:\\s*\"([^\"]+)\"").Select(m => m.Groups[1].Value).Distinct().ToList();
+            Console.WriteLine(names.Count > 0 ? "   " + string.Join(" | ", names.Take(80)) : "   " + body[..Math.Min(400, body.Length)]);
+        }
+        catch (Exception ex) { Console.WriteLine($"== {path}: {ex.GetType().Name} {ex.Message}"); }
+    }
+    return 0;
+}
+
+// --mcp-bench <pasta> [tema base]: MCP NXPilot por stdio SEM o app (benchmarks/powerbi-tokens): as mesmas ferramentas do Core, worktree = a
+// pasta. Gate como no app sem pessoa: BAIXO passa sozinho, o resto é negado (fail-closed). Nada fora da pasta é gravado.
+if (args.Length > 1 && args[0] == "--mcp-bench" && OperatingSystem.IsWindows())
+{
+    var work = Path.GetFullPath(args[1]);
+    // Só as ferramentas Power BI: nada de Databricks/Git/e-mail com os tokens desta máquina num teste.
+    var host = new NXPilot.Mcp.NxToolHost(NXPilot.Mcp.CoreTools.All().Where(t => t.Extension == "Power BI"));
+    var ctx = new NXPilot.Mcp.ToolContext
+    {
+        Worktree = work, PowerBiInstalled = true,
+        CitedPaths = [work],
+        // 3º argumento: tema base do Power BI Desktop instalado (o benchmark acha e passa; sem ele, projeto novo sem tema).
+        PowerBiBaseTheme = () => args.Length > 2 && File.Exists(args[2]) ? args[2] : null,
+        Approve = (_, risk, _) => Task.FromResult(risk.Level == NXPilot.Risk.RiskLevel.Baixo),
+    };
+    using var stdin = new StreamReader(Console.OpenStandardInput(), new System.Text.UTF8Encoding(false));
+    await using var stdout = new StreamWriter(Console.OpenStandardOutput(), new System.Text.UTF8Encoding(false)) { AutoFlush = true };
+    await NXPilot.Mcp.McpServer.RunAsync(stdin, stdout, (req, ct) => host.HandleAsync(req, ctx, ct));
+    return 0;
+}
+
+// --pbip-check <pasta>: o projeto PBIP da pasta é válido? JSON com problemas, tabelas e colunas (o mesmo que powerbi_validate).
+if (args.Length > 1 && args[0] == "--pbip-check" && OperatingSystem.IsWindows())
+{
+    var folder = Path.GetFullPath(args[1]);
+    var pbi = NXPilot.Integrations.PowerBiProject.Detect(folder);
+    var problems = pbi == null ? ["sem .pbip"] : NXPilot.Mcp.CoreTools.PbipProblems(pbi, folder);
+    var tmdl = pbi?.SemanticModelDir is { } sm && Directory.Exists(Path.Combine(sm, "definition"))
+        ? Directory.GetFiles(Path.Combine(sm, "definition"), "*.tmdl", SearchOption.AllDirectories) : [];
+    var tables = tmdl.Sum(f => File.ReadLines(f).Count(l => l.StartsWith("table ")));
+    var columns = tmdl.Sum(f => File.ReadLines(f).Count(l => l.StartsWith("\tcolumn ")));
+    var measures = tmdl.Sum(f => File.ReadLines(f).Count(l => l.StartsWith("\tmeasure ")));
+    var relationships = tmdl.Sum(f => File.ReadLines(f).Count(l => l.StartsWith("relationship ")));
+    // Visuais e páginas: report.json (formato antigo) ou PBIR (pages/*/visuals/*/visual.json).
+    int pages = 0, visuals = 0;
+    if (pbi?.ReportDir is { } rd)
+    {
+        var (rj, pbir) = NXPilot.Integrations.PowerBiReport.ReportJson(rd);
+        if (pbir)
+        {
+            var pagesDir = Path.Combine(rd, "definition", "pages");
+            pages = Directory.Exists(pagesDir) ? Directory.GetFiles(pagesDir, "page.json", SearchOption.AllDirectories).Length : 0;
+            visuals = Directory.Exists(pagesDir) ? Directory.GetFiles(pagesDir, "visual.json", SearchOption.AllDirectories).Length : 0;
+        }
+        else if (rj != null)
+            try
+            {
+                var secs = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(rj))?["sections"] as System.Text.Json.Nodes.JsonArray ?? [];
+                pages = secs.Count;
+                visuals = secs.Sum(s => (s?["visualContainers"] as System.Text.Json.Nodes.JsonArray)?.Count ?? 0);
+            }
+            catch (System.Text.Json.JsonException) { }
+    }
+    Console.WriteLine(new System.Text.Json.Nodes.JsonObject
+    {
+        ["pbip"] = pbi?.PbipPath, ["valid"] = pbi != null && problems.Count == 0, ["tables"] = tables, ["columns"] = columns,
+        ["measures"] = measures, ["relationships"] = relationships, ["pages"] = pages, ["visuals"] = visuals,
+        ["problems"] = new System.Text.Json.Nodes.JsonArray(problems.Take(20).Select(p => (System.Text.Json.Nodes.JsonNode?)p).ToArray()),
+    }.ToJsonString());
+    return 0;
+}
+
+// --gateway-codex [modelo] [pergunta]: o Codex CLI respondendo pelo repasse local + rota do Codex no AI Gateway (só a chave da sessão).
+if (args.Length > 0 && args[0] == "--gateway-codex" && OperatingSystem.IsWindows())
+{
+    var gw = NXPilot.Agents.DatabricksGatewayProxy.Start();
+    if (gw == null) { Console.WriteLine("Databricks Gate Agent incompleto."); return 1; }
+    var exe = NXPilot.Agents.CodexAdapter.Locate();
+    if (exe == null) { Console.WriteLine("Codex não encontrado."); return 1; }
+    var model = args.Length > 1 ? args[1] : "system.ai.gpt-oss-120b";
+    Console.WriteLine($"Repasse {gw.BaseUrl}{NXPilot.Agents.DatabricksGatewayProxy.CodexPrefix}/v1 · modelo {model}");
+    var psi = new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true, CreateNoWindow = true };
+    foreach (var a in new[] { "exec", "--skip-git-repo-check", "-m", model,
+        "-c", "model_provider=\"nxdatabricks\"",
+        "-c", "model_providers.nxdatabricks.name=\"Databricks\"",
+        "-c", $"model_providers.nxdatabricks.base_url=\"{gw.BaseUrl}{NXPilot.Agents.DatabricksGatewayProxy.CodexPrefix}/v1\"",
+        "-c", "model_providers.nxdatabricks.wire_api=\"responses\"",
+        "-c", "model_providers.nxdatabricks.env_key=\"NXPILOT_GATEWAY_KEY\"",
+        "-c", "model_providers.nxdatabricks.requires_openai_auth=false",
+        "-c", "model_providers.nxdatabricks.supports_websockets=false",
+        args.Length > 2 ? args[2] : "Responda só: OK, e o nome do seu modelo." }) psi.ArgumentList.Add(a);
+    psi.Environment["NXPILOT_GATEWAY_KEY"] = gw.SessionKey;
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    using var p = System.Diagnostics.Process.Start(psi)!;
+    p.StandardInput.Close();
+    var outText = await p.StandardOutput.ReadToEndAsync();
+    var errText = await p.StandardError.ReadToEndAsync();
+    await p.WaitForExitAsync();
+    Console.WriteLine($"código {p.ExitCode} em {sw.Elapsed.TotalSeconds:F1}s");
+    Console.WriteLine(outText.Trim());
+    var tail = errText.Trim();
+    Console.WriteLine("stderr: " + (tail.Length > 1500 ? tail[^1500..] : tail));
+    return p.ExitCode;
+}
+
+// --gateway-claude [pergunta]: o Claude Code respondendo pelo Gate Databricks (repasse local + AI Gateway). Sem ferramentas.
+if (args.Length > 0 && args[0] == "--gateway-claude" && OperatingSystem.IsWindows())
+{
+    var gw = NXPilot.Agents.DatabricksGatewayProxy.Start();
+    if (gw == null) { Console.WriteLine("Databricks Gate Agent incompleto (workspace, PAT e modelo)."); return 1; }
+    var exe = NXPilot.Agents.ClaudeCodeAdapter.Locate();
+    if (exe == null) { Console.WriteLine("Claude Code não encontrado."); return 1; }
+    Console.WriteLine($"Repasse {gw.BaseUrl} · modelo {gw.Model} · rápido {gw.FastModel}");
+    var psi = new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+    foreach (var a in new[] { "-p", args.Length > 1 ? args[1] : "Responda só: OK, e o nome do seu modelo.", "--model", gw.Model, "--tools", "" }) psi.ArgumentList.Add(a);
+    psi.Environment.Remove("ANTHROPIC_API_KEY");
+    foreach (var (k, v) in NXPilot.Agents.DatabricksGatewayProxy.Environment(gw)) psi.Environment[k] = v;
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    using var p = System.Diagnostics.Process.Start(psi)!;
+    var outText = await p.StandardOutput.ReadToEndAsync();
+    var errText = await p.StandardError.ReadToEndAsync();
+    await p.WaitForExitAsync();
+    Console.WriteLine($"código {p.ExitCode} em {sw.Elapsed.TotalSeconds:F1}s");
+    Console.WriteLine(outText.Trim());
+    if (errText.Trim().Length > 0) Console.WriteLine("stderr: " + errText.Trim());
+    return p.ExitCode;
+}
+
+// --pbi-from-dataflow <model.json> <pasta> <nome> [tema base] [pasta de CSV]: o que powerbi_from_dataflow faz (workspace da config). Diagnóstico.
+if (args.Length > 3 && args[0] == "--pbi-from-dataflow")
+{
+    var settings = NXPilot.Integrations.PowerBiSettings.Load();
+    var r = NXPilot.Integrations.PowerBiDataflowModel.Generate(args[1], args[2], args[3], settings.NewWorkspaceName, settings.NewWorkspaceId,
+        args.Length > 4 && args[4].Length > 0 ? args[4] : null, args.Length > 5 ? args[5] : null);
+    Console.WriteLine($"{r.PbipPath}: {r.Tables} tabelas, {r.Columns} colunas");
+    foreach (var n in r.Notes) Console.WriteLine("- " + n);
+    var pbi = NXPilot.Integrations.PowerBiProject.Detect(args[2])!;
+    foreach (var p in NXPilot.Integrations.PowerBiReport.Problems(pbi.ReportDir!, args[2]).Concat(NXPilot.Integrations.PowerBiReport.PlaceholderProblems(pbi.SemanticModelDir!, args[2])))
+        Console.WriteLine("PROBLEMA: " + p);
+    return 0;
+}
+
 // --db-comments <catálogo> <schema> <objeto> [destino]: comentários do objeto e o SQL para levá-los (databricks_comments), só leitura.
 if (args.Length > 3 && args[0] == "--db-comments" && OperatingSystem.IsWindows())
 {

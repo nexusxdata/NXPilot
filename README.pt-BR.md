@@ -45,7 +45,7 @@ E o controle continua com você. Cada chamada passa pelo mesmo gate de decisões
 |---|---|
 | `pptx_build`, `pptx_read`, `pptx_replace_text`, `pptx_add_slides`, `pptx_delete_slides`, `pptx_reorder_slides`, `pptx_render` | PowerPoint sem Python: slides descritos em JSON (capa, seção, tópicos, duas colunas, tabela, imagem, indicadores, barras), com o tema NX ou um modelo seu; o `pptx_render` devolve os slides como imagem para o agente olhar |
 | `xlsx_info`, `xlsx_read`, `xlsx_write_cells`, `xlsx_append_rows`, `xlsx_add_sheet`, `xlsx_build`, `xlsx_recalculate` | Excel sem Python: resumo do arquivo, leitura em tabela com limite de linhas (datas como data, fórmulas à vista), escrita de valores, fórmulas e datas mantendo a formatação, linhas que entram na tabela do Excel, aba nova e planilha nova; o `xlsx_recalculate` (com o Excel instalado) calcula as fórmulas e aponta as células com erro |
-| `powerbi_info`, `powerbi_validate`, `powerbi_capture` | Resumo do projeto PBIP, validação de JSON/TMDL e a imagem do relatório no Power BI Desktop |
+| `powerbi_from_dataflow`, `powerbi_build_report`, `powerbi_info`, `powerbi_validate`, `powerbi_capture` | Projeto PBIP novo direto do `model.json` de um fluxo de dados (tabelas, colunas, tipos, parâmetros, tema base; opcionalmente lendo CSV locais), o relatório inteiro numa chamada (medidas DAX, relacionamentos, páginas com segmentações, cartões, gráficos e tabelas — cada campo conferido no modelo), resumo do projeto, validação de JSON/TMDL e a imagem do relatório no Power BI Desktop |
 | `databricks_list`, `databricks_describe_table`, `databricks_sql` | Catálogo, tabelas e SQL; escrita vai para você |
 | `git_list_repositories`, `git_push`, `git_create_pull_request` | Push e PR vão para você |
 | `mail_list`, `mail_read`, `workitems_mine`, `teams_send`, `windows_list`, `windows_capture`, `windows_read_text` | E-mail (cada mensagem aprovada), work items, Teams (aprovado) e os apps do Windows que você liberou |
@@ -54,6 +54,19 @@ Só aparecem as extensões configuradas. No plano e na revisão, o MCP só lê. 
 
 Os pré-requisitos de cada extensão (token, PAT com escopo Code, app no Entra ID ou no Google Cloud) estão no README de cada pacote.
 As extensões foram testadas com servidores simulados, mas ainda não com contas reais.
+
+#### 📊 Medido: Power BI Desktop com o NXPilot
+
+O mesmo pedido ao Claude Code — um relatório Power BI Desktop completo a partir de um fluxo de dados: 5 tabelas, 8 medidas DAX,
+4 relacionamentos, 2 páginas e 21 visuais — **com o NXPilot gastou 42% menos tokens e 54% menos custo estimado, em um terço do tempo**
+(média de 3 rodadas de cada, Claude Sonnet).
+Tokens e custo são informados pelo próprio Claude Code; os dados são fictícios, gerados pelo script.
+
+[![Power BI Desktop com o NXPilot: 42% menos tokens](https://raw.githubusercontent.com/nexusxdata/NXPilot/main/benchmarks/powerbi-tokens/results/slide-pt.svg)](benchmarks/powerbi-tokens/results/RESULTS.md)
+
+Fonte do teste, método e como reproduzir: [`benchmarks/powerbi-tokens/`](benchmarks/powerbi-tokens/README.md) — inclusive o
+`gerar_relatorio.py`, que monta o mesmo relatório **sem nenhuma IA**, chamando as ferramentas do NXPilot. Scripts podem chamar as ferramentas do NXPilot:
+**⚙ Configurar → MCP NXPilot → "Expor API para scripts"** (desligada por padrão; toda chamada continua passando pelo gate).
 
 ## Edições (Open Core)
 

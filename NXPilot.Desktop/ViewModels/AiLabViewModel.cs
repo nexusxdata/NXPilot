@@ -218,8 +218,8 @@ public sealed partial class AiLabViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Ensina o ONNX: a ação vira exemplo rotulado na hora, sem re-treino. No produto, cada
-    /// decisão corrigida pelo usuário alimenta isso — o gate aprende a política da equipe.
+    /// Ensina o ONNX: a ação vira exemplo rotulado na hora, sem re-treino, e fica salva neste computador
+    /// (volta ao recarregar o gate ou reabrir o app). Falha ao gravar = nada muda, e a tela diz o motivo.
     /// </summary>
     [RelayCommand]
     private async Task Teach(string level)
@@ -227,10 +227,17 @@ public sealed partial class AiLabViewModel : ObservableObject
         if (_main.GateOnnx == null || string.IsNullOrWhiteSpace(TryText)) return;
         var lvl = Enum.Parse<RiskLevel>(level);
         var text = TryText.Trim();
-        await Task.Run(() => _main.GateOnnx.AddExample(new RiskExample(text, lvl)));
+        try { await Task.Run(() => _main.GateOnnx.AddExample(new RiskExample(text, lvl))); }
+        catch (Exception ex)
+        {
+            Status = T("Não foi possível salvar o exemplo: ", "Could not save the example: ", "No se pudo guardar el ejemplo: ") + ex.Message;
+            return;
+        }
         _main.AddLog(T("Você", "You", "Usted"), T("ensinou", "taught", "enseñó"), T($"{text} → {lvl} ({_main.GateOnnx.ExampleCount} exemplos)", $"{text} → {lvl} ({_main.GateOnnx.ExampleCount} examples)", $"{text} → {lvl} ({_main.GateOnnx.ExampleCount} ejemplos)"));
-        Status = T($"Aprendido: \"{text}\" = {lvl}. Ações parecidas agora tendem a {lvl}.", $"Learned: \"{text}\" = {lvl}. Similar actions now lean to {lvl}.", $"Aprendido: \"{text}\" = {lvl}. Las acciones parecidas ahora tienden a {lvl}.");
         await TryClassify();
+        Status = T($"Aprendido e salvo neste computador: \"{text}\" = {lvl}. Ações parecidas agora tendem a {lvl}.",
+            $"Learned and saved on this computer: \"{text}\" = {lvl}. Similar actions now lean to {lvl}.",
+            $"Aprendido y guardado en este equipo: \"{text}\" = {lvl}. Las acciones parecidas ahora tienden a {lvl}.");
     }
 
     public static string ShortEngine(string engine) =>

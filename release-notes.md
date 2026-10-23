@@ -15,6 +15,33 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**☁ Gate Databricks — o Claude Code pelo AI Gateway da Databricks**
+
+- Agente novo: o mesmo Claude Code, com o modelo rodando no **AI Gateway do seu workspace Databricks** (modelos liberados no Unity Catalog, consumo no contrato da Databricks). Aprovações continuam no gate do NXPilot.
+- Extensão **Databricks Gate Agent** (Configurar → Extensões): workspace, PAT próprio (só o escopo **ai-gateway**) e a lista de modelos do gateway; o passo a passo do PAT certo está na tela, e o teste avisa se o PAT tem acesso além do necessário (ou se colaram o ID do token).
+- O PAT **nunca chega ao agente**: o Claude fala com um repasse local do NXPilot, que só encaminha chamadas de modelo.
+- Pode ser agente ou revisor na Nova tarefa.
+
+**🤖 Nova tarefa: modelo do agente e do revisor**
+
+- Agente e revisor com **combo de modelo** cada um (Claude Code, Codex ou Gate Databricks), com **"Personalizado…"** para digitar um modelo que não está na lista. Cada agente lembra o último modelo usado; o padrão do assunto guarda também o modelo do revisor.
+- O **revisor escolhido é respeitado** (mesmo agente = sessão nova, somente leitura); ao trocar o agente, o outro é sugerido como revisor. O catálogo de modelos do Codex vem completo (paginação). *Contribuição de @alannascimento-svg (PR #1).*
+
+**📊 Power BI: relatório completo sem script**
+
+- `powerbi_from_dataflow`: projeto PBIP direto do `model.json` de um fluxo de dados (tabelas, colunas, tipos, parâmetros de workspace e fluxo, tema base) — opcionalmente lendo **CSV locais** para testar sem o serviço.
+- `powerbi_build_report`: o relatório inteiro numa chamada — medidas DAX, relacionamentos e páginas com segmentações, cartões, gráficos e tabelas; cada campo é conferido no modelo antes de gravar.
+- **Medido:** o mesmo pedido ao Claude Code (relatório completo: 5 tabelas, 8 medidas, 4 relacionamentos, 2 páginas, 21 visuais) gastou **42% menos tokens e 54% menos custo estimado** com o NXPilot, em um terço do tempo. Teste e como reproduzir em `benchmarks/powerbi-tokens/` — inclusive `gerar_relatorio.py`, que monta o mesmo relatório **sem IA**.
+- Conferência no Power BI Desktop fecha avisos informativos (ex.: fim dos mapas do Bing) e usa o "Refresh now" quando não acha o Atualizar. Scripts que o agente precisar escrever ficam na pasta `scripts/` do PBI.
+
+**🔌 MCP NXPilot: API para scripts**
+
+- Configurar → MCP NXPilot → **"Expor API para scripts"** (desligada por padrão): um script local (Python etc.) usa as ferramentas do NXPilot numa pasta, com `NxPilot.exe --mcp --workdir <pasta>`. Cada chamada passa pelo gate.
+
+**🧪 Laboratório IA**
+
+- Os exemplos ensinados **ficam salvos** neste computador e voltam ao recarregar o gate ou reabrir o app; corrigir o rótulo não duplica. *Contribuição de @alannascimento-svg (PR #2).*
+
 **🛠 Ferramentas → Amostra de dados (Databricks)**
 
 - Item novo no menu, antes de Configurar. Consulta **só de leitura**, com no máximo **50 registros** (o `LIMIT 50` entra sempre) — para conferir dados, não para extrair.

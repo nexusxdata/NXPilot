@@ -302,6 +302,73 @@ public static class CoreTools
         yield return PowerBiStyleTool();
         yield return new NxTool
         {
+            Name = "powerbi_from_dataflow", Extension = "Power BI", Available = c => c.PowerBiToolsAvailable,
+            Description = "CREATE a new PBIP project from a Power BI dataflow (Gen1) model.json — the JSON the user exported or cited: one import table per entity " +
+                          "(every column with its type) reading the entity published by the dataflow (PowerPlatform.Dataflows), parameters for workspace (ID or name, " +
+                          "from the NXPilot settings unless given) and dataflow name, a report with one empty page and the base theme, and .gitignore for the local cache. " +
+                          "Use it INSTEAD of writing a script to generate the TMDL. Then add measures/relationships/pages, powerbi_validate and powerbi_capture.",
+            Schema = NxTool.ParseSchema("""
+                {"type":"object","required":["dataflow","name"],"properties":{
+                  "dataflow":{"type":"string","description":"Path of the dataflow model.json (in the worktree or cited in the task)"},
+                  "name":{"type":"string","description":"Project name (the .pbip file name), e.g. Sales_Report"},
+                  "folder":{"type":"string","description":"Folder in the worktree for the project, default the worktree root"},
+                  "workspace_name":{"type":"string","description":"Workspace name; default the one configured in NXPilot (powerbi_info)"},
+                  "workspace_id":{"type":"string","description":"Workspace ID; default the one configured in NXPilot"},
+                  "local_data_folder":{"type":"string","description":"Optional folder with one CSV per entity (e.g. the dataflow sample): the tables read these files (test/demo without access to the workspace); without it the tables read the dataflow. One source per table, so Power BI does not ask for privacy levels"}}}
+                """),
+            Risk = (a, c) => c.PathRisk(Str(a, "dataflow"), write: false) is { Level: not NXPilot.Risk.RiskLevel.Baixo } read ? read : c.PathRisk(Str(a, "folder") ?? ".", write: true),
+            Run = (a, c, _) =>
+            {
+                var settings = NXPilot.Integrations.PowerBiSettings.Load();
+                var folder = c.Resolve(Str(a, "folder") ?? ".");
+                var result = NXPilot.Integrations.PowerBiDataflowModel.Generate(c.Resolve(Req(a, "dataflow")), folder, Req(a, "name").Trim(),
+                    Str(a, "workspace_name") ?? settings.NewWorkspaceName, Str(a, "workspace_id") ?? settings.NewWorkspaceId,
+                    c.PowerBiBaseTheme?.Invoke(), Str(a, "local_data_folder") is { Length: > 0 } csv ? c.Resolve(csv) : null);
+                var text = NxText.T($"Criado {Path.GetRelativePath(c.Worktree, result.PbipPath)}: {result.Tables} tabelas, {result.Columns} colunas, relatório com uma página vazia.",
+                    $"Created {Path.GetRelativePath(c.Worktree, result.PbipPath)}: {result.Tables} tables, {result.Columns} columns, report with one empty page.",
+                    $"Creado {Path.GetRelativePath(c.Worktree, result.PbipPath)}: {result.Tables} tablas, {result.Columns} columnas, informe con una página vacía.");
+                if (result.Notes.Count > 0) text += "\n- " + string.Join("\n- ", result.Notes);
+                return Task.FromResult(ToolResult.Text(text + "\n" + NxText.T("Agora: medidas, relacionamentos e páginas; depois powerbi_validate e powerbi_capture.",
+                    "Next: measures, relationships and pages; then powerbi_validate and powerbi_capture.", "Ahora: medidas, relaciones y páginas; luego powerbi_validate y powerbi_capture.")));
+            },
+        };
+        yield return new NxTool
+        {
+            Name = "powerbi_build_report", Extension = "Power BI", Available = c => c.PowerBiToolsAvailable,
+            Description = "Build the REPORT of the PBIP project in one call, from a JSON description — measures (DAX), relationships and pages with visuals " +
+                          "(card, slicer, clusteredColumnChart, clusteredBarChart, lineChart, donutChart, pieChart, tableEx, lineClusteredColumnComboChart, textbox). " +
+                          "Fields are written as Table[column] or [Measure]; every field is checked against the model before anything is written (unknown field = clear error, nothing changed). " +
+                          "Visuals are placed automatically (slicers on top, cards below, charts in two columns) unless x/y/width/height are given. " +
+                          "Use it INSTEAD of writing report JSON or scripts. Works on projects created by powerbi_from_dataflow. Then powerbi_validate and powerbi_capture.",
+            Schema = NxTool.ParseSchema("""
+                {"type":"object","properties":{
+                  "measures":{"type":"array","items":{"type":"object","required":["table","name","expression"],"properties":{
+                    "table":{"type":"string"},"name":{"type":"string"},"expression":{"type":"string","description":"DAX"},
+                    "format":{"type":"string","description":"Format string, e.g. \"R$\" #,0.00 or 0.0%"},"folder":{"type":"string"}}}},
+                  "relationships":{"type":"array","items":{"type":"object","required":["from","to"],"properties":{
+                    "from":{"type":"string","description":"Fact column, e.g. Sales[product_id] (many side)"},
+                    "to":{"type":"string","description":"Dimension key, e.g. Products[product_id] (one side)"}}}},
+                  "pages":{"type":"array","items":{"type":"object","required":["name","visuals"],"properties":{
+                    "name":{"type":"string"},
+                    "visuals":{"type":"array","items":{"type":"object","required":["type"],"properties":{
+                      "type":{"type":"string"},"title":{"type":"string"},"text":{"type":"string","description":"textbox only"},
+                      "category":{"type":"string","description":"Axis/legend field, e.g. Sales[month]"},
+                      "values":{"type":"array","items":{"type":"string"},"description":"Values: measures or columns (slicer/table: the columns shown)"},
+                      "line_values":{"type":"array","items":{"type":"string"},"description":"Combo chart: the line values"},
+                      "mode":{"type":"string","description":"Slicer: Dropdown (default) or Basic"},
+                      "x":{"type":"number"},"y":{"type":"number"},"width":{"type":"number"},"height":{"type":"number"}}}}}}}}}
+                """),
+            Risk = (_, c) => c.PathRisk(c.PowerBiNow?.PbipPath ?? ".", write: true),
+            Run = (a, c, _) =>
+            {
+                if (c.PowerBiNow is not { } pbi) return Task.FromResult(NoPbip());
+                var result = PowerBiReportBuilder.Build(pbi, a);
+                return Task.FromResult(ToolResult.Text(result + " " + NxText.T("Agora rode powerbi_validate e powerbi_capture.",
+                    "Now run powerbi_validate and powerbi_capture.", "Ahora ejecute powerbi_validate y powerbi_capture.")));
+            },
+        };
+        yield return new NxTool
+        {
             Name = "powerbi_info", Extension = "Power BI", ReadOnly = true, Available = c => c.PowerBiToolsAvailable,
             Description = "Summary of the PBIP project in the worktree: report pages (with visual count), tables, measures and relationships — with the file of each — " +
                           "and the workspace the user configured for new Power BI reports. Call it BEFORE creating a new PBIP to get that workspace.",
@@ -381,7 +448,7 @@ public static class CoreTools
             .Where(f => !f.Contains(Path.DirectorySeparatorChar + ".pbi" + Path.DirectorySeparatorChar))
             .Append(pbi.PbipPath);
 
-    internal static List<string> PbipProblems(PowerBiProject pbi, string worktree)
+    public static List<string> PbipProblems(PowerBiProject pbi, string worktree)
     {
         var problems = new List<string>();
         foreach (var file in ProjectFiles(pbi))

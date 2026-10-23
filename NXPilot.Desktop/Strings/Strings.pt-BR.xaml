@@ -206,6 +206,7 @@
     <sys:String x:Key="NewTask_RevisorClaude">Claude — numa sessão nova</sys:String>
     <sys:String x:Key="NewTask_RevisorNenhum">Sem verificação</sys:String>
     <sys:String x:Key="NewTask_ModeloCodex">Modelo do Codex (o da sua conta)</sys:String>
+    <sys:String x:Key="NewTask_ModeloRevisor">Modelo do revisor</sys:String>
     <sys:String x:Key="Hist_Titulo">Histórico de tarefas</sys:String>
     <sys:String x:Key="Hist_Subtitulo">Cada tarefa fica guardada com plano, fases, verificação, tokens e o log de auditoria. Abrir mostra a tarefa na tela, onde dá para retomar, corrigir achados ou aplicar o resultado.</sys:String>
     <sys:String x:Key="Hist_Data">Data</sys:String>
@@ -282,6 +283,13 @@
     <sys:String x:Key="Ext_PptNc">Incluir licenças "não comercial" (CC BY-NC) — servem para aula; desligue para material vendido</sys:String>
     <sys:String x:Key="Ext_PowerBiComo">O agente edita o projeto Power BI (.pbip) como código — modelo em TMDL e relatório em PBIR — e o NXPilot valida os arquivos. Para conferir, o NXPilot abre o projeto no Power BI Desktop e captura a tela. Não clica em nada.</sys:String>
     <sys:String x:Key="Ext_PowerBiTestar">Abrir um .pbip e capturar…</sys:String>
+    <sys:String x:Key="Ext_DbAgentComo">O Claude Code roda pelo AI Gateway da Databricks: os modelos são os liberados no seu workspace e o consumo fica no contrato da Databricks. As aprovações continuam no gate do NXPilot. O PAT é próprio (escopo ai-gateway), separado do PAT do SQL, e nunca vai para o agente.</sys:String>
+    <sys:String x:Key="Ext_DbAgentHost">Workspace (vazio = o mesmo do Databricks SQL)</sys:String>
+    <sys:String x:Key="Ext_DbAgentToken">PAT com escopo ai-gateway</sys:String>
+    <sys:String x:Key="Ext_DbAgentTestar">Testar e listar modelos</sys:String>
+    <sys:String x:Key="Ext_DbAgentModelo">Modelo Claude</sys:String>
+    <sys:String x:Key="Ext_DbAgentComoPat">Como criar o PAT certo</sys:String>
+    <sys:String x:Key="Ext_DbAgentPassos" xml:space="preserve">1. No Databricks: sua foto (canto superior direito) → Configurações → Desenvolvedor → Tokens de acesso → Gerenciar → Gerar novo token.&#10;2. Nome: NXPilot Gate Databricks. Validade: a que a sua empresa permite (ex.: 90 dias).&#10;3. Âmbito: Outras APIs. Âmbitos da API: só ai-gateway (aparece como Unity Gateway). Não deixe vazio — vazio vale para todas as APIs.&#10;4. Copie o token que aparece na hora (começa com dapi; ele só é mostrado uma vez). O código da lista de tokens é o ID, não o token.&#10;5. Cole aqui e clique em Testar e listar modelos. Escopo trocado agora pode levar até 10 minutos para valer.&#10;Use um PAT só para o agente — o do Databricks SQL continua separado.</sys:String>
     <sys:String x:Key="Ext_PowerBiWorkspace">Workspace de novos PBI</sys:String>
     <sys:String x:Key="Ext_PowerBiWorkspaceNome">Nome</sys:String>
     <sys:String x:Key="Ext_PowerBiWorkspaceId">ID (opcional)</sys:String>
@@ -305,6 +313,8 @@
     <sys:String x:Key="Cfg_Fechar">Fechar</sys:String>
     <sys:String x:Key="Cfg_Mcp">MCP NXPilot</sys:String>
     <sys:String x:Key="Cfg_McpNota">As extensões (Power BI, PowerPoint, Databricks, Git, e-mail, work items, Teams, apps do Windows) viram ferramentas do Claude Code e do Codex nas tarefas — cada chamada passa pelo gate. Parado, as tarefas sobem sem ele. O estado fica guardado ao fechar o NXPilot.</sys:String>
+    <sys:String x:Key="Cfg_McpScriptApi">Expor API para scripts (Python e outros)</sys:String>
+    <sys:String x:Key="Cfg_McpScriptApiDica">Desligado (padrão): só as tarefas usam o MCP. Ligado: um script nesta máquina usa as ferramentas do NXPilot numa pasta, com "NxPilot.exe --mcp --workdir &lt;pasta&gt;" (ex.: benchmarks/powerbi-tokens). Cada chamada passa pelo gate: o que é baixo passa sozinho, o resto aparece no painel e espera você. Precisa do NXPilot aberto e do MCP ligado.</sys:String>
     <sys:String x:Key="Cfg_McpFerramentas">Ver ferramentas</sys:String>
     <sys:String x:Key="Cfg_PlanoRegrasVer">Ver agentes e regras do plano</sys:String>
     <sys:String x:Key="Ext_JanelasLerApp">Ler / monitorar um app…</sys:String>

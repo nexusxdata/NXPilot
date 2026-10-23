@@ -120,6 +120,17 @@ public static class DesktopTools
                             "Power BI no se cerró (quizá pregunta si guardar). Pida al usuario que lo cierre e intente de nuevo."));
                     open = await PowerBiDesktop.OpenAndCaptureAsync(pbi.PbipPath, png, ct);
                 }
+                // Aviso informativo conhecido (ex.: fim dos mapas do Bing) cobre o relatório: fecha no X e captura de novo.
+                if (open != null)
+                    using (var ui = new WindowsUiService(WindowsUiPolicy.PowerBiOnly))
+                        if (PowerBiDesktop.DismissInfoNotices(ui, open) is { Count: > 0 } closed)
+                        {
+                            await Task.Delay(800, ct);
+                            ui.Capture(open, png);
+                            note = (note.Length > 0 ? note + " " : "") + NxText.T($"Fechei o aviso informativo do Power BI ({string.Join("; ", closed)}) — não é erro.",
+                                $"Closed Power BI's informational notice ({string.Join("; ", closed)}) — not an error.",
+                                $"Cerré el aviso informativo de Power BI ({string.Join("; ", closed)}) — no es un error.");
+                        }
                 var (img, mime) = Shrink(await File.ReadAllBytesAsync(png, ct));
                 TryDelete(png);
                 var content = new List<ToolContent> { ToolContent.OfImage(img, mime) };
@@ -448,6 +459,27 @@ public static class McpHost
 
     /// <summary>Contexto da tarefa em andamento (o MainViewModel define); nulo = nenhuma tarefa.</summary>
     public static Func<Task<ToolContext?>>? CurrentContext { get; set; }
+
+    /// <summary>Contexto de um script (API para scripts) numa pasta: aprovações no mesmo painel do gate.</summary>
+    public static Func<string, Task<ToolContext?>>? ScriptContext { get; set; }
+
+    public static bool ScriptApiEnabled => AppSettings.Load().McpScriptApi;
+
+    /// <summary>Publica (ou tira) o nome do pipe para scripts acharem o NXPilot — só com o MCP ligado e a API para scripts ligada.</summary>
+    public static void PublishScriptApi()
+    {
+        try
+        {
+            var file = McpPipe.DiscoveryFile;
+            if (Running && ScriptApiEnabled)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+                File.WriteAllText(file, PipeName);
+            }
+            else if (File.Exists(file) && File.ReadAllText(file).Trim() == PipeName) File.Delete(file);
+        }
+        catch { /* sem descoberta: o script avisa que não achou o NXPilot */ }
+    }
     public static Action<string>? Log { get; set; }
 
     private static CancellationTokenSource? _cts;
@@ -467,6 +499,7 @@ public static class McpHost
             Running = true;
         }
         if (remember) AppSettings.Update(s => s.McpStopped = false);
+        PublishScriptApi();
         Changed?.Invoke();
     }
 
@@ -476,6 +509,7 @@ public static class McpHost
         _cts = null;
         Running = false;
         AppSettings.Update(s => s.McpStopped = true);
+        PublishScriptApi();
         Changed?.Invoke();
     }
 
@@ -485,7 +519,17 @@ public static class McpHost
     private static async Task<JsonObject> HandleAsync(JsonObject request, CancellationToken ct)
     {
         if (!Running) return new JsonObject { ["error"] = NxText.T("MCP NXPilot parado (Configurar).", "MCP NXPilot stopped (Settings).", "MCP NXPilot detenido (Configurar).") };
-        var ctx = CurrentContext != null ? await CurrentContext() : null;
+        ToolContext? ctx;
+        // Pedido de script (traz a pasta): só com a API para scripts ligada — nunca cai no worktree de uma tarefa.
+        if (request["workdir"]?.GetValue<string>() is { Length: > 0 } workdir)
+        {
+            if (!ScriptApiEnabled)
+                return new JsonObject { ["error"] = NxText.T("A API para scripts está desligada (Configurar → MCP NXPilot).", "The script API is off (Settings → MCP NXPilot).", "La API para scripts está desactivada (Configurar → MCP NXPilot).") };
+            if (!Directory.Exists(workdir))
+                return new JsonObject { ["error"] = NxText.T($"Pasta não encontrada: {workdir}", $"Folder not found: {workdir}", $"Carpeta no encontrada: {workdir}") };
+            ctx = ScriptContext != null ? await ScriptContext(workdir) : null;
+        }
+        else ctx = CurrentContext != null ? await CurrentContext() : null;
         if (request["method"]?.GetValue<string>() == "tools/call")
         {
             var name = request["params"]?["name"]?.GetValue<string>() ?? "?";

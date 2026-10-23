@@ -1,0 +1,386 @@
+{
+  "name": "Fluxo Exemplo - Varejo (dados ficticios)",
+  "description": "Fluxo de dados FICTÍCIO para o benchmark do NXPilot (dados gerados).",
+  "version": "1.0",
+  "culture": "pt-BR",
+  "modifiedTime": "2026-01-01T00:00:00Z",
+  "entities": [
+    {
+      "$type": "LocalEntity",
+      "name": "Vendas",
+      "description": "Entidade Vendas (fictícia)",
+      "attributes": [
+        {
+          "name": "id_venda",
+          "dataType": "int64"
+        },
+        {
+          "name": "data_venda",
+          "dataType": "date"
+        },
+        {
+          "name": "id_cliente",
+          "dataType": "int64"
+        },
+        {
+          "name": "id_produto",
+          "dataType": "int64"
+        },
+        {
+          "name": "id_loja",
+          "dataType": "int64"
+        },
+        {
+          "name": "canal",
+          "dataType": "string"
+        },
+        {
+          "name": "quantidade",
+          "dataType": "int64"
+        },
+        {
+          "name": "preco_unitario",
+          "dataType": "double"
+        },
+        {
+          "name": "desconto_pct",
+          "dataType": "double"
+        },
+        {
+          "name": "valor_bruto",
+          "dataType": "double"
+        },
+        {
+          "name": "valor_desconto",
+          "dataType": "double"
+        },
+        {
+          "name": "valor_liquido",
+          "dataType": "double"
+        },
+        {
+          "name": "custo_unitario",
+          "dataType": "double"
+        },
+        {
+          "name": "custo_total",
+          "dataType": "double"
+        },
+        {
+          "name": "margem",
+          "dataType": "double"
+        },
+        {
+          "name": "frete",
+          "dataType": "double"
+        },
+        {
+          "name": "imposto",
+          "dataType": "double"
+        },
+        {
+          "name": "forma_pagamento",
+          "dataType": "string"
+        },
+        {
+          "name": "parcelas",
+          "dataType": "int64"
+        },
+        {
+          "name": "status_pedido",
+          "dataType": "string"
+        },
+        {
+          "name": "data_entrega",
+          "dataType": "date"
+        },
+        {
+          "name": "prazo_dias",
+          "dataType": "int64"
+        },
+        {
+          "name": "vendedor",
+          "dataType": "string"
+        },
+        {
+          "name": "cupom",
+          "dataType": "string"
+        },
+        {
+          "name": "avaliacao",
+          "dataType": "int64"
+        },
+        {
+          "name": "devolvido",
+          "dataType": "boolean"
+        },
+        {
+          "name": "motivo_devolucao",
+          "dataType": "string"
+        },
+        {
+          "name": "regiao",
+          "dataType": "string"
+        },
+        {
+          "name": "uf",
+          "dataType": "string"
+        },
+        {
+          "name": "cidade",
+          "dataType": "string"
+        }
+      ],
+      "partitions": [
+        {
+          "name": "Part001",
+          "location": "dados/Vendas.csv"
+        }
+      ]
+    },
+    {
+      "$type": "LocalEntity",
+      "name": "Produtos",
+      "description": "Entidade Produtos (fictícia)",
+      "attributes": [
+        {
+          "name": "id_produto",
+          "dataType": "int64"
+        },
+        {
+          "name": "sku",
+          "dataType": "string"
+        },
+        {
+          "name": "nome_produto",
+          "dataType": "string"
+        },
+        {
+          "name": "categoria",
+          "dataType": "string"
+        },
+        {
+          "name": "subcategoria",
+          "dataType": "string"
+        },
+        {
+          "name": "marca",
+          "dataType": "string"
+        },
+        {
+          "name": "fornecedor",
+          "dataType": "string"
+        },
+        {
+          "name": "preco_lista",
+          "dataType": "double"
+        },
+        {
+          "name": "custo_padrao",
+          "dataType": "double"
+        },
+        {
+          "name": "peso_kg",
+          "dataType": "double"
+        },
+        {
+          "name": "ativo",
+          "dataType": "boolean"
+        },
+        {
+          "name": "data_lancamento",
+          "dataType": "date"
+        },
+        {
+          "name": "cor",
+          "dataType": "string"
+        },
+        {
+          "name": "tamanho",
+          "dataType": "string"
+        }
+      ],
+      "partitions": [
+        {
+          "name": "Part001",
+          "location": "dados/Produtos.csv"
+        }
+      ]
+    },
+    {
+      "$type": "LocalEntity",
+      "name": "Clientes",
+      "description": "Entidade Clientes (fictícia)",
+      "attributes": [
+        {
+          "name": "id_cliente",
+          "dataType": "int64"
+        },
+        {
+          "name": "nome_cliente",
+          "dataType": "string"
+        },
+        {
+          "name": "segmento",
+          "dataType": "string"
+        },
+        {
+          "name": "genero",
+          "dataType": "string"
+        },
+        {
+          "name": "faixa_etaria",
+          "dataType": "string"
+        },
+        {
+          "name": "data_cadastro",
+          "dataType": "date"
+        },
+        {
+          "name": "cidade",
+          "dataType": "string"
+        },
+        {
+          "name": "uf",
+          "dataType": "string"
+        },
+        {
+          "name": "regiao",
+          "dataType": "string"
+        },
+        {
+          "name": "cep_prefixo",
+          "dataType": "string"
+        },
+        {
+          "name": "canal_aquisicao",
+          "dataType": "string"
+        },
+        {
+          "name": "cliente_vip",
+          "dataType": "boolean"
+        },
+        {
+          "name": "limite_credito",
+          "dataType": "double"
+        },
+        {
+          "name": "score",
+          "dataType": "int64"
+        },
+        {
+          "name": "ultima_compra",
+          "dataType": "date"
+        },
+        {
+          "name": "aceita_marketing",
+          "dataType": "boolean"
+        }
+      ],
+      "partitions": [
+        {
+          "name": "Part001",
+          "location": "dados/Clientes.csv"
+        }
+      ]
+    },
+    {
+      "$type": "LocalEntity",
+      "name": "Lojas",
+      "description": "Entidade Lojas (fictícia)",
+      "attributes": [
+        {
+          "name": "id_loja",
+          "dataType": "int64"
+        },
+        {
+          "name": "nome_loja",
+          "dataType": "string"
+        },
+        {
+          "name": "tipo_loja",
+          "dataType": "string"
+        },
+        {
+          "name": "cidade",
+          "dataType": "string"
+        },
+        {
+          "name": "uf",
+          "dataType": "string"
+        },
+        {
+          "name": "regiao",
+          "dataType": "string"
+        },
+        {
+          "name": "area_m2",
+          "dataType": "double"
+        },
+        {
+          "name": "data_abertura",
+          "dataType": "date"
+        },
+        {
+          "name": "gerente",
+          "dataType": "string"
+        },
+        {
+          "name": "ativa",
+          "dataType": "boolean"
+        }
+      ],
+      "partitions": [
+        {
+          "name": "Part001",
+          "location": "dados/Lojas.csv"
+        }
+      ]
+    },
+    {
+      "$type": "LocalEntity",
+      "name": "Metas",
+      "description": "Entidade Metas (fictícia)",
+      "attributes": [
+        {
+          "name": "ano_mes",
+          "dataType": "string"
+        },
+        {
+          "name": "id_loja",
+          "dataType": "int64"
+        },
+        {
+          "name": "meta_valor",
+          "dataType": "double"
+        },
+        {
+          "name": "meta_quantidade",
+          "dataType": "int64"
+        },
+        {
+          "name": "meta_margem_pct",
+          "dataType": "double"
+        },
+        {
+          "name": "campanha",
+          "dataType": "string"
+        },
+        {
+          "name": "observacao",
+          "dataType": "string"
+        },
+        {
+          "name": "data_atualizacao",
+          "dataType": "dateTime"
+        }
+      ],
+      "partitions": [
+        {
+          "name": "Part001",
+          "location": "dados/Metas.csv"
+        }
+      ]
+    }
+  ]
+}

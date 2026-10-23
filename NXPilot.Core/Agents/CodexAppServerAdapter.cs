@@ -78,16 +78,35 @@ public sealed class CodexAppServerAdapter(Func<GateRequest, Task<GateResponse>> 
             }
             await Call(1, "initialize", new JsonObject { ["clientInfo"] = new JsonObject { ["name"] = "nxpilot", ["version"] = "0.1" } });
             await p.StandardInput.WriteLineAsync(new JsonObject { ["jsonrpc"] = "2.0", ["method"] = "initialized" }.ToJsonString());
-            var result = await Call(2, "model/list", new JsonObject());
-            return (result?["data"] as JsonArray ?? new JsonArray())
-                .Select(m => new CodexModel(m?["model"]?.ToString() ?? m?["id"]?.ToString() ?? "?",
-                                            m?["displayName"]?.ToString() ?? "", m?["isDefault"]?.GetValue<bool>() == true))
-                .Where(m => m.Id != "?")
-                .ToList();
+            // Catálogo inteiro: o model/list vem em páginas (nextCursor). Contribuição de @alannascimento-svg (PR #1).
+            var models = new Dictionary<string, CodexModel>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            string? cursor = null;
+            var id = 2;
+            do
+            {
+                var prms = new JsonObject { ["limit"] = 100, ["includeHidden"] = false };
+                if (cursor != null) prms["cursor"] = cursor;
+                var (page, next) = ParseModelPage(await Call(id++, "model/list", prms));
+                foreach (var m in page) models.TryAdd(m.Id, m);
+                cursor = next;
+                if (cursor != null && !seen.Add(cursor)) break; // cursor repetido: para (nunca fica em loop)
+            } while (cursor != null);
+            return models.Values.ToList();
         }
         catch { return Array.Empty<CodexModel>(); }
         finally { try { p.Kill(entireProcessTree: true); } catch { /* já saiu */ } }
     }
+
+    /// <summary>Uma página do model/list: os modelos visíveis e o cursor da próxima (nulo = última).</summary>
+    public static (List<CodexModel> Models, string? NextCursor) ParseModelPage(JsonNode? result) =>
+        ((result?["data"] as JsonArray ?? new JsonArray())
+            .Where(m => m?["hidden"]?.GetValue<bool>() != true)
+            .Select(m => new CodexModel(m?["model"]?.ToString() ?? m?["id"]?.ToString() ?? "?",
+                                        m?["displayName"]?.ToString() ?? "", m?["isDefault"]?.GetValue<bool>() == true))
+            .Where(m => m.Id != "?")
+            .ToList(),
+         result?["nextCursor"] is JsonValue c && c.TryGetValue<string>(out var next) && next.Length > 0 ? next : null);
 
     /// <summary>MCP NXPilot (nulo = parado em Configurar). Vale ao subir o app-server.</summary>
     public McpLaunch? Mcp { get; set; }

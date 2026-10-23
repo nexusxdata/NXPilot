@@ -27,9 +27,13 @@ public static class Program
         }
 
         // Ponte do MCP NXPilot (iniciada pelo agente): stdio ↔ pipe do app, sem WPF.
+        // Script (API para scripts, Configurar → MCP): `--mcp --workdir <pasta>` acha o app pelo arquivo de descoberta.
         if (args.Length > 0 && args[0] == McpLaunch.Argument)
+        {
+            var w = Array.IndexOf(args, "--workdir");
             return NXPilot.Mcp.McpPipe.RunBridgeAsync(Console.OpenStandardInput(), Console.OpenStandardOutput(),
-                Environment.GetEnvironmentVariable(NXPilot.Mcp.McpPipe.PipeEnvVar)).GetAwaiter().GetResult();
+                NXPilot.Mcp.McpPipe.FindPipe(), w > 0 && w + 1 < args.Length ? args[w + 1] : null).GetAwaiter().GetResult();
+        }
 
         var app = new App();
         app.InitializeComponent();
