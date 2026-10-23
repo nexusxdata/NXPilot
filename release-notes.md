@@ -15,6 +15,10 @@ O NXPilot agora é publicado em duas partes separadas, como o NXProject:
 
 ### Novidades
 
+**📸 Página do projeto no GitHub**
+
+- Seção do **Gate Databricks** nos READMEs (português, inglês e espanhol), com o painel Agentes mostrando a conexão com o AI Gateway da Databricks.
+
 **☁ Gate Databricks — o Claude Code pelo AI Gateway da Databricks**
 
 - Agente novo: o mesmo Claude Code, com o modelo rodando no **AI Gateway do seu workspace Databricks** (modelos liberados no Unity Catalog, consumo no contrato da Databricks). Aprovações continuam no gate do NXPilot.
