@@ -368,6 +368,21 @@ public partial class MainWindow : Window
         }
         await Task.Delay(800);
 
+        // --element agents: só o painel Agentes da barra lateral (login de cada agente e o Gate Databricks), para o README.
+        if (ArgValue(args, "--element") == "agents")
+        {
+            await Vm.RefreshAgentLoginsAsync(); // confere o login de cada agente antes da foto
+            await Task.Delay(1500);
+            var content = (FrameworkElement)Content;
+            var panel = (Panel)AgentsList.Parent;
+            var header = panel.Children[Math.Max(0, panel.Children.IndexOf(AgentsList) - 1)];
+            var top = header.TransformToAncestor(content).Transform(new Point(0, 0));
+            var bottom = AgentsList.TransformToAncestor(content).Transform(new Point(AgentsList.ActualWidth, AgentsList.ActualHeight));
+            SaveVisual(content, this, shot, new Rect(new Point(top.X - 12, top.Y - 8), new Point(Math.Max(bottom.X, top.X + panel.ActualWidth) + 12, bottom.Y + 10)));
+            if (args.Contains("--exit")) Close();
+            return;
+        }
+
         // --window about|license|history|risks|workitems|newtask: captura o Sobre, a Licença (modo primeira execução), o Histórico, os riscos de todas as tarefas, os Work items ou a Nova tarefa.
         // --window imgpicker: escolher figuras (PowerPoint) com a busca de NXPILOT_SHOT_QUERY; marca as 2 primeiras.
         if (ArgValue(args, "--window") == "imgpicker")
@@ -617,14 +632,23 @@ public partial class MainWindow : Window
             "{\n  \"name\": \"p1\",\n  \"displayName\": \"Página 1\",\n  \"displayOption\": \"FitToPage\"\n}\n");
     }
 
-    private static void SaveVisual(FrameworkElement root, Window owner, string path)
+    /// <summary>Salva o visual em PNG; <paramref name="crop"/> (em unidades WPF) recorta só um pedaço da janela.</summary>
+    private static void SaveVisual(FrameworkElement root, Window owner, string path, Rect? crop = null)
     {
         var dpi = VisualTreeHelper.GetDpi(owner);
         var bmp = new RenderTargetBitmap((int)(root.ActualWidth * dpi.DpiScaleX), (int)(root.ActualHeight * dpi.DpiScaleY),
             dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
         bmp.Render(root);
+        BitmapSource image = bmp;
+        if (crop is { } r)
+        {
+            var px = new Int32Rect((int)Math.Max(0, r.X * dpi.DpiScaleX), (int)Math.Max(0, r.Y * dpi.DpiScaleY), 0, 0);
+            px.Width = (int)Math.Min(r.Width * dpi.DpiScaleX, bmp.PixelWidth - px.X);
+            px.Height = (int)Math.Min(r.Height * dpi.DpiScaleY, bmp.PixelHeight - px.Y);
+            image = new CroppedBitmap(bmp, px);
+        }
         var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(bmp));
+        encoder.Frames.Add(BitmapFrame.Create(image));
         using var fs = File.Create(path);
         encoder.Save(fs);
     }

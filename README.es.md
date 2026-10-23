@@ -55,6 +55,20 @@ Solo aparecen las extensiones configuradas. En el plan y la revisión, el MCP so
 Los requisitos de cada extensión (token, PAT con alcance Code, app en Entra ID o en Google Cloud) están en el README de cada paquete.
 Las extensiones se probaron con servidores simulados, pero todavía no con cuentas reales.
 
+#### ☁ Gate Databricks — Claude Code por el AI Gateway de su Databricks
+
+<img src="docs/screenshots/agentes-es.png" alt="Agentes de NXPilot: Claude Code, Codex y Gate Databricks (AI Gateway de Databricks)" width="300" align="right">
+
+Elija **Gate Databricks** como agente o revisor de una tarea: el mismo Claude Code, con el modelo ejecutándose en el
+**AI Gateway de su workspace de Databricks** — los modelos habilitados en Unity Catalog, con el consumo en el contrato de Databricks.
+
+- Configúrelo en **⚙ Configurar → Extensión MCP → Databricks Gate Agent**: workspace, un PAT solo con el alcance `ai-gateway`
+  (el paso a paso está en la pantalla) y el modelo, elegido en la lista del propio gateway.
+- El PAT **nunca llega al agente**: Claude Code habla con un reenvío local de NXPilot que solo reenvía llamadas al modelo.
+- Cada acción sigue pasando por el gate de NXPilot — solo cambia dónde se ejecuta el modelo.
+
+<br clear="right">
+
 #### 📊 Medido: Power BI Desktop con NXPilot
 
 El mismo pedido a Claude Code — un informe Power BI Desktop completo a partir de un flujo de datos: 5 tablas, 8 medidas DAX,
