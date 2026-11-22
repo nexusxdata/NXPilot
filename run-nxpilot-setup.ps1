@@ -1,65 +1,46 @@
 <#
 .SYNOPSIS
-Compila e abre o NXPilot-Setup para testar o instalador sem gerar o zip — SO PARA
-DESENVOLVIMENTO.
+Abre o NXPilot-Setup ja compilado (NAO compila nem publica: use build-nxpilot-setup.ps1 para isso).
 
-O Setup de verdade (release-nxpilot-setup.ps1) leva so a base e baixa o app do GitHub ao
-instalar. Aqui, para testar o Setup com o codigo da maquina (inclusive o que ainda nao foi
-publicado), o script publica o app INTEIRO (base + nucleo do NXPilot) em
-dist\app\publish-win-x64 e abre o Setup com --payload nessa pasta: com o NxPilot.exe ao
-lado, o Setup instala essa copia local em vez de baixar. Pule o publish com -SkipPublish
-se nada mudou no app.
+Serve para atualizar ou instalar os agentes de IA, ou testar o instalador. Se existir a copia local
+do app (dist\app\publish-win-x64, criada pelo build-nxpilot-setup.ps1), o Setup instala essa copia
+em vez de baixar do GitHub; sem ela, funciona como o Setup publicado. Os agentes sao baixados do
+mesmo jeito nos dois casos.
 
   .\run-nxpilot-setup.ps1
-  .\run-nxpilot-setup.ps1 -SkipPublish
+  .\run-nxpilot-setup.ps1 -Configuration Debug
 #>
 param(
     [ValidateSet("Debug", "Release")]
-    [string]$Configuration = "Release",
-
-    [switch]$SkipPublish
+    [string]$Configuration = "Release"
 )
 
 $SolutionDir = $PSScriptRoot
 $Runtime = "win-x64"
 $AppPublishDir = Join-Path $SolutionDir "dist\app\publish-$Runtime"
 
-# Remove arquivos temporarios _wpftmp.csproj gerados pelo C# Dev Kit do VS Code.
-Get-ChildItem -Path $SolutionDir -Filter "*_wpftmp.csproj" -Recurse -ErrorAction SilentlyContinue |
-    Remove-Item -Force -ErrorAction SilentlyContinue
-
-# O exe fica travado enquanto o instalador esta aberto, e ai o build falha com MSB3027.
-$processes = Get-Process -Name "NXPilot-Setup" -ErrorAction SilentlyContinue
-if ($processes) {
-    Write-Host "Encerrando NXPilot-Setup em execucao..." -ForegroundColor DarkGray
-    $processes | Stop-Process -Force
-    $processes | ForEach-Object { $_.WaitForExit(5000) | Out-Null }
-}
-
-if (-not $SkipPublish -or -not (Test-Path (Join-Path $AppPublishDir "NxPilot.exe"))) {
-    Write-Host "Teste local: publicando o app completo ($Runtime) para o Setup instalar esta copia, sem baixar do GitHub..." -ForegroundColor Cyan
-    & dotnet publish (Join-Path $SolutionDir "NXPilot.Desktop\NXPilot.Desktop.csproj") -c $Configuration -r $Runtime --self-contained true -o $AppPublishDir -v q --nologo
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Publish do NXPilot falhou." -ForegroundColor Red
-        exit 1
-    }
-}
-
-Write-Host "Compilando NXPilot-Setup ($Configuration)..." -ForegroundColor Cyan
-& dotnet build (Join-Path $SolutionDir "NXPilot-Setup\NXPilot-Setup.csproj") -c $Configuration -v q --nologo
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Build do NXPilot-Setup falhou." -ForegroundColor Red
-    exit 1
-}
-
 $exe = Join-Path $SolutionDir "NXPilot-Setup\bin\$Configuration\net10.0-windows\$Runtime\NXPilot-Setup.exe"
 if (-not (Test-Path $exe)) {
-    Write-Host "Executavel NXPilot-Setup nao encontrado: $exe" -ForegroundColor Red
+    Write-Host "NXPilot-Setup nao encontrado para $Configuration. Rode antes: .\build-nxpilot-setup.ps1 -SkipPublish" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "Iniciando NXPilot-Setup em modo de teste (app local: $AppPublishDir)..." -ForegroundColor Cyan
-& $exe --payload $AppPublishDir
+# Este script NAO compila: avisa se o codigo do Setup mudou depois deste build.
+$exeTime = (Get-Item $exe).LastWriteTime
+$newest = Get-ChildItem -Path (Join-Path $SolutionDir "NXPilot-Setup"), (Join-Path $SolutionDir "NXData.AgentInstaller") -Recurse -File -Include *.cs, *.xaml, *.csproj -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' -and $_.Name -notlike '*_wpftmp*' } |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if ($newest -and $newest.LastWriteTime -gt $exeTime.AddSeconds(5)) {
+    Write-Host "Atencao: o codigo do Setup mudou depois deste build ($($exeTime.ToString('dd/MM HH:mm'))). Para ver as mudancas: .\build-nxpilot-setup.ps1 -SkipPublish -Run" -ForegroundColor Yellow
+}
+
+if (Test-Path (Join-Path $AppPublishDir "NxPilot.exe")) {
+    Write-Host "Iniciando NXPilot-Setup (instala a copia local do app: $AppPublishDir)..." -ForegroundColor Cyan
+    & $exe --payload $AppPublishDir
+} else {
+    Write-Host "Iniciando NXPilot-Setup..." -ForegroundColor Cyan
+    & $exe
+}
 $exitCode = $LASTEXITCODE
 
 if ($exitCode -ne 0 -and $null -ne $exitCode) {

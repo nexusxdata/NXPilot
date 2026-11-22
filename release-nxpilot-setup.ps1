@@ -174,7 +174,7 @@ $sizeMb = [Math]::Round((Get-Item $SetupOutputZip).Length / 1MB, 1)
 Write-Host ""
 Write-Host "NXPilot-Setup.zip gerado com sucesso! (so a base; o app vem do GitHub ao instalar)" -ForegroundColor Green
 Write-Host "  $SetupOutputZip ($sizeMb MB)" -ForegroundColor DarkGray
-Write-Host "  Para testar sem zipar: .\run-nxpilot-setup.ps1" -ForegroundColor DarkGray
+Write-Host "  Para testar sem zipar: .\build-nxpilot-setup.ps1 -Run" -ForegroundColor DarkGray
 Write-Host "  Versao nova com commit, tag e GitHub Release: .\release-nxpilot-new-version.ps1" -ForegroundColor DarkGray
 
 if ($Upload) {
